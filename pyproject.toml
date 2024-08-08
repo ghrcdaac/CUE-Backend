@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "cue-backend"
+version = "0.1.0"
+description = "AWS code and infrastucture for the CUE enterprise product"
+authors = ["Davis Gaunt <bdg0015@uah.edu>"]
+license = "Apache-2.0"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "3.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
