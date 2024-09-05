@@ -5,11 +5,12 @@ import os
 from mangum import Mangum
 from dotenv import load_dotenv
 
-#local imports
+from api.api import router
 
 load_dotenv()
 
 root_path = os.getenv('ENV', default='')
+
 app = FastAPI(root_path=f'/{root_path}')
 
 app.add_middleware(
@@ -20,6 +21,7 @@ app.add_middleware(
 )
 
 # Routes
+app.include_router(router, prefix="/api")
 
 #Lambda compliance
 handler = Mangum(app)
