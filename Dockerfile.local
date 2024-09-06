@@ -1,0 +1,11 @@
+FROM python:3.12
+
+COPY ./src/python/api /app
+COPY ./src/python/lambda_utils/__init__.py /app/lambda_utils/__init__.py
+COPY ./src/python/lambda_utils/type_util /app/lambda_utils/type_util
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+CMD ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0"]
