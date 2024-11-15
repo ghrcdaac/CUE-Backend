@@ -3,5 +3,29 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.local
+    environment:
+      - PG_USER=cue
+      - PG_HOST=postgres
+      - PG_DB=cue
+      - PG_PASS=cue
+      - PG_PORT=5432
     ports:
       - "8000:8000"
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: cue
+      POSTGRES_PASSWORD: cue
+    volumes:
+      - ./src/postgres:/docker-entrypoint-initdb.d/
+    ports:
+      - "5432:5432"
+  pg_admin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: cue@cue.com
+      PGADMIN_DEFAULT_PASSWORD: cue
+    ports:
+      - "8001:80"
