@@ -1,0 +1,34 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect":"Allow",
+            "Action":[
+                "sns:Publish",
+                "sns:",
+                "sns:Subscribe",
+                "sns:Unsubscribe",
+                "sns:ListSubscriptions",
+                "sns:ListSubscriptionsByTopic",
+                "sns:ConfirmSubscription",
+                "sns:GetEndpointAttributes",
+                "sns:SetEndpointAttributes",
+                "sns:GetSubscriptionAttributes",
+                "sns:SetSubscriptionAttributes"
+            ],
+            "Resource":[
+                "${cue_css_scan_sns_arn}"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction",
+                "lambda:InvokeAsync"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}

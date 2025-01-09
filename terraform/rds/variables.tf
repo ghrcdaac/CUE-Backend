@@ -1,3 +1,3 @@
-variables "rds_cluster_identifier"{
+variable "rds_cluster_identifier"{
     type = string
 }
