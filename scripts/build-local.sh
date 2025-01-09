@@ -1,0 +1,22 @@
+#!/bin/bash
+bash ./scripts/build.sh
+
+export AWS_ACCESS_KEY_ID="${bamboo_AWS_ACCESS_KEY_ID}"
+export AWS_SECRET_ACCESS_KEY="${bamboo_AWS_SECRET_ACCESS_KEY}"
+export AWS_DEFAULT_REGION="${bamboo_AWS_REGION}"
+export STATE_BUCKET="${bamboo_STATE_BUCKET}"
+cd terraform
+terraform init -backend-config="bucket=$STATE_BUCKET" -backend-config="key=terraform.tfstate" -backend-config="region=$AWS_DEFAULT_REGION"
+
+export TF_VAR_region="${bamboo_AWS_REGION}"
+export TF_VAR_account_id="${bamboo_ACCOUNT_ID}"
+export TF_VAR_access_key="${bamboo_AWS_ACCESS_KEY_ID}"
+export TF_VAR_secret_key="${bamboo_AWS_SECRET_ACCESS_KEY}"
+export TF_VAR_db_password="${bamboo_DB_PASSWORD}"
+export TF_VAR_security_group_ids=$bamboo_SECURITY_GROUP_IDS
+export TF_VAR_subnet_ids=$bamboo_SUBNET_IDS
+export TF_VAR_cue_css_scan_sns_arn="${bamboo_CUE_CSS_SCAN_SNS_ARN}"
+export TF_VAR_rds_cluster_identifier="${bamboo_RDS_CLUSTER_IDENTIFIER}"
+export TF_VAR_lambda_execution_policy_arn="${bamboo_LAMBDA_EXECUTION_POLICY_ARN}"
+
+terraform apply -auto-approve
