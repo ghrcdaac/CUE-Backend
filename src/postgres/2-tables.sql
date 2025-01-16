@@ -85,12 +85,14 @@ CREATE TABLE IF NOT EXISTS role_privilege(
 
 CREATE TABLE IF NOT EXISTS provider (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    ngroup_id UUID NOT NULL,
     short_name VARCHAR NOT NULL,
     long_name VARCHAR NOT NULL,
     can_upload BOOLEAN NOT NULL DEFAULT FALSE,
     point_of_contact UUID NOT NULL,
     PRIMARY KEY (id),
     FOREIGN KEY (point_of_contact) REFERENCES cueuser(id),
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     UNIQUE (short_name),
     UNIQUE (long_name)
 );
@@ -119,6 +121,7 @@ CREATE TABLE IF NOT EXISTS collection (
     egress_id UUID NOT NULL,
     short_name VARCHAR NOT NULL,
     provider_id UUID NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     FOREIGN KEY (egress_id) REFERENCES egress(id),
