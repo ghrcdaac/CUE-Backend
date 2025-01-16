@@ -1,40 +1,40 @@
-import psycopg
+import asyncpg
 import os
-from typing import Callable, Any, List, Tuple, Optional
+from typing import Callable, Any, List, Tuple, Optional, Type, TypeVar, Generic
 
-def get_connection():
-    conn = psycopg.connect(
-        f"dbname={os.getenv('PG_DB')} user={os.getenv('PG_USER')} "
-        f"password={os.getenv('PG_PASS')} host={os.getenv('PG_HOST')}"
+# Define a generic type variable for the return type of the row mapper
+T = TypeVar('T')
+
+async def get_connection_pool():
+    """Creates and returns a connection pool."""
+    return await asyncpg.create_pool(
+        database=os.getenv('PG_DB'),
+        user=os.getenv('PG_USER'),
+        password=os.getenv('PG_PASS'),
+        host=os.getenv('PG_HOST'),
+        port=os.getenv('PG_PORT')
     )
-    return conn
 
-def _map_row_to_egress(row: Tuple) -> "EgressReturn":
-    """Helper function to map a database row to an EgressReturn object."""
-    from lambda_utils.type_util.egress import EgressReturn  # Import here to avoid circular imports
-    id, type, path, config, ngroup_id = row
-    return EgressReturn(id=id, type=type, path=path, config=config, ngroup_id=ngroup_id)
+async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = (), row_mapper: Optional[Callable[[Tuple], T]] = None) -> List[T] | List[Any]:
+    """
+    Executes a database query using the provided connection pool.
 
-def query(operation: Callable, params: Tuple = (), row_mapper: Optional[Callable] = None) -> List[Any]:
-    conn = None
-    try:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            operation(cur, params)
-            if cur.description:  # Check if the query returns data
-                rows = cur.fetchall()
-                if row_mapper:
-                    return [row_mapper(row) for row in rows]
-                else:
-                    return rows
+    Args:
+        pool: The asyncpg connection pool.
+        operation: The database operation function to execute (e.g., from egress_db, scanning_db, etc.).
+        params: The parameters to pass to the operation function.
+        row_mapper: An optional function to map each result row to a desired type (e.g., a Pydantic model).
+
+    Returns:
+        A list of mapped objects (if row_mapper is provided) or a list of raw database rows.
+    """
+    async with pool.acquire() as conn:
+        try:
+            result = await operation(conn, params)
+            if row_mapper:
+                return [row_mapper(row) for row in result]
             else:
-                return []
-    except Exception as e:
-        print(f"Error executing query: {e}")
-        conn.rollback()
-        raise
-    else:
-        conn.commit()
-    finally:
-        if conn:
-            conn.close()
+                return result
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            raise
