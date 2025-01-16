@@ -13,6 +13,7 @@ module "lambda_functions" {
     region = var.region
     account_id = var.account_id
     cue_scan_event_role_arn = module.iam_role.cue_scan_event_role_arn
+    cue_api_lambda_role_arn = module.iam_role.cue_api_lambda_role_arn
     cue_css_scan_sns_arn = var.cue_css_scan_sns_arn
     db_host = module.rds.db_host
     db_port = module.rds.db_port
@@ -21,6 +22,8 @@ module "lambda_functions" {
     db_password = var.db_password
     subnet_ids = var.subnet_ids
     security_group_ids = var.security_group_ids
+    api_id = var.api_id
+    api_docker = var.api_docker
 }
 
 module "rds"{

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from api.endpoints import upload, auth
+from api.endpoints import upload, auth, test
 
 router = APIRouter()
 

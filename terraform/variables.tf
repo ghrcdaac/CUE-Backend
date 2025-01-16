@@ -37,3 +37,11 @@ variable "rds_cluster_identifier" {
 variable "lambda_execution_policy_arn" {
     type = string
 }
+
+variable "api_id" {
+    type = string
+}
+
+variable "api_docker" {
+    type = string
+}

@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 # Routes
-app.include_router(router, prefix="/api")
+app.include_router(router, prefix="/app")
 
 #Lambda compliance
 handler = Mangum(app)

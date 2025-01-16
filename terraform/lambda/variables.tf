@@ -10,6 +10,10 @@ variable "cue_scan_event_role_arn" {
     type = string
 }
 
+variable "cue_api_lambda_role_arn"{
+    type = string
+}
+
 variable "cue_css_scan_sns_arn" {
     type = string
 }
@@ -40,4 +44,12 @@ variable "subnet_ids" {
 
 variable "security_group_ids" {
     type = list(string)
+}
+
+variable "api_id" {
+    type = string
+}
+
+variable "api_docker" {
+    type = string
 }
