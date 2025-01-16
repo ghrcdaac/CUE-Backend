@@ -31,10 +31,10 @@ async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = ()
     async with pool.acquire() as conn:
         try:
             result = await operation(conn, params)
-            if row_mapper:
+            if result is not None and row_mapper:  # Check if result is not None
                 return [row_mapper(row) for row in result]
             else:
-                return result
+                return result if result is not None else []  # Return an empty list if result is None
         except Exception as e:
             print(f"Error executing query: {e}")
             raise
