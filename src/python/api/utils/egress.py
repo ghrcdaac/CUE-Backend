@@ -1,9 +1,10 @@
 from uuid import UUID
-from typing import List, Dict, Any
+from typing import List
 from asyncpg.pool import Pool
 
 from lambda_utils.database_util.db_util import query, get_connection_pool
 from lambda_utils.database_util import egress as egress_db
+from utils.ngroup import get_ngroup_id_by_name
 from lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
 
 async def create_egress(egress: EgressCreate) -> EgressReturn:
@@ -29,7 +30,7 @@ async def update_egress(egress_id: UUID, egress_update: EgressUpdate) -> EgressR
         k: v for k, v in egress_update.model_dump().items() if v is not None
     }
     if not update_fields:
-        return await get_egress(egress_id)  # No fields to update
+        return await get_egress(egress_id)
 
     params = (update_fields, egress_id)
     result = await query(pool, egress_db.update_egress_in_db, params, row_mapper=EgressReturn.from_db_row)

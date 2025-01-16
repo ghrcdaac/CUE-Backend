@@ -1,19 +1,26 @@
-from uuid import UUID
-from typing import List, Tuple, Optional, Dict
 from asyncpg import Connection
+from typing import Tuple, List, Optional, Dict, Any
+from lambda_utils.type_util.ngroup import NgroupReturn
+from uuid import UUID
+import json
 
-from lambda_utils.type_util.egress import EgressReturn
-
-async def create_egress_in_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def create_egress_in_db(conn: Connection, params: Tuple) -> List[Dict]:
     """Inserts a new egress record into the database."""
     insert_query = """
         INSERT INTO egress (type, path, config, ngroup_id)
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3::jsonb, $4)
         RETURNING id, type, path, config, ngroup_id
     """
-    return await conn.fetch(insert_query, *params)
+    # Serialize the config dictionary to a JSON string
+    config_json = json.dumps(params[2])
 
-async def get_egress_from_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+    # Convert ngroup_id to string if it's a UUID object
+    ngroup_id_str = str(params[3]) if isinstance(params[3], UUID) else params[3]
+
+    return await conn.fetch(insert_query, params[0], params[1], config_json, ngroup_id_str)
+
+
+async def get_egress_from_db(conn: Connection, params: Tuple) -> List[Dict[str, Any]]:
     """Retrieves an egress record from the database by its ID."""
     select_query = """
         SELECT id, type, path, config, ngroup_id
@@ -22,7 +29,7 @@ async def get_egress_from_db(conn: Connection, params: Tuple) -> List[EgressRetu
     """
     return await conn.fetch(select_query, *params)
 
-async def update_egress_in_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def update_egress_in_db(conn: Connection, params: Tuple) -> List[Dict[str, Any]]:
     """Updates an existing egress record in the database."""
     update_fields: Dict = params[0]
     egress_id: UUID = params[1]
@@ -31,10 +38,11 @@ async def update_egress_in_db(conn: Connection, params: Tuple) -> List[EgressRet
     values = []
     for i, (field, value) in enumerate(update_fields.items()):
         if field == "config":
-            set_clause_parts.append(f"{field} = ${i + 1}::jsonb")
+            # Serialize the config dictionary to a JSON string for update
+            values.append(json.dumps(value))
         else:
-            set_clause_parts.append(f"{field} = ${i + 1}")
-        values.append(value)
+            values.append(value)
+        set_clause_parts.append(f"{field} = ${len(values)}")
 
     values.append(egress_id)
 
@@ -48,7 +56,7 @@ async def update_egress_in_db(conn: Connection, params: Tuple) -> List[EgressRet
     """
     return await conn.fetch(update_query, *values)
 
-async def list_egresses_from_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def list_egresses_from_db(conn: Connection, params: Tuple) -> List[Dict[str, Any]]:
     """Retrieves all egress records from the database."""
     select_query = """
         SELECT id, type, path, config, ngroup_id

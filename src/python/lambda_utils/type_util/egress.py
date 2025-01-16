@@ -1,4 +1,5 @@
-from pydantic import BaseModel, UUID4, field_validator
+import json
+from pydantic import BaseModel, UUID4
 from typing import Dict, Any, Tuple
 from uuid import UUID
 
@@ -14,7 +15,9 @@ class EgressReturn(EgressCreate):
     @classmethod
     def from_db_row(cls, row: Tuple) -> "EgressReturn":
         """Factory function to create an EgressReturn instance from a database row."""
-        id, type, path, config, ngroup_id = row
+        id, type, path, config_str, ngroup_id = row
+        # Parse the JSON string back into a dictionary
+        config = json.loads(config_str)
         return cls(id=id, type=type, path=path, config=config, ngroup_id=ngroup_id)
 
 class EgressUpdate(BaseModel):
