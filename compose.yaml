@@ -1,6 +1,7 @@
 services:
   api:
     build: 
+      no_cache: true
       context: .
       dockerfile: Dockerfile.local
     environment:
