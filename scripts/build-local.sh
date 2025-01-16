@@ -18,5 +18,7 @@ export TF_VAR_subnet_ids=$bamboo_SUBNET_IDS
 export TF_VAR_cue_css_scan_sns_arn="${bamboo_CUE_CSS_SCAN_SNS_ARN}"
 export TF_VAR_rds_cluster_identifier="${bamboo_RDS_CLUSTER_IDENTIFIER}"
 export TF_VAR_lambda_execution_policy_arn="${bamboo_LAMBDA_EXECUTION_POLICY_ARN}"
+export TF_VAR_api_id="${bamboo_API_ID}"
+export TF_VAR_api_docker="${bamboo_API_DOCKER}"
 
 terraform apply -auto-approve

@@ -62,6 +62,7 @@ async def refreshToken(token):
     return resp
 
 async def getLoginUrl(state: str) -> str:
+    print("getlogin url")
     clientUri = f'{clientRoot}/{clientPath}'
     redirectUrl = f'{providerUrl}/{loginPath}'
     searchParams = {
