@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from apis.endpoints import upload, auth, egress, ngroup
+from apis.endpoints import upload, auth, egress, ngroup, metrics
 
 
 router = APIRouter()
@@ -12,3 +12,4 @@ router.include_router(upload.router)
 router.include_router(auth.router)
 router.include_router(egress.router)
 router.include_router(ngroup.router)
+router.include_router(metrics.router)
