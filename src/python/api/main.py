@@ -5,7 +5,7 @@ import os
 from mangum import Mangum
 from dotenv import load_dotenv
 
-from api.api import router
+from apis.api import router
 
 load_dotenv()
 

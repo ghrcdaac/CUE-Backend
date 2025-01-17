@@ -2,7 +2,7 @@
 name = "cue-backend"
 version = "0.1.0"
 description = "AWS code and infrastucture for the CUE enterprise product"
-authors = ["Davis Gaunt <bdg0015@uah.edu>"]
+authors = ["Davis Gaunt <bdg0015@uah.edu>", "Navaneeth Selvaraj <ns0066@uah.edu>"]
 license = "Apache-2.0"
 readme = "README.md"
 package-mode = false
@@ -15,6 +15,7 @@ uvicorn = "~0.30.6"
 python-dotenv = "~1.0.1"
 mangum = "~0.17.0"
 boto3 = "~1.35.7"
+asyncpg = "^0.30.0"
 
 
 [build-system]
