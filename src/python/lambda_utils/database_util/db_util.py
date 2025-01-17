@@ -1,8 +1,10 @@
 import asyncpg
 import os
-from typing import Callable, Any, List, Tuple, Optional, Type, TypeVar, Generic
+from typing import Callable, Any, List, Tuple, Optional, TypeVar
+import logging
 
-# Define a generic type variable for the return type of the row mapper
+logger = logging.getLogger(__name__)
+
 T = TypeVar('T')
 
 async def get_connection_pool():
@@ -31,10 +33,10 @@ async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = ()
     async with pool.acquire() as conn:
         try:
             result = await operation(conn, params)
-            if result is not None and row_mapper:  # Check if result is not None
+            if result is not None and row_mapper:
                 return [row_mapper(row) for row in result]
             else:
-                return result if result is not None else []  # Return an empty list if result is None
+                return result if result is not None else []
         except Exception as e:
-            print(f"Error executing query: {e}")
+            logger.error(f"Error executing query: {e}", exc_info=True)
             raise

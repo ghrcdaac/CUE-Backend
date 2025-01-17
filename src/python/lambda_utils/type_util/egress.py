@@ -1,7 +1,7 @@
-import json
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, field_validator
 from typing import Dict, Any, Tuple
 from uuid import UUID
+import json
 
 class EgressCreate(BaseModel):
     type: str
