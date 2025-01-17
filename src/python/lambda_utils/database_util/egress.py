@@ -63,3 +63,13 @@ async def list_egresses_from_db(conn: Connection, params: Tuple) -> List[Dict[st
         FROM egress
     """
     return await conn.fetch(select_query)
+
+async def delete_egress_from_db(conn: Connection, params: Tuple) -> bool:
+    """Deletes an egress record from the database by its ID."""
+    delete_query = """
+        DELETE FROM egress
+        WHERE id = $1
+    """
+    result = await conn.execute(delete_query, *params)
+    # result is a string like 'DELETE 1' indicating the number of deleted rows
+    return result == "DELETE 1"

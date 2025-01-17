@@ -29,3 +29,10 @@ async def update_egress_endpoint(egress_id: UUID, egress_update: EgressUpdate):
     if updated_egress is None:
         raise HTTPException(status_code=404, detail="Egress not found")
     return updated_egress
+
+@router.delete("/{egress_id}", response_model=bool)
+async def delete_egress_endpoint(egress_id: UUID):
+    success = await delete_egress(egress_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Egress not found or could not be deleted")
+    return success

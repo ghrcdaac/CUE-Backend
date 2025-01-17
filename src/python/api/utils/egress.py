@@ -43,3 +43,16 @@ async def list_egresses() -> List[EgressReturn]:
     results = await query(pool, egress_db.list_egresses_from_db, row_mapper=EgressReturn.from_db_row)
     await pool.close()
     return results
+
+async def delete_egress(egress_id: UUID) -> bool:
+    """Deletes an egress record by its ID."""
+    pool: Pool = await get_connection_pool()
+    params = (egress_id,)
+    try:
+        result = await query(pool, egress_db.delete_egress_from_db, params)
+        return result
+    except Exception as e:
+        print(f"Error deleting egress: {e}")
+        return False
+    finally:
+        await pool.close()
