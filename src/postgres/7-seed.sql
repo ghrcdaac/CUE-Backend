@@ -1,0 +1,86 @@
+-- Pivilages
+INSERT INTO pivilages (name) VALUES ('admin');
+INSERT INTO pivilages (name) VALUES ('create_user');
+INSERT INTO pivilages (name) VALUES ('approve_user');
+INSERT INTO pivilages (name) VALUES ('assign_role');
+INSERT INTO pivilages (name) VALUES ('assign_ngroup');
+INSERT INTO pivilages (name) VALUES ('create_provider');
+INSERT INTO pivilages (name) VALUES ('manage_provider');
+INSERT INTO privilege (name) VALUES ('view_provider');
+INSERT INTO pivilages (name) VALUES ('suspend_provider');
+INSERT INTO pivilages (name) VALUES ('reinstat_provider');
+INSERT INTO pivilages (name) VALUES ('security_reinstate');
+INSERT INTO pivilages (name) VALUES ('manage_collection');
+INSERT INTO privilege (name) VALUES ('view_collection');
+INSERT INTO pivilages (name) VALUES ('manage_egress');
+INSERT INTO privilege (name) VALUES ('view_egress');
+INSERT INTO privilege (name) VALUES ('upload');
+INSERT INTO pivilages (name) VALUES ('view_files');
+INSERT INTO pivilages (name) VALUES ('view_scan_results');
+INSERT INTO pivilages (name) VALUES ('view_all_files');
+INSERT INTO pivilages (name) VALUES ('view_all_scan');
+INSERT INTO pivilages (name) VALUES ('metrics');
+
+-- Roles
+
+-- Admin
+INSERT INTO role (id, short_name, long_name) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'admin', 'Admin');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'admin');
+
+-- Security
+INSERT INTO role (id, short_name, long_name) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'security', 'Security');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'suspend_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'reinstat_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'security_reinstate');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'view_all_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'view_all_scan');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'metrics');
+
+-- DAAC Manager
+INSERT INTO role (id, short_name, long_name) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'daac_manager', 'DAAC Manager');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'create_user');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'approve_user');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'assign_role');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'assign_ngroup');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'create_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'manage_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'view_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'suspend_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'reinstat_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'manage_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'view_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'manage_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'view_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'upload');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'view_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'view_scan_results');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', 'metrics');
+
+-- DAAC Staff
+INSERT INTO role (id, short_name, long_name) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'daac_staff', 'DAAC Staff');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'manage_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'view_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'suspend_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'reinstat_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'manage_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'view_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'manage_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'view_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'upload');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'view_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'view_scan_results');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', 'metrics');
+
+-- DAAC Observer
+INSERT INTO role (id, short_name, long_name) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'daac_observer', 'DAAC Observer');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_scan_results');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'metrics');
+
+-- Provider
+INSERT INTO role (id, short_name, long_name) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'provider', 'Provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'upload');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'view_files');

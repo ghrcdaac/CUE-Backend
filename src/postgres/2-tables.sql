@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS cueuser CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
+DROP TABLE IF EXISTS user_application CASCADE;
 DROP TABLE IF EXISTS cueuser_ngroup CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS cueuser_role CASCADE;
@@ -43,6 +44,19 @@ CREATE TABLE IF NOT EXISTS ngroup (
     UNIQUE (short_name),
     UNIQUE (long_name)
 );
+
+CREATE TABLE IF NOT EXISTS user_application (
+    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    email VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    applied TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    username VARCHAR NOT NULL,
+    acc_type acc_type NOT NULL,
+    ngroup_id UUID NOT NULL,
+    justification TEXT NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
+)
 
 CREATE TABLE IF NOT EXISTS cueuser_ngroup (
     cueuser_id UUID NOT NULL,
