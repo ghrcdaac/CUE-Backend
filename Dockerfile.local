@@ -11,4 +11,4 @@ COPY ./src/python/lambda_utils /app/lambda_utils
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Start uvicorn
-CMD ["uvicorn", "src.python.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
