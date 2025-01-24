@@ -107,7 +107,10 @@ async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = ()
             _connection_pool_metrics["acquire_count"] += 1
         try:
             async with conn.transaction():
-                result = await operation(conn, params)
+                if params:
+                    result = await operation(conn, params)
+                else:
+                    result = await operation(conn)
                 if result is not None and row_mapper:
                     return [row_mapper(row) for row in result]
                 else:
