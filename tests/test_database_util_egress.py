@@ -4,9 +4,9 @@ from typing import Tuple
 import uuid
 import json
 
-from src.python.lambda_utils.database_util.db_util import query, get_connection_pool
-from src.python.lambda_utils.database_util import egress as egress_db
-from src.python.lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
+from ..lambda_utils.database_util.db_util import query, get_connection_pool
+from ..lambda_utils.database_util import egress as egress_db
+from ..lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
 
 # Mock data for egress testing
 @pytest.fixture

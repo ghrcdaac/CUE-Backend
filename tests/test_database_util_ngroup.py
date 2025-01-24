@@ -5,9 +5,9 @@ import uuid
 import json
 from asyncpg.exceptions import UniqueViolationError, DataError, ForeignKeyViolationError
 
-from src.python.lambda_utils.database_util.db_util import query, get_connection_pool
-from src.python.lambda_utils.database_util import ngroup as ngroup_db
-from src.python.lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
+from ..lambda_utils.database_util.db_util import query, get_connection_pool
+from ..lambda_utils.database_util import ngroup as ngroup_db
+from ..lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
 
 # Mock data for ngroup testing
 @pytest.fixture

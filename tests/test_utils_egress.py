@@ -5,8 +5,8 @@ import uuid
 import os
 
 # Import your functions from utils/egress.py
-from src.python.api.utils.egress import create_egress, get_egress, update_egress, list_egresses, delete_egress
-from src.python.lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
+from ..utils.egress import create_egress, get_egress, update_egress, list_egresses, delete_egress
+from ..lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
 
 # Mock data for testing
 @pytest.fixture

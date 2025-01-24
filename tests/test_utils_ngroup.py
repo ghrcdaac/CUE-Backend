@@ -4,8 +4,8 @@ from unittest.mock import patch, MagicMock
 import uuid
 import os
 
-from src.python.api.utils.ngroup import create_ngroup, get_ngroup, update_ngroup, delete_ngroup, list_ngroups, get_ngroup_id_by_name, NgroupNotFoundError
-from src.python.lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
+from ..utils.ngroup import create_ngroup, get_ngroup, update_ngroup, delete_ngroup, list_ngroups, get_ngroup_id_by_name, NgroupNotFoundError
+from ..lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
 
 # Mock data for testing
 @pytest.fixture

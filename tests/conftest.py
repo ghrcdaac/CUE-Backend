@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock
 import os
 import uuid
 
-from src.python.lambda_utils.database_util.db_util import get_connection_pool, setup_connection
-from src.python.lambda_utils.type_util.egress import EgressCreate, EgressReturn
-from src.python.lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn
+from ..lambda_utils.database_util.db_util import get_connection_pool, setup_connection
+from ..lambda_utils.type_util.egress import EgressCreate, EgressReturn
+from ..lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn
 
 # Set environment variables for testing
 os.environ['PG_DB'] = os.getenv('PG_DB_TEST', 'your_test_database_name')

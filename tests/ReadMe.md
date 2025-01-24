@@ -30,8 +30,10 @@ The tests are organized into the following files:
 
 2.  **Run Tests:**
 
+inside the Docker, run the following command
+
     ```bash
-    docker compose exec api pytest -v tests/
+    pytest -v tests/
     ```
 
 ### Locally (Without Docker)
