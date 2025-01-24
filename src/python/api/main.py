@@ -4,14 +4,15 @@ import uvicorn
 import os
 from mangum import Mangum
 from dotenv import load_dotenv
-from lambda_utils.database_util.db_util import get_connection_pool
-from apis.api import router
+from lambda_utils.database_util.db_util import get_connection_pool, setup_connection
+import asyncio
+from apis.api import router as api_router
+from starlette.middleware.base import BaseHTTPMiddleware
+import asyncio
 
 load_dotenv()
 
-root_path = os.getenv('ENV', default='')
-
-app = FastAPI(root_path=f'/{root_path}')
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,26 +22,49 @@ app.add_middleware(
 )
 
 # Routes
-app.include_router(router, prefix="/app")
+# Include the api_router with /v1 prefix
+api_version = os.getenv("API_VERSION", "v1")
+app.include_router(api_router, prefix=f"/{api_version}")
 
+# Example of using ENV for conditional logic
+if os.getenv("ENV") == "production":
+    # Do something specific for production
+    print("Running in production mode")
+    app.debug = False  # Disable debug mode in production
+else:
+    # Do something else for development/testing
+    print("Running in development mode")
+    app.debug = True  # Enable debug mode in development
+
+
+
+# Initialize the connection pool when the app starts
+@app.on_event("startup")
 async def startup_event():
-    """
-    Initialize resources.
-    """
-    app.state.pool = await get_connection_pool()
+    app.state.pool = await get_connection_pool(setup=setup_connection)
 
+# Close the connection pool when the app shuts down
+@app.on_event("shutdown")
 async def shutdown_event():
-    """
-    Gracefully close resources.
-    """
     await app.state.pool.close()
 
-app.add_event_handler("startup", startup_event)
-app.add_event_handler("shutdown", shutdown_event)
 
 
 #Lambda compliance
 handler = Mangum(app)
 
+class ForwardedHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        request.scope['headers'] = [(key.lower(), value) for key, value in request.headers.items()]
+        return await call_next(request)
+
+app.add_middleware(ForwardedHeadersMiddleware)
+
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000)
+        uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=os.getenv("DEBUG", "false").lower() == "true",
+        log_level= "debug"
+    )
