@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Hello World - This is CUE API. visit /docs for more info."}
 
 router.include_router(upload.router)
 router.include_router(auth.router)

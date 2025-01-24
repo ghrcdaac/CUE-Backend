@@ -14,30 +14,73 @@ _connection_pool_metrics = {
     "total_connections": 0,
     "active_connections": 0,
     "idle_connections": 0,
-    "total_acquire_time_ms": 0,  # Total time spent acquiring connections
-    "acquire_count": 0,  # Number of times a connection was acquired
+    "total_acquire_time_ms": 0,
+    "acquire_count": 0,
     "last_reset_time": time.time(),
 }
 
-_metrics_lock = asyncio.Lock()  # Lock for thread-safe metrics updates
+_metrics_lock = asyncio.Lock()
 
-async def get_connection_pool():
-    """Creates and returns a connection pool."""
-    pool = await asyncpg.create_pool(
+async def get_connection_pool(
+    min_size: int = int(os.getenv("POOL_MIN_SIZE", "1")),
+    max_size: int = int(os.getenv("POOL_MAX_SIZE", "10")),
+    max_queries: int = 50000,
+    max_inactive_connection_lifetime: float = 300.0,
+    setup: Optional[Callable] = None
+):
+    """
+    Creates and returns a connection pool with configurable parameters.
+
+    Args:
+        min_size: Minimum number of connections in the pool.
+        max_size: Maximum number of connections in the pool.
+        max_queries: Number of queries after which a connection is closed and replaced with a new one.
+        max_inactive_connection_lifetime: Maximum time (in seconds) after which an inactive connection is closed.
+        setup: An optional async function to setup each connection when its created.
+    """
+    global _connection_pool_metrics
+
+    pool = None  # Initialize pool to None outside the try block
+    try:
+        pool = await asyncpg.create_pool(
             database=os.getenv('PG_DB'),
             user=os.getenv('PG_USER'),
             password=os.getenv('PG_PASS'),
             host=os.getenv('PG_HOST'),
             port=os.getenv('PG_PORT'),
-            setup=setup_connection
-    )
-    return pool
+            min_size=min_size,
+            max_size=max_size,
+            max_queries=max_queries,
+            max_inactive_connection_lifetime=max_inactive_connection_lifetime,
+            setup=setup
+        )
+        # Update total connections based on successful pool creation
+        _connection_pool_metrics["total_connections"] = max_size
+        return pool
+    except Exception as e:
+        logger.error(f"Failed to create connection pool: {e}", exc_info=True)
+        if pool:
+            await pool.close()
+        raise
 
 async def setup_connection(conn):
     """Setup function for connections in the pool."""
     global _connection_pool_metrics
     async with _metrics_lock:
         _connection_pool_metrics["total_connections"] += 1
+
+    # Check if the connection is already closed
+    if conn.is_closed():
+        logger.warning("Attempted to set up a closed connection")
+        return
+
+    # Proceed with setup if the connection is open
+    try:
+        # set custom connection properties here if needed.
+        pass
+    except Exception as e:
+        logger.error(f"Error setting up connection: {e}", exc_info=True)
+        raise
 
 async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = (), row_mapper: Optional[Callable[[Tuple], T]] = None) -> List[T] | List[Any]:
     """
@@ -74,7 +117,6 @@ async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = ()
             async with _metrics_lock:
                 _connection_pool_metrics["active_connections"] -= 1
                 _connection_pool_metrics["idle_connections"] = _connection_pool_metrics["total_connections"] - _connection_pool_metrics["active_connections"]
-
 
 def get_metrics():
     """Returns the current connection pool metrics."""
