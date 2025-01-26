@@ -81,7 +81,7 @@ async def update_egress_in_db(conn: Connection, params: Tuple) -> List[EgressRet
         logger.error(f"An unexpected error occurred while updating an egress record: {e}", exc_info=True)
         raise
 
-async def list_egresses_from_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def list_egresses_from_db(conn: Connection) -> List[EgressReturn]:
     """Retrieves all egress records from the database."""
     select_query = """
         SELECT id, type, path, config, ngroup_id

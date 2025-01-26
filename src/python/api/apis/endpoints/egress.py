@@ -1,11 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from uuid import UUID
 from typing import List
+import logging
 
 from utils.egress import create_egress, get_egress, update_egress, list_egresses, delete_egress
 from lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
 
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 router = APIRouter(prefix="/egress", tags=["egress"])
+
 
 @router.post("/", response_model=EgressReturn)
 async def create_egress_endpoint(egress: EgressCreate):
@@ -27,8 +33,14 @@ async def get_egress_endpoint(egress_id: UUID):
 @router.get("/", response_model=List[EgressReturn])
 async def list_egresses_endpoint():
     try:
-        return await list_egresses()
+        egress_list = await list_egresses()
+
+        # Log the data being returned
+        logger.info(f"Egress list returned from database: {egress_list}")
+
+        return egress_list
     except ValueError as e:
+        logger.error(f"Error listing egresses: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.patch("/{egress_id}", response_model=EgressReturn)
