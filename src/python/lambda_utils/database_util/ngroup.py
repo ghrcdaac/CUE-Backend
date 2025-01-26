@@ -88,7 +88,7 @@ async def delete_ngroup_from_db(conn: Connection, params: Tuple) -> bool:
         logger.error(f"An unexpected error occurred while deleting an ngroup: {e}", exc_info=True)
         raise
 
-async def list_ngroups_from_db(conn: Connection, params: Tuple) -> List[NgroupReturn]:
+async def list_ngroups_from_db(conn: Connection) -> List[NgroupReturn]:
     """Retrieves all ngroup records from the database."""
     select_query = """
         SELECT id, short_name, long_name

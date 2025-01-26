@@ -100,9 +100,8 @@ async def delete_ngroup(ngroup_id: UUID) -> bool:
 async def list_ngroups() -> List[NgroupReturn]:
     """Retrieves all ngroup records."""
     pool: Pool = await get_connection_pool()
-    params = ()
     try:
-        results = await query(pool, ngroup_db.list_ngroups_from_db, params, row_mapper=NgroupReturn.from_db_row)
+        results = await query(pool, ngroup_db.list_ngroups_from_db, None, row_mapper=NgroupReturn.from_db_row)
         return results
     except Exception as e:
         logger.error(f"Error listing ngroups: {e}", exc_info=True)

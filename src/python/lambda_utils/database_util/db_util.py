@@ -83,7 +83,7 @@ async def setup_connection(conn):
         logger.error(f"Error setting up connection: {e}", exc_info=True)
         raise
 
-async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Tuple = (), row_mapper: Optional[Callable[[Tuple], T]] = None) -> List[T] | List[Any]:
+async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Optional[Tuple] = None, row_mapper: Optional[Callable[[Tuple], T]] = None) -> List[T] | List[Any]:
     """
     Executes a database query using the provided connection pool.
 
