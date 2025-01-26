@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from lambda_utils.database_util.db_util import get_connection_pool, setup_connection
 import asyncio
 from apis.api import router as api_router
-from starlette.middleware.base import BaseHTTPMiddleware
+
 import asyncio
 
 load_dotenv()
@@ -16,9 +16,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # List of allowed origins (e.g., your React app)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
 )
 
 # Routes
@@ -53,12 +54,6 @@ async def shutdown_event():
 #Lambda compliance
 handler = Mangum(app)
 
-class ForwardedHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        request.scope['headers'] = [(key.lower(), value) for key, value in request.headers.items()]
-        return await call_next(request)
-
-app.add_middleware(ForwardedHeadersMiddleware)
 
 if __name__ == "__main__":
         uvicorn.run(
