@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 async def create_cueuser_in_db(conn: Connection, params: Tuple) -> List[CueuserReturn]:
     """Inserts a new cueuser record into the database."""
     insert_query = """
-        INSERT INTO cueuser (email, name, cueusername, edpub_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO cueuser (email, name, registered, cueusername, edpub_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, email, name, registered, cueusername, edpub_id
     """
     try:
