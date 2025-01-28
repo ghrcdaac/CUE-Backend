@@ -15,3 +15,7 @@ class NgroupReturn(NgroupCreate):
         """Factory function to create an NgroupReturn instance from a database row."""
         id, short_name, long_name = row
         return cls(id=id, short_name=short_name, long_name=long_name)
+
+class NgroupUpdate(BaseModel):
+    short_name: Optional[str] = None
+    long_name: Optional[str] = None

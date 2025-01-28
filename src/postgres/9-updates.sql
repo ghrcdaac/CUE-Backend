@@ -8,6 +8,10 @@ ALTER TABLE provider
     ADD COLUMN ngroup_id UUID NOT NULL;
     ADD FOREIGN KEY (ngroup_id) REFERENCES ngroup(id);
 
+-- Update the 'registered' column in the 'cueuser' table to TIMESTAMPTZ
+ALTER TABLE cueuser
+ALTER COLUMN registered TYPE TIMESTAMPTZ,
+
 CREATE TABLE IF NOT EXISTS user_application (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
     email VARCHAR NOT NULL,
@@ -20,3 +24,4 @@ CREATE TABLE IF NOT EXISTS user_application (
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
 )
+
