@@ -24,8 +24,8 @@ async def lookup_cueuser_endpoint(
     try:
         cueuser = await get_cueuser_by_lookup(email, cueusername, name, edpub_id)
         return cueuser
-    except CueuserNotFoundError:
-        raise HTTPException(status_code=404, detail="Cueuser not found")
+    except CueuserNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -22,8 +22,8 @@ async def lookup_provider_endpoint(
     try:
         provider = await get_provider_by_lookup(short_name, long_name)
         return provider
-    except ProviderNotFoundError:
-        raise HTTPException(status_code=404, detail="Provider not found")
+    except ProviderNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     

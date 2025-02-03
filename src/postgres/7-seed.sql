@@ -1,25 +1,25 @@
--- Pivilages
-INSERT INTO pivilages (name) VALUES ('admin');
-INSERT INTO pivilages (name) VALUES ('create_user');
-INSERT INTO pivilages (name) VALUES ('approve_user');
-INSERT INTO pivilages (name) VALUES ('assign_role');
-INSERT INTO pivilages (name) VALUES ('assign_ngroup');
-INSERT INTO pivilages (name) VALUES ('create_provider');
-INSERT INTO pivilages (name) VALUES ('manage_provider');
-INSERT INTO privilege (name) VALUES ('view_provider');
-INSERT INTO pivilages (name) VALUES ('suspend_provider');
-INSERT INTO pivilages (name) VALUES ('reinstat_provider');
-INSERT INTO pivilages (name) VALUES ('security_reinstate');
-INSERT INTO pivilages (name) VALUES ('manage_collection');
-INSERT INTO privilege (name) VALUES ('view_collection');
-INSERT INTO pivilages (name) VALUES ('manage_egress');
-INSERT INTO privilege (name) VALUES ('view_egress');
-INSERT INTO privilege (name) VALUES ('upload');
-INSERT INTO pivilages (name) VALUES ('view_files');
-INSERT INTO pivilages (name) VALUES ('view_scan_results');
-INSERT INTO pivilages (name) VALUES ('view_all_files');
-INSERT INTO pivilages (name) VALUES ('view_all_scan');
-INSERT INTO pivilages (name) VALUES ('metrics');
+-- Privileges
+INSERT INTO privilege (privilege) VALUES ('admin');
+INSERT INTO privilege (privilege) VALUES ('create_user');
+INSERT INTO privilege (privilege) VALUES ('approve_user');
+INSERT INTO privilege (privilege) VALUES ('assign_role');
+INSERT INTO privilege (privilege) VALUES ('assign_ngroup');
+INSERT INTO privilege (privilege) VALUES ('create_provider');
+INSERT INTO privilege (privilege) VALUES ('manage_provider');
+INSERT INTO privilege (privilege) VALUES ('view_provider');
+INSERT INTO privilege (privilege) VALUES ('suspend_provider');
+INSERT INTO privilege (privilege) VALUES ('reinstat_provider');
+INSERT INTO privilege (privilege) VALUES ('security_reinstate');
+INSERT INTO privilege (privilege) VALUES ('manage_collection');
+INSERT INTO privilege (privilege) VALUES ('view_collection');
+INSERT INTO privilege (privilege) VALUES ('manage_egress');
+INSERT INTO privilege (privilege) VALUES ('view_egress');
+INSERT INTO privilege (privilege) VALUES ('upload');
+INSERT INTO privilege (privilege) VALUES ('view_files');
+INSERT INTO privilege (privilege) VALUES ('view_scan_results');
+INSERT INTO privilege (privilege) VALUES ('view_all_files');
+INSERT INTO privilege (privilege) VALUES ('view_all_scan');
+INSERT INTO privilege (privilege) VALUES ('metrics');
 
 -- Roles
 

@@ -22,8 +22,8 @@ async def lookup_role_endpoint(
     try:
         role = await get_role_by_lookup(short_name, long_name)
         return role
-    except RoleNotFoundError:
-        raise HTTPException(status_code=404, detail="Role not found")
+    except RoleNotFoundError as e:  # Catch the exception as 'e'
+        raise HTTPException(status_code=404, detail=str(e))  
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
