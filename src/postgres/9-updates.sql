@@ -52,8 +52,29 @@ ALTER COLUMN applied TYPE TIMESTAMPTZ;
 ALTER TABLE cueuser_auth
 ALTER COLUMN LAST_LOGIN TYPE TIMESTAMPTZ;
 
+-- Create type for file status if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'file_status_type') THEN
+        CREATE TYPE file_status_type AS ENUM (
+            'unscanned',       -- File has been uploaded but not yet scanned
+            'clean',           -- File has been scanned and no issues were found
+            'infected',        -- File has been scanned and found to be infected
+            'scan_failed',     -- File could not be scanned (e.g., due to an error)
+            'distributed'    -- File has been distributed
+        );
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'file_status' AND column_name = 'upload_time') THEN
+        ALTER TABLE file_status ADD COLUMN upload_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+END $$;
+
 ALTER TABLE file_status
-ALTER COLUMN upload_time TYPE TIMESTAMPTZ,
 ALTER COLUMN scan_start TYPE TIMESTAMPTZ,
 ALTER COLUMN scan_end TYPE TIMESTAMPTZ,
-ALTER COLUMN egress_start TYPE TIMESTAMPTZ;
+ALTER COLUMN egress_start TYPE TIMESTAMPTZ,
+ALTER COLUMN status TYPE file_status_type USING status::text::file_status_type;

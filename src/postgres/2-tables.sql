@@ -1,5 +1,6 @@
 -- Drop tables if they exist (in reverse order of creation due to dependencies)
 DROP TABLE IF EXISTS file_status CASCADE;
+DROP TYPE IF EXISTS file_status_type CASCADE;
 DROP TABLE IF EXISTS file CASCADE;
 DROP TABLE IF EXISTS collection CASCADE;
 DROP TABLE IF EXISTS egress CASCADE;
@@ -159,6 +160,15 @@ CREATE TABLE IF NOT EXISTS file (
     PRIMARY KEY (id),
     FOREIGN KEY (cueuser_uploaded) REFERENCES cueuser(id),
     FOREIGN KEY (collection_id) REFERENCES collection(id)
+);
+
+-- Create type for file status
+CREATE TYPE file_status_type AS ENUM (
+    'unscanned',       -- File has been uploaded but not yet scanned
+    'clean',           -- File has been scanned and no issues were found
+    'infected',        -- File has been scanned and found to be infected
+    'scan_failed',     -- File could not be scanned (e.g., due to an error)
+    'distributed'    -- File has been distributed
 );
 
 CREATE TABLE IF NOT EXISTS file_status (
