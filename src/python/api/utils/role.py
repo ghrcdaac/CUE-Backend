@@ -10,9 +10,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RoleNotFoundError(Exception):
-    def __init__(self, role_id: UUID):
-        super().__init__(f"Role not found with ID: {role_id}")
+    def __init__(self, role_id: Optional[UUID] = None, short_name: Optional[str] = None, long_name: Optional[str] = None):
+        if role_id:
+            message = f"Role not found with ID: {role_id}"
+        elif short_name:
+            message = f"Role not found with short_name: {short_name}"
+        elif long_name:
+            message = f"Role not found with long_name: {long_name}"
+        else:
+            message = "Role not found"
+        super().__init__(message)
         self.role_id = role_id
+        self.short_name = short_name
+        self.long_name = long_name
 
 async def create_role(role: RoleCreate) -> RoleReturn:
     """Creates a new role record."""
@@ -105,7 +115,10 @@ async def get_role_by_lookup(
         if result:
             return result[0]
         else:
-            raise RoleNotFoundError(short_name=short_name, long_name=long_name)
+            if short_name:
+                raise RoleNotFoundError(short_name=short_name)
+            else:
+                raise RoleNotFoundError(long_name=long_name)
     except Exception as e:
         logger.error(f"Error during role lookup: {e}", exc_info=True)
         raise
