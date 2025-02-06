@@ -48,6 +48,9 @@ resource "aws_lambda_function" "cue_api"{
             DB_HOST = var.db_host
             DB_DATABASE = var.db_database
             DB_PASSWORD = var.db_password
+            POOL_ID = var.pool_id
+            CLIENT_ID = var.client_id
+            CLIENT_SECRET = var.client_secret
         }
     }
     vpc_config {

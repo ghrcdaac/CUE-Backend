@@ -1,84 +1,96 @@
 import os
-import jwt
-import requests
-import base64
+import boto3
+import hmac, hashlib, base64
+from pydantic import SecretStr
+from asyncpg.pool import Pool
+from lambda_utils.database_util.db_util import query, get_connection_pool
+from lambda_utils.type_util.auth import login, auth_response, pwd_response
+from lambda_utils.database_util import cueuser as cueuser_db
+import logging
 
-from lambda_utils.type_util.auth import auth_token
+logger = logging.getLogger(__name__)
 
-providerUrl = os.environ.get('AUTH_PROVIDER_URL')
-loginPath = os.environ.get('AUTH_LOGIN_PATH')
-logoutPath = os.environ.get('AUTH_LOGOUT_PATH')
-tokenPath = os.environ.get('AUTH_TOKEN_PATH')
+_PoolId = os.environ.get('POOL_ID')
+_ClientId = os.environ.get('CLIENT_ID')
+_ClientSecret = os.environ.get('CLIENT_SECRET')
 
-clientRoot = os.environ.get('CLIENT_ROOT_URL')
-clientId = os.environ.get('AUTH_CLIENT_ID')
-clientSecret = os.environ.get('AUTH_CLIENT_SECRET')
-clientPath = os.environ.get('AUTH_CLIENT_PATH')
+def _decript_secret(secret: SecretStr) -> SecretStr:
+    return secret
 
-async def _buildRedirectUrl(baseUrl: str, queryParams: dict) -> str:
-    for key, value in queryParams.items():
-        if type(value) == list:
-            baseUrl += f'{key}={"+".join(value)}&'
-        else:
-            baseUrl += f'{key}={value}&'
-    return baseUrl[:-1]
+def _get_secret_hash(secret_name:str='') -> SecretStr:
+    key = bytes(_ClientSecret, 'utf-8')
+    message = bytes(secret_name+_ClientId, 'utf-8')
+    secret_hash = base64.b64encode(hmac.new(key, message, digestmod=hashlib.sha256).digest()).decode()
+    return secret_hash
 
-async def _tokenService(**kwargs) -> dict:
-    data = kwargs
-    endpoint = f'{providerUrl}/{tokenPath}'
-    creds = base64.b64encode(f'{clientId}:{clientSecret}'.encode('utf-8'))
-    headers = {
-        'Authorization': f'Basic {creds.decode("utf-8")}',
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
+async def logIn(param: login) -> auth_response:
+    username = param.username
+    password = _decript_secret(param.password)
+    secret_hash = _get_secret_hash(username)
+    client = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION'))
+    pool: Pool = await get_connection_pool()
+    try:
+        response = client.admin_initiate_auth(
+            UserPoolId=_PoolId,
+            ClientId=_ClientId,
+            AuthFlow='ADMIN_USER_PASSWORD_AUTH',
+            AuthParameters={
+                'USERNAME': username,
+                'PASSWORD': password.get_secret_value(),
+                'SECRET_HASH': secret_hash
+            }
+        )
+        if 'Session' in response:
+            return {'session': response['Session']}
+        
+        # login db update
+        await query(pool, cueuser_db.login_cueuser, 
+                    (response['AuthenticationResult']['RefreshToken'], username))
+        
+        return {'access_token': response['AuthenticationResult']['AccessToken']}
+    except client.exceptions.NotAuthorizedException:
+        raise ValueError('Invalid username or password')
+    except Exception as e:
+        logger.error(e)
+        raise
     
-    response = requests.post(endpoint, data=data, headers=headers)
-    return response.json()
 
-async def getToken(code) -> auth_token:
-    clientUri = f'{clientRoot}/{clientPath}'
-    tokens = await _tokenService(
-        code=code,
-        grantType='authorization_code',
-        redirectUri=clientUri
-    )
-    resp = auth_token(
-        access_token=tokens['access_token'],
-        refresh_token=tokens['refresh_token'],
-        id_token=tokens['id_token'] if 'id_token' in tokens else None
-    )
-    return resp
+async def pwdResponse(param: pwd_response) -> auth_response:
+    username = param.username
+    password = _decript_secret(param.password)
+    secret_hash = _get_secret_hash(username)
+    client = boto3.client('cognito-idp', region_name='us-west-2')
+    pool = await get_connection_pool()
+    try:
+        resp = client.admin_respond_to_auth_challenge(
+            UserPoolId=_PoolId,
+            ClientId=_ClientId,
+            ChallengeName='NEW_PASSWORD_REQUIRED',
+            Session=param.session,
+            ChallengeResponses={
+                'USERNAME': username,
+                'NEW_PASSWORD': password.get_secret_value(),
+                "SECRET_HASH": secret_hash,
+            }
+        )
+        # login db update
+        await query(pool, cueuser_db.login_cueuser, 
+                    (resp['AuthenticationResult']['RefreshToken'], username))
+        return {'access_token': resp['AuthenticationResult']['AccessToken']}
+    except Exception as e:
+        logger.error(e)
+        raise
 
-async def refreshToken(token):
-    tokens = await _tokenService(
-        grantType='refresh_token',
-        refresh_token=token
+async def logOut(username: str) -> bool:
+    client = boto3.client('cognito-idp', region_name='us-west-2')
+    _=client.admin_user_global_sign_out(
+        UserPoolId=_PoolId,
+        Username=username
     )
-    resp = auth_token(
-        access_token=jwt.decode(tokens['access_token']),
-        refresh_token=jwt.decode(tokens['refresh_token']),
-        id_token=jwt.decode(tokens['id_token'])
-    )
-    return resp
+    return True
 
-async def getLoginUrl(state: str) -> str:
-    print("getlogin url")
-    clientUri = f'{clientRoot}/{clientPath}'
-    redirectUrl = f'{providerUrl}/{loginPath}'
-    searchParams = {
-        'client_id': clientId,
-        'redirect_uri': clientUri,
-        'scope': ['openid', 'aws.cognito.signin.user.admin'],
-        'response_type': 'code',
-        'state': state
-    }
-    return(await _buildRedirectUrl(redirectUrl, searchParams))
-
-async def getLogoutUrl(host: str) -> str:
-    clientUri = f'{host}/{clientPath}'
-    redirectUrl = f'{providerUrl}/{logoutPath}'
-    searchParams = {
-        'client_id': clientId,
-        'logout_uri': clientUri
-    }
-    return(await _buildRedirectUrl(redirectUrl, searchParams))
+def refreshToken(token: str):
+    client = boto3.client('cognito-idp')
+    
+    return 'refresh'
+    

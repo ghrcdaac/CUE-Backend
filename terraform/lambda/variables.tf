@@ -53,3 +53,15 @@ variable "api_id" {
 variable "api_docker" {
     type = string
 }
+
+variable "pool_id" {
+    type = string
+}
+
+variable "client_id"{
+    type = string
+}
+
+variable "client_secret"{
+    type = string
+}
