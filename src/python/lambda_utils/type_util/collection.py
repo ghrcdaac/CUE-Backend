@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, Tuple, List
 from uuid import UUID
-from .file import FileReturn  # Import FileReturn model
+from .file import FileReturn
 
 
 class CollectionBase(BaseModel):

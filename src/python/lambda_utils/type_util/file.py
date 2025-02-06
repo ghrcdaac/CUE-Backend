@@ -38,7 +38,7 @@ class FileReturn(FileBase):
             collection_id, 
             edpub, 
             checksum
-        ) = row  # Unpack the tuple correctly
+        ) = row
         return cls(
             id=id, 
             name=name, 
