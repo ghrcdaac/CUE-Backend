@@ -102,3 +102,16 @@ async def get_cueuser_by_lookup_from_db(conn: Connection, params: Tuple) -> List
     except Exception as e:
         logger.error(f"An unexpected error occurred during cueuser lookup: {e}", exc_info=True)
         raise
+    
+async def login_cueuser(conn: Connection, params: Tuple):
+    update_query = """
+    UPDATE cueuser_auth
+    SET last_login = NOW(),
+        refresh_token = $1
+    WHERE id = (SELECT id FROM cueuser WHERE cueusername = $2)
+    """
+    try:
+        return await conn.fetch(update_query, *params)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while updating last login time: {e}", exc_info=True)
+        raise
