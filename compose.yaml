@@ -20,10 +20,17 @@ services:
       - POOL_MAX_SIZE=${POOL_MAX_SIZE}
       - API_VERSION=${API_VERSION}
       - DEBUG=${DEBUG}
+      - POOL_ID=${POOL_ID}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_REGION=${AWS_REGION}
     ports:
       - "8000:8000"
     depends_on:
       - postgres  # Ensure Postgres starts before the API service
+      - pg_admin
     volumes:
       - ./src:/app/src:cached # Mount the source code for live reloading during development
       - ./tests:/app/tests:cached 

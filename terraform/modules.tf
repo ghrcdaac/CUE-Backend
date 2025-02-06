@@ -24,6 +24,9 @@ module "lambda_functions" {
     security_group_ids = var.security_group_ids
     api_id = var.api_id
     api_docker = var.api_docker
+    pool_id = var.pool_id
+    client_id = var.client_id
+    client_secret = var.client_secret
 }
 
 module "rds"{
