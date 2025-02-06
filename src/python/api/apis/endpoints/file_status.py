@@ -1,9 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
 from typing import List
 
-from utils.file_status import create_file_status, get_file_status, update_file_status, delete_file_status, list_file_statuses, FileStatusNotFoundError
-from lambda_utils.type_util.file_status import FileStatusCreate, FileStatusReturn, FileStatusUpdate
+from utils.file_status import (create_file_status,
+                                    delete_file_status,
+                                    get_file_status,
+                                    list_file_statuses,
+                                    FileStatusNotFoundError, update_file_status)
+from lambda_utils.type_util.file_status import (FileStatusCreate,
+                                               FileStatusReturn,
+                                               FileStatusUpdate)
 
 router = APIRouter(prefix="/file_status", tags=["file_status"])
 
@@ -14,28 +20,29 @@ async def create_file_status_endpoint(file_status: FileStatusCreate):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/{file_status_id}", response_model=FileStatusReturn)
-async def get_file_status_endpoint(file_status_id: UUID):
+@router.get("/{id}", response_model=FileStatusReturn)  
+async def get_file_status_endpoint(id: UUID): 
     try:
-        file_status = await get_file_status(file_status_id)
+        file_status = await get_file_status(id)  
         return file_status
     except FileStatusNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.patch("/{file_status_id}", response_model=FileStatusReturn)
-async def update_file_status_endpoint(file_status_id: UUID, file_status_update: FileStatusUpdate):
+@router.patch("/{id}", response_model=FileStatusReturn)  
+async def update_file_status_endpoint(id: UUID, file_status_update: FileStatusUpdate): 
     try:
-        updated_file_status = await update_file_status(file_status_id, file_status_update)
+        updated_file_status = await update_file_status(id, file_status_update)  
         return updated_file_status
     except FileStatusNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete("/{file_status_id}", response_model=bool)
-async def delete_file_status_endpoint(file_status_id: UUID):
+
+@router.delete("/{id}", response_model=bool)  
+async def delete_file_status_endpoint(id: UUID):  
     try:
-        success = await delete_file_status(file_status_id)
+        success = await delete_file_status(id)  
         return success
     except FileStatusNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

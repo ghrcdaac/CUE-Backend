@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS file_status (
     scan_start TIMESTAMPTZ,  -- Use TIMESTAMPTZ
     scan_end TIMESTAMPTZ,    -- Use TIMESTAMPTZ
     egress_start TIMESTAMPTZ, -- Use TIMESTAMPTZ
-    status VARCHAR NOT NULL,
+    status file_status_type NOT NULL,
     scan_results JSONB,
     PRIMARY KEY (id),
     FOREIGN KEY (id) REFERENCES file(id)

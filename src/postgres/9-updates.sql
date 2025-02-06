@@ -78,3 +78,4 @@ ALTER COLUMN scan_start TYPE TIMESTAMPTZ,
 ALTER COLUMN scan_end TYPE TIMESTAMPTZ,
 ALTER COLUMN egress_start TYPE TIMESTAMPTZ,
 ALTER COLUMN status TYPE file_status_type USING status::text::file_status_type;
+

@@ -2,16 +2,15 @@ from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError, 
 from typing import Tuple, List, Optional
 from uuid import UUID
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 async def create_file_status_in_db(conn: Connection, params: Tuple) -> List:
     """Inserts a new file_status record into the database."""
     insert_query = """
-        INSERT INTO file_status (id, file_id, upload_time, status, scan_results)
-        VALUES ($1, $2, $3, $4::file_status_type, $5::jsonb)
-        RETURNING id, file_id, upload_time, scan_start, scan_end, egress_start, status, scan_results
+        INSERT INTO file_status (id, upload_time, status, scan_results)
+        VALUES ($1, $2, $3::file_status_type, $4::jsonb)
+        RETURNING id, upload_time, scan_start, scan_end, egress_start, status, scan_results
     """
     try:
         return await conn.fetch(insert_query, *params)
@@ -20,7 +19,7 @@ async def create_file_status_in_db(conn: Connection, params: Tuple) -> List:
         raise ValueError("A file_status record with the given ID already exists.")
     except ForeignKeyViolationError as e:
         logger.error(f"Failed to create file_status due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid file_id provided.")
+        raise ValueError("Invalid id provided.") from e
     except DataError as e:
         logger.error(f"Failed to create file_status due to invalid data: {e}", exc_info=True)
         raise ValueError("Invalid data provided for creating a file_status record.")
@@ -29,9 +28,9 @@ async def create_file_status_in_db(conn: Connection, params: Tuple) -> List:
         raise
 
 async def get_file_status_from_db(conn: Connection, params: Tuple) -> List:
-    """Retrieves a file_status record from the database by its ID."""
+    """Retrieves a file_status record from the database by its id (which is now the PK)."""
     select_query = """
-        SELECT id, file_id, upload_time, scan_start, scan_end, egress_start, status, scan_results
+        SELECT id, upload_time, scan_start, scan_end, egress_start, status, scan_results
         FROM file_status
         WHERE id = $1
     """
@@ -43,37 +42,43 @@ async def get_file_status_from_db(conn: Connection, params: Tuple) -> List:
 
 async def update_file_status_in_db(conn: Connection, params: Tuple) -> List:
     """Updates an existing file_status record in the database."""
-    update_fields, file_status_id = params
-    set_clause = ", ".join([f"{field} = ${i+1}" for i, field in enumerate(update_fields.keys())])
-    values = list(update_fields.values())
-    values.append(file_status_id)
+    update_fields, id = params
+    set_clause_parts = []
+    values = []
+
+    for i, (field, value) in enumerate(update_fields.items()):
+        if field == "scan_results":
+            set_clause_parts.append(f"{field} = ${i + 1}::jsonb")
+        elif field == "status":
+            set_clause_parts.append(f"{field} = ${i + 1}::file_status_type")
+        else:
+            set_clause_parts.append(f"{field} = ${i + 1}") 
+        values.append(value)
+
+    values.append(id)
+    set_clause = ", ".join(set_clause_parts)
 
     update_query = f"""
         UPDATE file_status
         SET {set_clause}
         WHERE id = ${len(values)}
-        RETURNING id, file_id, upload_time, scan_start, scan_end, egress_start, status, scan_results
+        RETURNING id, upload_time, scan_start, scan_end, egress_start, status, scan_results
     """
     try:
-        # Convert status to file_status_type if it exists in update_fields
-        if 'status' in update_fields:
-            update_fields['status'] = f"'{update_fields['status']}'::file_status_type"
         return await conn.fetch(update_query, *values)
-    except UniqueViolationError as e:
-        logger.error(f"Failed to update file_status due to unique constraint violation: {e}", exc_info=True)
-        raise ValueError("A file_status record with the given ID already exists.")
     except ForeignKeyViolationError as e:
-        logger.error(f"Failed to update file_status due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid file_id provided.")
+        logger.error(f"Failed to update file status due to foreign key violation: {e}",exc_info=True)
+        raise ValueError("Invalid id provided.") from e
     except DataError as e:
-        logger.error(f"Failed to update file_status due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for updating a file_status record.")
+        logger.error(f"Failed to update file_status: invalid data: {e}", exc_info=True)
+        raise ValueError(f"Invalid data provided for updating file_status: {e}") from e
     except Exception as e:
-        logger.error(f"An unexpected error occurred while updating a file_status record: {e}", exc_info=True)
+        logger.error(f"Error updating file_status: {e}", exc_info=True)
         raise
 
+
 async def delete_file_status_from_db(conn: Connection, params: Tuple) -> bool:
-    """Deletes a file_status record from the database by its ID."""
+    """Deletes a file_status record from the database by id."""
     delete_query = """
         DELETE FROM file_status
         WHERE id = $1
@@ -88,7 +93,7 @@ async def delete_file_status_from_db(conn: Connection, params: Tuple) -> bool:
 async def list_file_statuses_from_db(conn: Connection) -> List:
     """Retrieves all file_status records from the database."""
     select_query = """
-        SELECT id, file_id, upload_time, scan_start, scan_end, egress_start, status, scan_results
+        SELECT id, upload_time, scan_start, scan_end, egress_start, status, scan_results
         FROM file_status
     """
     try:
