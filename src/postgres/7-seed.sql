@@ -86,7 +86,9 @@ INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0
 INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'view_files');
 
 -- Cueuser
-INSERT INTO cueuser (id, email, name, username)
-    VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', fake@email.com, 'Davis Gaunt', 'dgaunt_local');
+INSERT INTO cueuser (id, email, name, cueusername)
+    VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', 'fake@email.com', 'Davis Gaunt', 'dgaunt_local');
 INSERT INTO cueuser_auth (id)
     VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e');
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');

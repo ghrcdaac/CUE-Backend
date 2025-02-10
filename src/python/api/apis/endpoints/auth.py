@@ -21,7 +21,7 @@ async def pwd_response(param: pwd_response) -> auth_response:
         raise HTTPException(status_code=500)
 
 @router.get("/logout")
-async def logout(username: str) -> str:
+async def logout(username: str) -> bool:
     return await logOut(username)
 
 @router.post("/refresh")

@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from apis.endpoints import upload, auth, egress, ngroup, metrics, cueuser, role, privilege, provider, cueuser_ngroup, cueuser_role, role_privilege, cueuser_provider
+from utils.auth import jwks
 
 router = APIRouter()
 
