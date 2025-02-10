@@ -3,7 +3,7 @@ from typing import Tuple, List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from lambda_utils.type_util.cueuser import CueuserReturn
+from lambda_utils.type_util.cueuser import CueuserReturn, CueuserAuth
 import logging
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,30 @@ async def get_cueuser_by_lookup_from_db(conn: Connection, params: Tuple) -> List
         WHERE email = $1 OR cueusername = $2 OR name = $3 OR edpub_id = $4
     """
     try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during cueuser lookup: {e}", exc_info=True)
+        raise
+    
+async def get_cueuser_by_username(conn: Connection, params: Tuple) -> CueuserAuth:
+    """Retrieves a cueuser record from the database by email, username, name, or edpub_id."""
+    select_query = """
+        SELECT cueuser.id AS id, 
+        email, 
+        name, 
+        registered, 
+        cueuser.cueusername AS cueusername, 
+        edpub_id, 
+        ngroup.short_name AS ngroup, 
+        cueuser_role.role_id AS role_id
+        FROM cueuser
+        LEFT JOIN cueuser_ngroup ON cueuser.id = cueuser_ngroup.cueuser_id
+        LEFT JOIN ngroup ON cueuser_ngroup.ngroup_id = ngroup.id
+        LEFT JOIN cueuser_role ON cueuser.id = cueuser_role.cueuser_id
+        WHERE cueuser.cueusername = $1
+    """
+    try:
+        print(params)
         return await conn.fetch(select_query, *params)
     except Exception as e:
         logger.error(f"An unexpected error occurred during cueuser lookup: {e}", exc_info=True)

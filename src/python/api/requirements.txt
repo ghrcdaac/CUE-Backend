@@ -9,3 +9,4 @@ requests~=2.32.3
 asyncpg==0.30.0
 pytest ~= 8.0.2
 pytest-asyncio ~= 0.23.5
+python-jose

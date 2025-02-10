@@ -1,13 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 
 from utils.privilege import create_privilege, get_privilege, update_privilege, delete_privilege, list_privileges, get_privilege_by_lookup, PrivilegeNotFoundError
 from lambda_utils.type_util.privilege import PrivilegeCreate, PrivilegeReturn, PrivilegeUpdate
+from lambda_utils.type_util.cueuser import CueuserAuth
+from utils.auth import get_current_user
 
 router = APIRouter(prefix="/privilege", tags=["privilege"])
 
 @router.post("/", response_model=PrivilegeReturn)
-async def create_privilege_endpoint(privilege: PrivilegeCreate):
+async def create_privilege_endpoint(privilege: PrivilegeCreate, user: CueuserAuth = Depends(get_current_user)):
     try:
         return await create_privilege(privilege)
     except ValueError as e:
@@ -16,7 +18,8 @@ async def create_privilege_endpoint(privilege: PrivilegeCreate):
 
 @router.get("/find", response_model=PrivilegeReturn)
 async def lookup_privilege_endpoint(
-    privilege: Optional[str] = Query(None, description="Privilege to search for")
+    privilege: Optional[str] = Query(None, description="Privilege to search for"),
+    user: CueuserAuth = Depends(get_current_user)
 ):
     try:
         privilege = await get_privilege_by_lookup(privilege)
@@ -28,7 +31,7 @@ async def lookup_privilege_endpoint(
 
 
 @router.get("/{privilege_name}", response_model=PrivilegeReturn)
-async def get_privilege_endpoint(privilege_name: str):
+async def get_privilege_endpoint(privilege_name: str, user: CueuserAuth = Depends(get_current_user)):
     try:
         privilege = await get_privilege(privilege_name)
         return privilege
@@ -36,7 +39,7 @@ async def get_privilege_endpoint(privilege_name: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.patch("/{privilege_name}", response_model=PrivilegeReturn)
-async def update_privilege_endpoint(privilege_name: str, privilege_update: PrivilegeUpdate):
+async def update_privilege_endpoint(privilege_name: str, privilege_update: PrivilegeUpdate, user: CueuserAuth = Depends(get_current_user)):
     try:
         updated_privilege = await update_privilege(privilege_name, privilege_update)
         return updated_privilege
@@ -46,7 +49,7 @@ async def update_privilege_endpoint(privilege_name: str, privilege_update: Privi
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{privilege_name}", response_model=bool)
-async def delete_privilege_endpoint(privilege_name: str):
+async def delete_privilege_endpoint(privilege_name: str, user: CueuserAuth = Depends(get_current_user)):
     try:
         success = await delete_privilege(privilege_name)
         return success
@@ -54,7 +57,7 @@ async def delete_privilege_endpoint(privilege_name: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/", response_model=List[PrivilegeReturn])
-async def list_privileges_endpoint():
+async def list_privileges_endpoint(user: CueuserAuth = Depends(get_current_user)):
     try:
         return await list_privileges()
     except ValueError as e:

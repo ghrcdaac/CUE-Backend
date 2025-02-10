@@ -1,5 +1,5 @@
 from pydantic import BaseModel, SecretStr
-from typing import Optional
+from typing import Optional, Dict, List
 
 class login(BaseModel):
     username: str
@@ -13,3 +13,17 @@ class pwd_response(BaseModel):
 class auth_response(BaseModel):
     access_token: Optional[str] = None
     session: Optional[str] = None
+    
+# Bearer types
+
+JWK = Dict[str, str]
+
+class JWKS(BaseModel):
+    keys: List[JWK]
+    
+class JWTAuthorizationCredentials(BaseModel):
+    jwt_token: str
+    header: Dict
+    claims: Dict
+    signature: str
+    message: str
