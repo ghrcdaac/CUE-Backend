@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS role_privilege CASCADE;
 DROP TABLE IF EXISTS privilege CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TYPE IF EXISTS application_status CASCADE;
+DROP TYPE IF EXISTS account_type CASCADE;
 DROP TABLE IF EXISTS user_application CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE;
@@ -49,20 +50,23 @@ CREATE TABLE IF NOT EXISTS ngroup (
 );
 
 CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE account_type AS ENUM ('daac', 'provider');
 
 CREATE TABLE IF NOT EXISTS user_application (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
     email VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
-    applied TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Use TIMESTAMPTZ
+    applied TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     username VARCHAR NOT NULL,
     status application_status NOT NULL DEFAULT 'pending',
     ngroup_id UUID NOT NULL,
+    provider_id UUID NULL,  -- Allow NULL
     justification TEXT NOT NULL,
+    account_type account_type, -- use the enum
     PRIMARY KEY (id),
-    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id)
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
+    FOREIGN KEY (provider_id) REFERENCES provider(id)
 );
-
 CREATE TABLE IF NOT EXISTS cueuser_ngroup (
     cueuser_id UUID NOT NULL,
     ngroup_id UUID NOT NULL,

@@ -30,6 +30,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'application_status') THEN
         CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
     END IF;
+     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_type') THEN
+        CREATE TYPE account_type AS ENUM ('daac', 'provider');
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_application') THEN
         CREATE TABLE user_application (
             id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
@@ -39,9 +42,12 @@ BEGIN
             username VARCHAR NOT NULL,
             status application_status NOT NULL DEFAULT 'pending',
             ngroup_id UUID NOT NULL,
+            provider_id UUID NULL,  -- Allow NULL initially
             justification TEXT NOT NULL,
+            account_type account_type, -- added account type
             PRIMARY KEY (id),
-            FOREIGN KEY (ngroup_id) REFERENCES ngroup(id)
+            FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
+            FOREIGN KEY (provider_id) REFERENCES provider(id) -- Add FK constraint
         );
     END IF;
 END $$;

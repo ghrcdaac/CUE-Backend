@@ -1,9 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
-from utils.user_application import create_user_application, get_user_application, update_user_application, delete_user_application, list_user_applications, UserApplicationNotFoundError
-from lambda_utils.type_util.user_application import UserApplicationCreate, UserApplicationReturn, UserApplicationUpdate
+from utils.user_application import (create_user_application, get_user_application,
+                                      update_user_application, delete_user_application,
+                                      list_user_applications, UserApplicationNotFoundError)
+from lambda_utils.type_util.user_application import (UserApplicationCreate,
+                                                     UserApplicationReturn,
+                                                     UserApplicationUpdate)
 
 router = APIRouter(prefix="/user_application", tags=["user_application"])
 
