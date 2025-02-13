@@ -46,12 +46,17 @@ async def delete_role_privilege_association(data: RolePrivilegeCreate) -> bool:
     finally:
         await pool.close()
 
-async def list_privileges_for_role(role_id: UUID) -> List[str]:
+async def list_privileges_for_role(role_name: str) -> List[str]: # changed role_id: UUID to role_name: str
     """Retrieves all privileges associated with a role."""
     pool: Pool = await get_connection_pool()
-    params = (role_id,)
+    params = (role_name,) # Changed
     try:
-        return await query(pool, role_privilege_db.list_privileges_for_role_from_db, params)
+        # Note:  We don't need a custom Pydantic model for the return *here*
+        # because we're just returning a list of strings (privilege names).
+        privileges = await query(pool, role_privilege_db.list_privileges_for_role_from_db, params) # Modified
+        # The database function returns a list of records.  We need to extract
+        # the 'privilege' value from each record.  This uses a list comprehension.
+        return [p['privilege'] for p in privileges] # Extract 'privilege', not 'role_id'
     except Exception as e:
         logger.error(f"Error listing privileges for role: {e}", exc_info=True)
         raise

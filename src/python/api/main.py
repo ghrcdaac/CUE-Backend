@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from lambda_utils.database_util.db_util import get_connection_pool, setup_connection
 import asyncio
 from apis.api import router as api_router
+from utils.auth import startup_auth
 
 load_dotenv()
 
@@ -41,6 +42,8 @@ else:
 @app.on_event("startup")
 async def startup_event():
     app.state.pool = await get_connection_pool(setup=setup_connection)
+    await startup_auth()  # Fetch JWKS and initialize JWTBearer
+
 
 # Close the connection pool when the app shuts down
 @app.on_event("shutdown")

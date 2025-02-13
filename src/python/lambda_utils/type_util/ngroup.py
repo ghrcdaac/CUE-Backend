@@ -19,3 +19,13 @@ class NgroupReturn(NgroupCreate):
 class NgroupUpdate(BaseModel):
     short_name: Optional[str] = None
     long_name: Optional[str] = None
+
+
+class NgroupListReturn(BaseModel):
+    id: UUID4
+    short_name: str
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "NgroupListReturn":
+        id, short_name, _ = row #We ignore long_name, we don't need it.
+        return cls(id=id, short_name=short_name)

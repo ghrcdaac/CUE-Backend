@@ -6,7 +6,7 @@ import logging
 from utils.egress import create_egress, get_egress, update_egress, list_egresses, delete_egress
 from lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
 from lambda_utils.type_util.cueuser import CueuserAuth
-from utils.auth import get_current_user
+from utils.auth import get_current_user, auth_scheme
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/egress", tags=["egress"])
 
 
 @router.post("/", response_model=EgressReturn)
-async def create_egress_endpoint(egress: EgressCreate, user: CueuserAuth = Depends(get_current_user)):
+async def create_egress_endpoint(egress: EgressCreate, user: CueuserAuth = Depends(auth_scheme)):
     try:
         return await create_egress(egress)
     except ValueError as e:
