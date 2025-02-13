@@ -1,13 +1,18 @@
+from asyncio.log import logger
 from fastapi import APIRouter, HTTPException, Query
 from uuid import UUID
 from typing import List, Optional
 
 from utils.user_application import (create_user_application, get_user_application,
                                       update_user_application, delete_user_application,
-                                      list_user_applications, UserApplicationNotFoundError)
+                                      list_user_applications, UserApplicationNotFoundError, get_ngroups_for_form,
+                                         get_providers_for_ngroup)
 from lambda_utils.type_util.user_application import (UserApplicationCreate,
                                                      UserApplicationReturn,
                                                      UserApplicationUpdate)
+
+from lambda_utils.type_util.ngroup import NgroupListReturn
+from lambda_utils.type_util.provider import ProviderListReturn
 
 router = APIRouter(prefix="/user_application", tags=["user_application"])
 
@@ -50,3 +55,19 @@ async def list_user_applications_endpoint():
         return await list_user_applications()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/ngroups", response_model=List[NgroupListReturn])
+async def get_ngroups_for_form_endpoint():
+    try:
+        return await get_ngroups_for_form()
+    except Exception as e:
+        logger.error(f"Error getting ngroups for form: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve ngroups for form")
+
+@router.get("/ngroups/{ngroup_id}/providers", response_model=List[ProviderListReturn])
+async def get_providers_for_ngroup_endpoint(ngroup_id: UUID):
+    try:
+        return await get_providers_for_ngroup(ngroup_id)
+    except Exception as e:
+        logger.error(f"Error getting providers for ngroup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve providers for ngroup")

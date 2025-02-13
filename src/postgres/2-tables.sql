@@ -1,6 +1,9 @@
 -- Drop tables if they exist (in reverse order of creation due to dependencies)
 DROP TABLE IF EXISTS file_status CASCADE;
 DROP TYPE IF EXISTS file_status_type CASCADE;
+DROP TYPE IF EXISTS application_status CASCADE;
+DROP TYPE IF EXISTS account_type CASCADE;
+DROP TABLE IF EXISTS user_application CASCADE;
 DROP TABLE IF EXISTS file CASCADE;
 DROP TABLE IF EXISTS collection CASCADE;
 DROP TABLE IF EXISTS egress CASCADE;
@@ -11,9 +14,6 @@ DROP TABLE IF EXISTS cueuser_role CASCADE;
 DROP TABLE IF EXISTS role_privilege CASCADE;
 DROP TABLE IF EXISTS privilege CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
-DROP TYPE IF EXISTS application_status CASCADE;
-DROP TYPE IF EXISTS account_type CASCADE;
-DROP TABLE IF EXISTS user_application CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE;
 DROP TABLE IF EXISTS cueuser CASCADE;
@@ -49,24 +49,7 @@ CREATE TABLE IF NOT EXISTS ngroup (
     UNIQUE (long_name)
 );
 
-CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
-CREATE TYPE account_type AS ENUM ('daac', 'provider');
 
-CREATE TABLE IF NOT EXISTS user_application (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
-    email VARCHAR NOT NULL,
-    name VARCHAR NOT NULL,
-    applied TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    username VARCHAR NOT NULL,
-    status application_status NOT NULL DEFAULT 'pending',
-    ngroup_id UUID NOT NULL,
-    provider_id UUID NULL,  -- Allow NULL
-    justification TEXT NOT NULL,
-    account_type account_type, -- use the enum
-    PRIMARY KEY (id),
-    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
-    FOREIGN KEY (provider_id) REFERENCES provider(id)
-);
 CREATE TABLE IF NOT EXISTS cueuser_ngroup (
     cueuser_id UUID NOT NULL,
     ngroup_id UUID NOT NULL,
@@ -165,6 +148,27 @@ CREATE TABLE IF NOT EXISTS file (
     FOREIGN KEY (cueuser_uploaded) REFERENCES cueuser(id),
     FOREIGN KEY (collection_id) REFERENCES collection(id)
 );
+
+CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE account_type AS ENUM ('daac', 'provider');
+
+CREATE TABLE IF NOT EXISTS user_application (
+    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    email VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    applied TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    username VARCHAR NOT NULL,
+    status application_status NOT NULL DEFAULT 'pending',
+    ngroup_id UUID NOT NULL,
+    provider_id UUID NULL,  -- Allow NULL
+    justification TEXT NOT NULL,
+    account_type account_type, -- use the enum
+    PRIMARY KEY (id),
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
+    FOREIGN KEY (provider_id) REFERENCES provider(id)
+);
+
+
 
 -- Create type for file status
 CREATE TYPE file_status_type AS ENUM (

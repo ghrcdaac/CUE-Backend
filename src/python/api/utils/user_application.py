@@ -8,6 +8,12 @@ from uuid import UUID
 import logging
 from datetime import datetime, timezone
 
+from utils.ngroup import list_ngroups
+from utils.provider import list_providers
+from lambda_utils.type_util.ngroup import NgroupListReturn
+from lambda_utils.type_util.provider import ProviderListReturn
+
+
 logger = logging.getLogger(__name__)
 
 class UserApplicationNotFoundError(Exception):
@@ -92,3 +98,11 @@ async def list_user_applications() -> List[UserApplicationReturn]:
         raise
     finally:
         await pool.close()
+
+async def get_ngroups_for_form() -> List[NgroupListReturn]:
+    """Retrieves a list of ngroups with id and short_name for form."""
+    return await list_ngroups()  # Reuse the existing ngroup listing function
+
+async def get_providers_for_ngroup(ngroup_id: UUID) -> List[ProviderListReturn]:
+    """Retrieves a list of providers for a specific ngroup."""
+    return await list_providers(ngroup_id) # Reuse existing function
