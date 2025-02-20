@@ -5,7 +5,6 @@ from typing import List, Optional
 from utils.cueuser import create_cueuser, get_cueuser, update_cueuser, delete_cueuser, list_cueusers, CueuserNotFoundError, get_cueuser_by_lookup
 from lambda_utils.type_util.cueuser import CueuserCreate, CueuserReturn, CueuserUpdate
 from lambda_utils.type_util.cueuser import CueuserAuth
-from utils.auth import get_current_user
 
 router = APIRouter(prefix="/cueuser", tags=["cueuser"])
 
@@ -22,7 +21,7 @@ async def lookup_cueuser_endpoint(
     cueusername: Optional[str] = Query(None, description="Username to search for"),
     name: Optional[str] = Query(None, description="Name to search for"),
     edpub_id: Optional[str] = Query(None, description="Edpub ID to search for"),
-    user: CueuserAuth = Depends(get_current_user)
+    
 ):
     try:
         cueuser = await get_cueuser_by_lookup(email, cueusername, name, edpub_id)
