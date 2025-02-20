@@ -17,7 +17,7 @@ class RefreshTokenRequest(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    username: str  # Could also be EmailStr, depending on your Cognito config
+    username: str  # Could also be EmailStr
 
 
 class ConfirmForgotPasswordRequest(BaseModel):

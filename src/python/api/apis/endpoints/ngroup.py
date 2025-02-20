@@ -6,7 +6,7 @@ from utils.ngroup import create_ngroup, get_ngroup_id_by_name, get_ngroup, updat
 from lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
 
 from utils.JWTBearer import bearer_scheme, JWTBearer  # Import the dependency
-from utils.cognito_utils import cognito_auth
+from utils.auth import get_cognito_auth, CognitoAuth
 
 
 router = APIRouter(prefix="/ngroup", tags=["ngroup"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/ngroup", tags=["ngroup"])
 @router.post("/", response_model=NgroupReturn)
 async def create_ngroup_endpoint(
     ngroup: NgroupCreate,
-    current_user: dict = Depends(cognito_auth.get_current_user),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)
 ):
     if not current_user:
@@ -30,7 +30,7 @@ async def create_ngroup_endpoint(
 async def get_ngroup_id_endpoint(
     short_name: Optional[str] = Query(None, alias="short_name"),
     long_name: Optional[str] = Query(None, alias="long_name"),
-    current_user: dict = Depends(cognito_auth.get_current_user),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)
 
 ):
@@ -51,7 +51,7 @@ async def get_ngroup_id_endpoint(
 @router.get("/{ngroup_id}", response_model=NgroupReturn)
 async def get_ngroup_endpoint(
     ngroup_id: UUID,
-    current_user: dict = Depends(cognito_auth.get_current_user),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)
 ):
     if not current_user:
@@ -70,7 +70,7 @@ async def get_ngroup_endpoint(
 async def update_ngroup_endpoint(
     ngroup_id: UUID,
     ngroup_update: NgroupUpdate,
-    current_user: dict = Depends(cognito_auth.get_current_user),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)
 ):
     if not current_user:
@@ -90,7 +90,7 @@ async def update_ngroup_endpoint(
 @router.delete("/{ngroup_id}", response_model=bool)
 async def delete_ngroup_endpoint(
     ngroup_id: UUID,
-    current_user: dict = Depends(cognito_auth.get_current_user),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)
 ):
     if not current_user:
@@ -106,7 +106,7 @@ async def delete_ngroup_endpoint(
         ) from e
 
 @router.get("/", response_model=List[NgroupReturn])
-async def list_ngroups_endpoint(current_user: dict = Depends(cognito_auth.get_current_user),
+async def list_ngroups_endpoint(current_user: dict = Depends(get_cognito_auth().get_current_user),
     token: str = Depends(bearer_scheme)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")

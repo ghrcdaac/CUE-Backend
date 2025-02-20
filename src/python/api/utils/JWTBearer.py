@@ -3,7 +3,6 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from .cognito_utils import cognito_auth  # Correct import path
 
 
 class JWTBearer(HTTPBearer):

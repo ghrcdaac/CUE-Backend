@@ -7,24 +7,23 @@ from lambda_utils.type_util.auth import (
     ConfirmForgotPasswordRequest,
     ChangePasswordRequest,
 )
-from utils.cognito_utils import CognitoAuth
+from utils.auth import get_cognito_auth, CognitoAuth
 from utils.JWTBearer import bearer_scheme
 
-cognito_auth = CognitoAuth()
 
 router = APIRouter()
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh_token(request: RefreshTokenRequest):
+async def refresh_token(request: RefreshTokenRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
     """
     Refreshes the access and ID tokens using the refresh token.
     """
     try:
         refreshed_tokens = cognito_auth.refresh_tokens(request.refresh_token)
         return refreshed_tokens
-    except HTTPException as e:  # Catch HTTPErrors from cognito_auth
+    except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(
@@ -35,8 +34,8 @@ async def refresh_token(request: RefreshTokenRequest):
 @router.get("/verify-email")
 async def verify_email_route(
     request: Request,
-    current_user: dict = Depends(cognito_auth.get_current_user),
-    token: str = Depends(bearer_scheme),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),  # Use the dependency!
+    cognito_auth = Depends(get_cognito_auth) # Use Depends
 ):
     """
     Verifies the user's email address in Cognito.
@@ -59,10 +58,7 @@ async def verify_email_route(
 
 
 @router.get("/verify-token")
-async def verify_token(
-    current_user: dict = Depends(cognito_auth.get_current_user),
-    token: str = Depends(bearer_scheme),
-):
+async def verify_token(current_user: dict = Depends(get_cognito_auth().get_current_user)): # Use the dependency!
     """
     Verifies the provided access token.
     """
@@ -73,7 +69,7 @@ async def verify_token(
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest):
+async def forgot_password(request: ForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
     """Initiates the forgot password flow."""
     try:
         result = cognito_auth.forgot_password(request.username)
@@ -87,7 +83,7 @@ async def forgot_password(request: ForgotPasswordRequest):
 
 
 @router.post("/confirm-forgot-password")
-async def confirm_forgot_password(request: ConfirmForgotPasswordRequest):
+async def confirm_forgot_password(request: ConfirmForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
     """Confirms the forgot password flow with the code and new password."""
     try:
         cognito_auth.confirm_forgot_password(
@@ -104,23 +100,28 @@ async def confirm_forgot_password(request: ConfirmForgotPasswordRequest):
 
 @router.post("/change-password")
 async def change_password(
-    request: ChangePasswordRequest,
-    current_user: dict = Depends(cognito_auth.get_current_user),
-    token: str = Depends(bearer_scheme),
+    request: Request,  # Get the request object as a dependency!
+    change_password_request: ChangePasswordRequest,  # Use a separate variable
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
+    cognito_auth: CognitoAuth = Depends(get_cognito_auth)
 ):
     """Changes the user's password (requires authentication)."""
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    # Use the access token from the Authorization header
+
+    # Correctly get the access token from the Authorization header:
     auth_header = request.headers.get("Authorization")
+    if not auth_header: # Added check for auth header
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     access_token = auth_header.split(" ")[1]
+
     try:
         cognito_auth.change_password(
-            access_token, request.previous_password, request.new_password
+            access_token, change_password_request.previous_password, change_password_request.new_password
         )
         return {"message": "Password successfully changed."}
     except HTTPException as e:
-        raise e  # Re-raise HTTP exceptions from cognito_utils
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
