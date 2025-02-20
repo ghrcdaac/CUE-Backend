@@ -26,6 +26,7 @@ app.add_middleware(
 api_version = os.getenv("API_VERSION", "v1")
 app.include_router(api_router, prefix=f"/{api_version}")
 
+
 # Example of using ENV for conditional logic
 if os.getenv("ENV") == "production":
     # Do something specific for production
@@ -42,7 +43,7 @@ else:
 @app.on_event("startup")
 async def startup_event():
     app.state.pool = await get_connection_pool(setup=setup_connection)
-    await startup_auth()  # Fetch JWKS and initialize JWTBearer
+    
 
 
 # Close the connection pool when the app shuts down

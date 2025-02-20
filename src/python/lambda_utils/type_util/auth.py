@@ -1,30 +1,15 @@
-from pydantic import BaseModel, SecretStr
-from typing import Dict, Any, Optional, List
+from typing import Optional, Literal
 
-# We *don't* need login/password models on the backend with USER_SRP_AUTH
-# No LoginRequest
-# No PwdResponse
+from pydantic import BaseModel, Field
 
-class AuthResponse(BaseModel):  # For returning tokens
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None  #For refresh token
-    id_token: Optional[str] = None
 
-class RefreshTokenRequest(BaseModel): # Pydantic model for refresh token
+
+class AuthResponse(BaseModel):
+    access_token: str
+    id_token: str
+    refresh_token: Optional[str] = None
+    token_type: Literal["Bearer"] = "Bearer"
+    expires_in: int = Field(..., description="Token expiry time in seconds")
+
+class RefreshTokenRequest(BaseModel):
     refresh_token: str
-
-# Simplified JWKS model (expand as needed)
-JWK = Dict[str, str]  # Each key in the JWKS is a dictionary
-
-class JWKS(BaseModel):
-    keys: List[JWK]
-
-# For JWT authorization
-class JWTAuthorizationCredentials():
-        #scopes: list[str] #Removed this attribute
-        claims: dict
-        def __init__(self, claims: dict):
-            self.claims = claims
-
-class TokenVerificationRequest(BaseModel):
-    token: str  # The JWT to verify
