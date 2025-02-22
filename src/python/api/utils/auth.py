@@ -198,6 +198,66 @@ class CognitoAuth:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
             ) from e
 
+    def admin_verify_email(self, username: str) -> None:
+        """
+        Sets the 'email_verified' attribute to 'true' for a given user.
+        Requires admin privileges.
+        """
+        try:
+            self.client.admin_update_user_attributes(
+                UserPoolId=self.user_pool_id,
+                Username=username,
+                UserAttributes=[
+                    {"Name": "email_verified", "Value": "true"}
+                ]
+            )
+        except self.client.exceptions.UserNotFoundException as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            ) from e
+        except self.client.exceptions.NotAuthorizedException as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,  # Use 403 for insufficient permissions
+                detail="Insufficient permissions to verify email. Requires admin privileges.",
+            ) from e
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            ) from e
+
+    def resend_verification_code(self, username: str) -> dict:
+        """Resends the verification code to the user."""
+        try:
+            response = self.client.resend_confirmation_code(
+                ClientId=self.client_id,
+                Username=username
+            )
+            return {
+                "code_delivery_details": response["CodeDeliveryDetails"]
+            }
+        except self.client.exceptions.UserNotFoundException as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            ) from e
+        except self.client.exceptions.InvalidParameterException as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+            ) from e
+        except self.client.exceptions.CodeDeliveryFailureException as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send verification code."
+            ) from e
+        except self.client.exceptions.LimitExceededException as e:
+             raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many requests. Please try again later.",
+            ) from e
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            ) from e
+
 
 def get_cognito_auth() -> CognitoAuth:
     return CognitoAuth()

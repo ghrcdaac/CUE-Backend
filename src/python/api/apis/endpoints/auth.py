@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
 
 from lambda_utils.type_util.auth import (
     AuthResponse,
@@ -50,7 +50,7 @@ async def verify_email_route(
         result = cognito_auth.verify_email(access_token)
         return result
     except HTTPException as e:
-        raise e  # Re-raise HTTP exceptions from cognito_utils
+        raise e  # Re-raise HTTP exceptions from auth
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
@@ -125,4 +125,45 @@ async def change_password(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        ) from e
+
+@router.post("/admin/verify-email")  # New endpoint for admin verification
+async def admin_verify_email_route(
+    username: str = Body(..., embed=True),
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
+    cognito_auth: CognitoAuth = Depends(get_cognito_auth)
+):
+    """
+    Admin endpoint to manually verify a user's email.  Requires admin privileges.
+    """
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    # # Add authorization check here (e.g., check for an "admin" role in cognito:groups)
+    # if "admin" not in current_user.get("cognito:groups", []):  # Example: Check for admin group
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+    try:
+        cognito_auth.admin_verify_email(username)
+        return {"message": f"Email for user '{username}' verified successfully."}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        ) from e
+
+@router.post("/resend-code")
+async def resend_verification_code_route(username: str = Body(..., embed=True), cognito_auth: CognitoAuth = Depends(get_cognito_auth)):
+    """Resends the verification code to the user."""
+    try:
+        result = cognito_auth.resend_verification_code(username)
+        return result
+
+    except HTTPException as e:
+        raise e
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
         ) from e
