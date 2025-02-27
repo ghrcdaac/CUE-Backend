@@ -38,10 +38,11 @@ def name_must_not_be_empty(cls, value):
 
 class UserApplicationCreate(UserApplicationBase):
     provider_id: Optional[UUID] = None  # Optional, but conditionally required
+    status: Optional[ApplicationStatus] = None
 
     @field_validator("provider_id", mode="before")
-    def check_provider_id(cls, value, values):
-        if values.get('account_type') == AccountType.provider and value is None:
+    def check_provider_id(cls, value, info):
+        if info.data.get('account_type') == AccountType.provider and value is None:
             raise ValueError("provider_id is required when account_type is 'provider'")
         return value
 
@@ -50,12 +51,11 @@ class UserApplicationUpdate(BaseModel):
     # Only status can be updated.  Other fields are not updatable.
     status: Optional[ApplicationStatus] = None
 
-    @field_validator('status') 
-    def check_status(cls, value):
-      valid_statuses = ['pending', 'approved', 'rejected']
-      if value and value not in valid_statuses:
-        raise ValueError(f"Invalid status: {value}.  Must be one of: {valid_statuses}")
-      return value
+    @field_validator('status', mode="before")  # Corrected validator
+    def check_status(cls, value, info):  # Added info argument
+        if value and value not in ApplicationStatus:  # Use the Enum!
+            raise ValueError(f"Invalid status: {value}.  Must be one of: {[s.value for s in ApplicationStatus]}")
+        return value
 
 class UserApplicationReturn(UserApplicationBase):
     id: UUID

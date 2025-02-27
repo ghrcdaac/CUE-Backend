@@ -3,12 +3,12 @@ from typing import Tuple, Optional
 from uuid import UUID
 
 class NgroupCreate(BaseModel):
-    id: Optional[UUID4] = None
+    id: Optional[UUID] = None
     short_name: str
     long_name: str
 
 class NgroupReturn(NgroupCreate):
-    id: UUID4
+    id: UUID
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "NgroupReturn":
@@ -22,7 +22,7 @@ class NgroupUpdate(BaseModel):
 
 
 class NgroupListReturn(BaseModel):
-    id: UUID4
+    id: UUID
     short_name: str
 
     @classmethod
