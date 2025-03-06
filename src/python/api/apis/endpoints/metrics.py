@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from lambda_utils.database_util.db_util import get_metrics, reset_metrics
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(tags=["metrics"])

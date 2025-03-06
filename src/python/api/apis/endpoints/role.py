@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from utils.role import create_role, get_role, update_role, delete_role, list_roles, get_role_by_lookup, RoleNotFoundError
 from lambda_utils.type_util.role import RoleCreate, RoleReturn, RoleUpdate
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(prefix="/role", tags=["role"])

@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from utils.provider import create_provider, get_provider, update_provider, delete_provider, list_providers, ProviderNotFoundError, get_provider_by_lookup
 from lambda_utils.type_util.provider import ProviderCreate, ProviderReturn, ProviderUpdate
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(prefix="/provider", tags=["provider"])

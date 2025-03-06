@@ -11,7 +11,6 @@ from utils.cueuser_role import (
     CueuserRoleNotFoundError
 )
 from lambda_utils.type_util.cueuser_role import CueuserRoleCreate
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(prefix="/cueuser-role", tags=["cueuser-role"])

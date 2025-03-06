@@ -11,7 +11,7 @@ from utils.cueuser_ngroup import (
     CueuserNgroupNotFoundError
 )
 from lambda_utils.type_util.cueuser_ngroup import CueuserNgroupCreate
-from lambda_utils.type_util.cueuser import CueuserAuth
+
 
 
 router = APIRouter(prefix="/cueuser-ngroup", tags=["cueuser-ngroup"])

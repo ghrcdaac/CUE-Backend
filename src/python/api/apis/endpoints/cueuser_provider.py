@@ -11,7 +11,7 @@ from utils.cueuser_provider import (
     CueuserProviderNotFoundError
 )
 from lambda_utils.type_util.cueuser_provider import CueuserProviderCreate
-from lambda_utils.type_util.cueuser import CueuserAuth
+
 
 
 router = APIRouter(prefix="/cueuser-provider", tags=["cueuser-provider"])

@@ -8,6 +8,9 @@ from lambda_utils.database_util.db_util import get_connection_pool, setup_connec
 import asyncio
 from apis.api import router as api_router
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 

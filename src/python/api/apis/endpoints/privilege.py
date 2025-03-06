@@ -3,7 +3,6 @@ from typing import List, Optional
 
 from utils.privilege import create_privilege, get_privilege, update_privilege, delete_privilege, list_privileges, get_privilege_by_lookup, PrivilegeNotFoundError
 from lambda_utils.type_util.privilege import PrivilegeCreate, PrivilegeReturn, PrivilegeUpdate
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(prefix="/privilege", tags=["privilege"])

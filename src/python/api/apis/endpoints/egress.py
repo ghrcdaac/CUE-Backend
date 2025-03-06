@@ -5,7 +5,6 @@ import logging
 
 from utils.egress import create_egress, get_egress, update_egress, list_egresses, delete_egress
 from lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
-from lambda_utils.type_util.cueuser import CueuserAuth
 # from utils.auth import get_current_user, auth_scheme
 
 # Configure logging

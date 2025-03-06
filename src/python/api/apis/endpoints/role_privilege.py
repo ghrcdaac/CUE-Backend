@@ -11,7 +11,6 @@ from utils.role_privilege import (
     RolePrivilegeNotFoundError
 )
 from lambda_utils.type_util.role_privilege import RolePrivilegeCreate
-from lambda_utils.type_util.cueuser import CueuserAuth
 
 
 router = APIRouter(prefix="/role-privilege", tags=["role-privilege"])

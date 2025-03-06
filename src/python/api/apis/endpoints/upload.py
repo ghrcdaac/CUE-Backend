@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from utils.upload import generate_upload_url
 from lambda_utils.type_util.upload import upload_url_pld, upload_url_return
-from lambda_utils.type_util.cueuser import CueuserAuth
 # from utils.auth import
 
 

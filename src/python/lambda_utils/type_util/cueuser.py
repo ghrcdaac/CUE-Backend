@@ -1,59 +1,69 @@
-from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional, Tuple, List
+# type_util/cueuser.py
 from datetime import datetime
+from typing import Optional, Union
 from uuid import UUID
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
+from typing import Dict
+
 
 class CueuserBase(BaseModel):
     email: EmailStr
     name: str
     cueusername: str
+    edpub_id: Optional[str] = None
+
 
 class CueuserCreate(CueuserBase):
-    edpub_id: Optional[str] = None
-    ngroup_id: UUID = None # Add ngroup ID here
-    account_type: str = None
+    ngroup_id: Optional[UUID] = None
     provider_id: Optional[UUID] = None
-    role_id: Optional[UUID] = None # Add Role Id
+    role_id: Optional[UUID] = None
 
-    @field_validator("account_type")
-    def validate_account_type(cls, value):
-      valid_types = ["daac", "provider"]
-      if value not in valid_types:
-            raise ValueError(f"Invalid status: {value}. Must be one of: {valid_types}")
-      return value
+    @model_validator(mode="before")
+    def none_to_null(cls, values: Dict) -> Dict:
+        return {k: (None if v == "" else v) for k, v in values.items()}
 
-    @field_validator("provider_id", mode="before")
-    def check_provider_id(cls, value, values):
-        if 'account_type' in values and values['account_type'] == "provider" and value is None:
-            raise ValueError("provider_id is required when account_type is 'provider'")
-        return value
-class CueuserUpdate(CueuserBase):
-    email: Optional[EmailStr] = None
+
+class CueuserUpdate(BaseModel):
     name: Optional[str] = None
-    cueusername: Optional[str] = None
+    email: Optional[str] = None
     edpub_id: Optional[str] = None
+    ngroup_id: Optional[UUID] = None  
+    provider_id: Optional[UUID] = None  
+    role_id: Optional[UUID] = None  
+
+    @model_validator(mode="before")
+    def none_to_null(cls, values: Dict) -> Dict:
+        return {k: (None if v == "" else v) for k, v in values.items()}
+    
+
 
 class CueuserReturn(CueuserBase):
-    id: UUID
-    registered: datetime  # The database will provide a timezone-aware datetime
-    edpub_id: Optional[str] = None
-    class Config:
-        from_attributes = True
+    id: UUID  
+    ngroup_id: Optional[UUID] = None  
+    provider_id: Optional[UUID] = None  
+    role_id: Optional[UUID] = None  # Added
+    role_short_name: Optional[str] = None  # Added
+    role_long_name: Optional[str] = None  # Added
+    registered: Optional[datetime] = None
 
     @classmethod
-    def from_db_row(cls, row: Tuple) -> "CueuserReturn":
-        id, email, name, registered, cueusername, edpub_id = row
-        return cls(id=id, email=email, name=name, registered=registered, cueusername=cueusername, edpub_id=edpub_id)
+    def from_db_row(cls, row: tuple) -> "CueuserReturn":
+        return cls(
+            id=row['id'],
+            email=row['email'],
+            name=row['name'],
+            cueusername=row['cueusername'],
+            edpub_id=row['edpub_id'],
+            ngroup_id=row['ngroup_id'],  # Added
+            provider_id=row['provider_id'],  # Added
+            role_id=row['role_id'],  # Added
+            role_short_name=row['role_short_name'],  # Added
+            role_long_name=row['role_long_name'],  # Added
+            registered=row['registered']
+        )
 
-# Added CueuserAuth Model
-class CueuserAuth(CueuserReturn):  # Inherit from CueuserReturn
-    ngroup: Optional[str] = None  # Use Optional[str] for ngroup short_name
-    role_name: Optional[str] = None # Use role name, not role_id
-    privileges: Optional[List[str]] = None
 
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "CueuserAuth":
-        id, email, name, registered, cueusername, edpub_id, ngroup, role_name = row
-        return cls(id=id, email=email, name=name, registered=registered,
-                   cueusername=cueusername, edpub_id=edpub_id,
-                   ngroup=ngroup, role_name=role_name) # Include in the constructor
+class CueuserRoleReturn(BaseModel):
+    role_id: Optional[UUID] = None
+    short_name: Optional[str] = None
+    long_name: Optional[str] = None
