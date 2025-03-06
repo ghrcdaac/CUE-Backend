@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 async def create_user_application_in_db(conn: Connection, params: Tuple) -> List:
     """Inserts a new user_application record into the database."""
     insert_query = """
-        INSERT INTO user_application (email, name, applied, username, status, ngroup_id, provider_id, justification, account_type)
-        VALUES ($1, $2, $3, $4, $5::application_status, $6, $7, $8, $9::account_type)
-        RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type
+        INSERT INTO user_application (email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
     """
     try:
         return await conn.fetch(insert_query, *params)
@@ -27,7 +27,7 @@ async def create_user_application_in_db(conn: Connection, params: Tuple) -> List
 async def get_user_application_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves a user_application record from the database by its ID."""
     select_query = """
-        SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type
+        SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
         WHERE id = $1
     """
@@ -44,10 +44,8 @@ async def update_user_application_in_db(conn: Connection, params: Tuple) -> List
     values = []
 
     for i, (field, value) in enumerate(update_fields.items()):
-        if field == "status":
-             set_clause_parts.append(f"{field} = ${i+1}::application_status")
-        else:
-            set_clause_parts.append(f"{field} = ${i + 1}")
+# No type casting
+        set_clause_parts.append(f"{field} = ${i + 1}")
         values.append(value)
     values.append(user_application_id)
     set_clause = ", ".join(set_clause_parts)
@@ -57,7 +55,7 @@ async def update_user_application_in_db(conn: Connection, params: Tuple) -> List
         UPDATE user_application
         SET {set_clause}
         WHERE id = ${len(values)}
-        RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type
+        RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
     """
     try:
         return await conn.fetch(update_query, *values)
@@ -89,7 +87,7 @@ async def delete_user_application_from_db(conn: Connection, params: Tuple) -> bo
 async def list_user_applications_from_db(conn: Connection) -> List:
     """Retrieves all user_application records from the database."""
     select_query = """
-        SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type
+        SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
     """
     try:

@@ -26,7 +26,8 @@ async def create_user_application(user_application: UserApplicationCreate) -> Us
     pool: Pool = await get_connection_pool()
     # Set the applied timestamp to the current UTC time on the server-side
     applied_dt = datetime.now(timezone.utc)
-    params = (user_application.email, user_application.name, applied_dt, user_application.username, user_application.status, user_application.ngroup_id, user_application.provider_id, user_application.justification, user_application.account_type)
+    
+    params = (user_application.email, user_application.name, applied_dt, user_application.username, "pending", user_application.ngroup_id, user_application.provider_id, user_application.justification, user_application.account_type, user_application.edpub_id)
     try:
         result = await query(pool, user_application_db.create_user_application_in_db, params, row_mapper=UserApplicationReturn.from_db_row)
         return result[0]
