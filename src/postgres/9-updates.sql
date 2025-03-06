@@ -55,8 +55,11 @@ END $$;
 ALTER TABLE user_application
 ALTER COLUMN applied TYPE TIMESTAMPTZ;
 
+ALTER TABLE user_application
+ADD COLUMN IF NOT EXISTS edpub_id VARCHAR;
+
 ALTER TABLE cueuser_auth
-ALTER COLUMN LAST_LOGIN TYPE TIMESTAMPTZ;
+ALTER COLUMN last_login TYPE TIMESTAMPTZ;
 
 -- Create type for file status if not exists
 DO $$
@@ -85,3 +88,34 @@ ALTER COLUMN scan_end TYPE TIMESTAMPTZ,
 ALTER COLUMN egress_start TYPE TIMESTAMPTZ,
 ALTER COLUMN status TYPE file_status_type USING status::text::file_status_type;
 
+
+BEGIN;
+
+UPDATE cueuser_auth SET refresh_token = NULL WHERE refresh_token = '';
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE table_name = 'cueuser_auth'
+      AND constraint_name = 'cueuser_auth_pkey'  -- Check for the PRIMARY KEY
+      AND constraint_type = 'PRIMARY KEY'
+  ) THEN
+    -- Check if refresh_token is part of a composite primary key (it shouldn't be,
+    -- but this adds extra safety).  If it's NOT part of the primary key, proceed.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.key_column_usage
+        WHERE table_name = 'cueuser_auth'
+          AND constraint_name = 'cueuser_auth_pkey'
+          AND column_name = 'refresh_token'
+    ) THEN
+        -- Now we can safely drop the NOT NULL constraint
+        ALTER TABLE cueuser_auth
+        ALTER COLUMN refresh_token DROP NOT NULL;
+    END IF;
+  END IF;
+END $$;
+
+COMMIT;

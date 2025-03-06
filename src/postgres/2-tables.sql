@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS cueuser (
 
 CREATE TABLE IF NOT EXISTS cueuser_auth (
     id UUID NOT NULL,
-    refresh_token VARCHAR NOT NULL DEFAULT '',
-    LAST_LOGIN TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Use TIMESTAMPTZ
+    refresh_token VARCHAR,
+    last_login TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Use TIMESTAMPTZ
     PRIMARY KEY (id),
     FOREIGN KEY (id) REFERENCES cueuser(id)
 );
@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS user_application (
     provider_id UUID NULL,  -- Allow NULL
     justification TEXT NOT NULL,
     account_type account_type, -- use the enum
+    edpub_id VARCHAR,
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     FOREIGN KEY (provider_id) REFERENCES provider(id)
