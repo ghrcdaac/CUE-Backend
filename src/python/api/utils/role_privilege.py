@@ -53,7 +53,7 @@ async def list_privileges_for_role(role_name: str) -> List[str]: # changed role_
     try:
         # Note:  We don't need a custom Pydantic model for the return *here*
         # because we're just returning a list of strings (privilege names).
-        privileges = await query(pool, role_privilege_db.list_privileges_for_role_from_db, params) # Modified
+        privileges = await query(pool, role_privilege_db.list_privileges_for_role_from_db, params)
         # The database function returns a list of records.  We need to extract
         # the 'privilege' value from each record.  This uses a list comprehension.
         return [p['privilege'] for p in privileges] # Extract 'privilege', not 'role_id'

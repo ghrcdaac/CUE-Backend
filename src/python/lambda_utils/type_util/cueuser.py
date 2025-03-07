@@ -41,9 +41,9 @@ class CueuserReturn(CueuserBase):
     id: UUID  
     ngroup_id: Optional[UUID] = None  
     provider_id: Optional[UUID] = None  
-    role_id: Optional[UUID] = None  # Added
-    role_short_name: Optional[str] = None  # Added
-    role_long_name: Optional[str] = None  # Added
+    role_id: Optional[UUID] = None  
+    role_short_name: Optional[str] = None  
+    role_long_name: Optional[str] = None  
     registered: Optional[datetime] = None
 
     @classmethod
@@ -54,11 +54,11 @@ class CueuserReturn(CueuserBase):
             name=row['name'],
             cueusername=row['cueusername'],
             edpub_id=row['edpub_id'],
-            ngroup_id=row['ngroup_id'],  # Added
-            provider_id=row['provider_id'],  # Added
-            role_id=row['role_id'],  # Added
-            role_short_name=row['role_short_name'],  # Added
-            role_long_name=row['role_long_name'],  # Added
+            ngroup_id=row['ngroup_id'],  
+            provider_id=row['provider_id'],  
+            role_id=row['role_id'],  
+            role_short_name=row['role_short_name'],  
+            role_long_name=row['role_long_name'],  
             registered=row['registered']
         )
 

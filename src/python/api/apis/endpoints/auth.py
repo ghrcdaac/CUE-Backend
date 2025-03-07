@@ -16,7 +16,7 @@ router = APIRouter()
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh_token(request: RefreshTokenRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
+async def refresh_token(request: RefreshTokenRequest, cognito_auth = Depends(get_cognito_auth)):  
     """
     Refreshes the access and ID tokens using the refresh token.
     """
@@ -34,7 +34,7 @@ async def refresh_token(request: RefreshTokenRequest, cognito_auth = Depends(get
 @router.get("/verify-email")
 async def verify_email_route(
     request: Request,
-    current_user: dict = Depends(get_cognito_auth().get_current_user),  # Use the dependency!
+    current_user: dict = Depends(get_cognito_auth().get_current_user),  
     cognito_auth = Depends(get_cognito_auth) # Use Depends
 ):
     """
@@ -58,7 +58,7 @@ async def verify_email_route(
 
 
 @router.get("/verify-token")
-async def verify_token(current_user: dict = Depends(get_cognito_auth().get_current_user)): # Use the dependency!
+async def verify_token(current_user: dict = Depends(get_cognito_auth().get_current_user)): 
     """
     Verifies the provided access token.
     """
@@ -69,7 +69,7 @@ async def verify_token(current_user: dict = Depends(get_cognito_auth().get_curre
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
+async def forgot_password(request: ForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  
     """Initiates the forgot password flow."""
     try:
         result = cognito_auth.forgot_password(request.username)
@@ -83,7 +83,7 @@ async def forgot_password(request: ForgotPasswordRequest, cognito_auth = Depends
 
 
 @router.post("/confirm-forgot-password")
-async def confirm_forgot_password(request: ConfirmForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  # Use the dependency!
+async def confirm_forgot_password(request: ConfirmForgotPasswordRequest, cognito_auth = Depends(get_cognito_auth)):  
     """Confirms the forgot password flow with the code and new password."""
     try:
         cognito_auth.confirm_forgot_password(
