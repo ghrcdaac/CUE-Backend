@@ -26,3 +26,13 @@ class ProviderReturn(ProviderBase):
     def from_db_row(cls, row: Tuple) -> "ProviderReturn":
         id, ngroup_id, short_name, long_name, can_upload, point_of_contact_user_id = row
         return cls(id=id, ngroup_id=ngroup_id, short_name=short_name, long_name=long_name, can_upload=can_upload, point_of_contact_user_id=point_of_contact_user_id)
+    
+
+class ProviderListReturn(BaseModel):
+    id: UUID
+    short_name: str
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "ProviderListReturn":
+        id, _, short_name, *_ = row  # Use _ for values we don't need
+        return cls(id=id, short_name=short_name)

@@ -8,6 +8,10 @@ from lambda_utils.database_util.db_util import get_connection_pool, setup_connec
 import asyncio
 from apis.api import router as api_router
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 app = FastAPI()
@@ -25,6 +29,7 @@ app.add_middleware(
 api_version = os.getenv("API_VERSION", "v1")
 app.include_router(api_router, prefix=f"/{api_version}")
 
+
 # Example of using ENV for conditional logic
 if os.getenv("ENV") == "production":
     # Do something specific for production
@@ -41,6 +46,8 @@ else:
 @app.on_event("startup")
 async def startup_event():
     app.state.pool = await get_connection_pool(setup=setup_connection)
+    
+
 
 # Close the connection pool when the app shuts down
 @app.on_event("shutdown")

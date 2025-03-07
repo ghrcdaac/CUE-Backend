@@ -40,16 +40,15 @@ async def delete_role_privilege_association_from_db(conn: Connection, params: Tu
         logger.error(f"An unexpected error occurred while deleting association: {e}", exc_info=True)
         raise
 
-async def list_privileges_for_role_from_db(conn: Connection, params: Tuple) -> List[str]:
+async def list_privileges_for_role_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves all privileges associated with a role from the database."""
     select_query = """
         SELECT privilege
         FROM role_privilege
-        WHERE role_id = $1
+        WHERE role_id = (SELECT id FROM role WHERE short_name = $1)
     """
     try:
-        results = await conn.fetch(select_query, *params)
-        return [result['privilege'] for result in results]
+        return await conn.fetch(select_query, *params) # returning list of records.
     except Exception as e:
         logger.error(f"An unexpected error occurred while listing privileges for role: {e}", exc_info=True)
         raise

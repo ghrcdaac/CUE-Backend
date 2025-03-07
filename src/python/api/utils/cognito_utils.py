@@ -71,7 +71,7 @@ class CognitoAuth:
     def refresh_tokens(self, refresh_token: str) -> dict:
         """Refreshes access and ID tokens using a refresh token."""
         try:
-            response = self.client.initiate_auth(
+            response = self.client.initiate_auth(  # Call on self.client
                 ClientId=self.client_id,
                 AuthFlow='REFRESH_TOKEN_AUTH',
                 AuthParameters={'REFRESH_TOKEN': refresh_token},
@@ -101,7 +101,7 @@ class CognitoAuth:
     def verify_email(self, access_token: str) -> dict:
         """Verifies if the user's email is verified in Cognito."""
         try:
-            response = self.client.get_user(AccessToken=access_token)
+            response = self.client.get_user(AccessToken=access_token)  # Call on self.client
             for attr in response['UserAttributes']:
                 if attr['Name'] == 'email_verified':
                     return {'email_verified': attr['Value'] == 'true'}
@@ -118,7 +118,7 @@ class CognitoAuth:
     def forgot_password(self, username: str) -> dict:
         """Initiates the forgot password flow."""
         try:
-            response = self.client.forgot_password(
+            response = self.client.forgot_password(  # Call on self.client
                 ClientId=self.client_id,
                 Username=username
             )
@@ -144,7 +144,7 @@ class CognitoAuth:
     def confirm_forgot_password(self, username: str, confirmation_code: str, new_password: str) -> None:
         """Confirms the forgot password flow with the code and new password."""
         try:
-            self.client.confirm_forgot_password(
+            self.client.confirm_forgot_password(  # Call on self.client
                 ClientId=self.client_id,
                 Username=username,
                 ConfirmationCode=confirmation_code,
@@ -177,7 +177,7 @@ class CognitoAuth:
     def change_password(self, access_token: str, previous_password: str, new_password: str) -> None:
         """Changes the user's password (requires the user to be logged in)."""
         try:
-            self.client.change_password(
+            self.client.change_password(  # Call on self.client
                 AccessToken=access_token,
                 PreviousPassword=previous_password,
                 ProposedPassword=new_password
@@ -190,66 +190,6 @@ class CognitoAuth:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
         except self.client.exceptions.LimitExceededException as e:
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many requests. Please try again later.",
-            ) from e
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-            ) from e
-
-    def admin_verify_email(self, username: str) -> None:
-        """
-        Sets the 'email_verified' attribute to 'true' for a given user.
-        Requires admin privileges.
-        """
-        try:
-            self.client.admin_update_user_attributes(
-                UserPoolId=self.user_pool_id,
-                Username=username,
-                UserAttributes=[
-                    {"Name": "email_verified", "Value": "true"}
-                ]
-            )
-        except self.client.exceptions.UserNotFoundException as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            ) from e
-        except self.client.exceptions.NotAuthorizedException as e:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,  # Use 403 for insufficient permissions
-                detail="Insufficient permissions to verify email. Requires admin privileges.",
-            ) from e
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-            ) from e
-
-    def resend_verification_code(self, username: str) -> dict:
-        """Resends the verification code to the user."""
-        try:
-            response = self.client.resend_confirmation_code(
-                ClientId=self.client_id,
-                Username=username
-            )
-            return {
-                "code_delivery_details": response["CodeDeliveryDetails"]
-            }
-        except self.client.exceptions.UserNotFoundException as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            ) from e
-        except self.client.exceptions.InvalidParameterException as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-            ) from e
-        except self.client.exceptions.CodeDeliveryFailureException as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send verification code."
-            ) from e
-        except self.client.exceptions.LimitExceededException as e:
-             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Too many requests. Please try again later.",
             ) from e

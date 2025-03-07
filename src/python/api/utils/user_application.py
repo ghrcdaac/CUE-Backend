@@ -1,3 +1,4 @@
+import uuid
 from asyncpg.pool import Pool
 from lambda_utils.database_util.db_util import query, get_connection_pool
 from lambda_utils.database_util import user_application as user_application_db
@@ -6,6 +7,12 @@ from typing import List, Optional
 from uuid import UUID
 import logging
 from datetime import datetime, timezone
+
+from utils.ngroup import list_ngroups
+from utils.provider import list_providers
+from lambda_utils.type_util.ngroup import NgroupListReturn
+from lambda_utils.type_util.provider import ProviderListReturn
+
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +26,8 @@ async def create_user_application(user_application: UserApplicationCreate) -> Us
     pool: Pool = await get_connection_pool()
     # Set the applied timestamp to the current UTC time on the server-side
     applied_dt = datetime.now(timezone.utc)
-    params = (user_application.email, user_application.name, applied_dt, user_application.username, user_application.status, user_application.ngroup_id, user_application.justification)
+    
+    params = (user_application.email, user_application.name, applied_dt, user_application.username, "pending", user_application.ngroup_id, user_application.provider_id, user_application.justification, user_application.account_type, user_application.edpub_id)
     try:
         result = await query(pool, user_application_db.create_user_application_in_db, params, row_mapper=UserApplicationReturn.from_db_row)
         return result[0]
@@ -91,3 +99,11 @@ async def list_user_applications() -> List[UserApplicationReturn]:
         raise
     finally:
         await pool.close()
+
+async def get_ngroups_for_form() -> List[NgroupListReturn]:
+    """Retrieves a list of ngroups with id and short_name for form."""
+    return await list_ngroups()  # Reuse the existing ngroup listing function
+
+async def get_providers_for_ngroup(ngroup_id: UUID) -> List[ProviderListReturn]:
+    """Retrieves a list of providers for a specific ngroup."""
+    return await list_providers(ngroup_id) # Reuse existing function

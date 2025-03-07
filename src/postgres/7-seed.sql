@@ -99,3 +99,5 @@ INSERT INTO cueuser (id, email, name, cueusername)
 INSERT INTO cueuser_auth (id,refresh_token)
     VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', '123');
 
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
