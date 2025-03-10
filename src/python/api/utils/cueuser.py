@@ -314,3 +314,32 @@ async def get_cueuser_role(cueuser_id: UUID) -> CueuserRoleReturn:
         return CueuserRoleReturn.model_validate(result)
     finally:
         await pool.close()
+
+async def get_cueuser_by_username_util(username: str) -> CueuserReturn:
+    """Retrieves a complete cueuser record by username."""
+    pool: Pool = await get_connection_pool()
+    async with pool.acquire() as conn:
+        try:
+            # 1. Get the user by username (this gives us the cueuser_id).
+            user_data = await cueuser_db.get_cueuser_by_username(conn, username)
+            if not user_data:
+                raise CueuserNotFoundError(cueusername=username)
+            # 2. Get the ngroup_id associated with the user.
+            ngroup_id = await get_user_ngroup_id(user_data['id'])
+            if not ngroup_id:
+                raise CueuserNotFoundError(cueusername=username)
+
+            # 3. Get the complete user details using the cueuser_id and ngroup_id.
+            complete_user_data = await cueuser_db.get_cueuser_from_db(conn, (user_data['id'], ngroup_id))
+            if not complete_user_data:
+                raise CueuserNotFoundError(cueusername=username)
+
+            return CueuserReturn.from_db_row(complete_user_data[0])
+
+        except CueuserNotFoundError:
+            raise  # Re-raise to be caught in the endpoint
+        except Exception as e:
+            logger.error(f"Error getting user by username: {e}", exc_info=True)
+            raise
+        finally:
+            await pool.release(conn)

@@ -1,6 +1,7 @@
-from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError, DataError
-from typing import Tuple, List, Optional
+from asyncpg import Connection
+from typing import Tuple, List, Any, Optional
 from uuid import UUID
+from lambda_utils.type_util.user_application import UserApplicationReturn
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,38 +14,38 @@ async def create_user_application_in_db(conn: Connection, params: Tuple) -> List
         RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
     """
     try:
-        return await conn.fetch(insert_query, *params)
-    except ForeignKeyViolationError as e:
-        logger.error(f"Failed to create user_application due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid ngroup_id or provider_id provided.") from e
-    except DataError as e:
-        logger.error(f"Failed to create user_application due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for creating a user_application.") from e
+        return await conn.fetch(insert_query, *params) 
     except Exception as e:
-        logger.error(f"An unexpected error occurred while creating a user_application: {e}", exc_info=True)
+        logger.error(f"Error creating user_application: {e}", exc_info=True)
         raise
 
 async def get_user_application_from_db(conn: Connection, params: Tuple) -> List:
-    """Retrieves a user_application record from the database by its ID."""
+    """Retrieves a user_application by ID, optionally filtering by ngroup_id."""
+    user_application_id = params[0]
+    ngroup_id = params[1] if len(params) > 1 else None
+
     select_query = """
         SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
         WHERE id = $1
     """
-    try:
-        return await conn.fetch(select_query, *params)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while getting a user_application: {e}", exc_info=True)
-        raise
+    query_params: List[Any] = [user_application_id]
+    if ngroup_id:
+        select_query += " AND ngroup_id = $2"
+        query_params.append(ngroup_id)
 
+    try:
+        return await conn.fetch(select_query, *query_params) 
+    except Exception as e:
+        logger.error(f"Error getting user_application: {e}", exc_info=True)
+        raise
 async def update_user_application_in_db(conn: Connection, params: Tuple) -> List:
     """Updates an existing user_application record in the database."""
     update_fields, user_application_id = params
     set_clause_parts = []
-    values = []
+    values:List[Any] = []
 
     for i, (field, value) in enumerate(update_fields.items()):
-# No type casting
         set_clause_parts.append(f"{field} = ${i + 1}")
         values.append(value)
     values.append(user_application_id)
@@ -58,40 +59,47 @@ async def update_user_application_in_db(conn: Connection, params: Tuple) -> List
         RETURNING id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
     """
     try:
-        return await conn.fetch(update_query, *values)
+        return await conn.fetch(update_query, *values) 
 
-    except ForeignKeyViolationError as e:
-        logger.error(f"Failed to update user_application due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid ngroup_id or provider_id provided.") from e
-    except DataError as e:
-        logger.error(f"Failed to update user_application due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for updating a user_application.") from e
     except Exception as e:
         logger.error(f"An unexpected error occurred while updating user application: {e}", exc_info=True)
         raise
 
-
 async def delete_user_application_from_db(conn: Connection, params: Tuple) -> bool:
-    """Deletes a user_application record from the database by its ID."""
+    """Deletes by ID, optionally filtering by ngroup_id."""
+    user_application_id = params[0]
+    ngroup_id = params[1] if len(params) > 1 else None
+
     delete_query = """
         DELETE FROM user_application
         WHERE id = $1
     """
+    query_params: List[Any] = [user_application_id]
+    if ngroup_id:
+        delete_query += " AND ngroup_id = $2"
+        query_params.append(ngroup_id)
+
     try:
-        result = await conn.execute(delete_query, *params)
-        return result == "DELETE 1"
+        result = await conn.execute(delete_query, *query_params)  
+        return result.startswith("DELETE")
     except Exception as e:
-        logger.error(f"An unexpected error occurred while deleting a user_application: {e}", exc_info=True)
+        logger.error(f"Error deleting user_application: {e}", exc_info=True)
         raise
 
-async def list_user_applications_from_db(conn: Connection) -> List:
-    """Retrieves all user_application records from the database."""
+async def list_user_applications_from_db(conn: Connection, params: Optional[Tuple]) -> List:
+    """Retrieves user_applications, optionally filtering by ngroup_id."""
     select_query = """
         SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
     """
+    query_params: List[Any] = []
+    # ngroup_id is the first and only element, if it exists.
+    if params and params[0] is not None: # Safely check if params exists and ngroup exists
+        select_query += " WHERE ngroup_id = $1"
+        query_params.append(params[0])
+
     try:
-        return await conn.fetch(select_query)
+        return await conn.fetch(select_query, *query_params)  
     except Exception as e:
-        logger.error(f"An unexpected error occurred while listing user_applications: {e}", exc_info=True)
+        logger.error(f"Error listing user_applications: {e}", exc_info=True)
         raise

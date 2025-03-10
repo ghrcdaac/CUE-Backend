@@ -9,9 +9,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ProviderNotFoundError(Exception):
-    def __init__(self, provider_id: UUID = None, short_name: str = None, long_name: str = None):
+    def __init__(self, provider_id: UUID = None, short_name: str = None, long_name: str = None, ngroup_id: Optional[UUID] = None):
         if provider_id:
             message = f"Provider not found with ID: {provider_id}"
+            if ngroup_id:
+              message += f" and ngroup_id: {ngroup_id}"
         elif short_name:
             message = f"Provider not found with short_name: {short_name}"
         elif long_name:
@@ -22,6 +24,8 @@ class ProviderNotFoundError(Exception):
         self.provider_id = provider_id
         self.short_name = short_name
         self.long_name = long_name
+        self.ngroup_id = ngroup_id
+
 
 async def create_provider(provider: ProviderCreate) -> ProviderReturn:
     """Creates a new provider record."""
@@ -36,16 +40,16 @@ async def create_provider(provider: ProviderCreate) -> ProviderReturn:
     finally:
         await pool.close()
 
-async def get_provider(provider_id: UUID) -> ProviderReturn | None:
-    """Retrieves a provider record by its ID."""
+async def get_provider(provider_id: UUID, ngroup_id: Optional[UUID] = None) -> ProviderReturn | None:
+    """Retrieves a provider record by its ID, optionally filtering by ngroup ID."""
     pool: Pool = await get_connection_pool()
-    params = (provider_id,)
     try:
+        params = (provider_id, ngroup_id)  # Always pass as a tuple
         result = await query(pool, provider_db.get_provider_from_db, params, row_mapper=ProviderReturn.from_db_row)
         if result:
             return result[0]
         else:
-            raise ProviderNotFoundError(provider_id=provider_id)
+            raise ProviderNotFoundError(provider_id=provider_id, ngroup_id=ngroup_id)
     except Exception as e:
         logger.error(f"Error getting provider: {e}", exc_info=True)
         raise
@@ -61,7 +65,7 @@ async def get_provider_by_lookup(
         raise ValueError("Either short_name or long_name must be provided")
 
     pool: Pool = await get_connection_pool()
-    params = (short_name, long_name)
+    params = (short_name, long_name) # Already a tuple
     try:
         result = await query(pool, provider_db.get_provider_by_lookup_from_db, params, row_mapper=ProviderReturn.from_db_row)
         if result:
@@ -81,7 +85,7 @@ async def update_provider(provider_id: UUID, provider_update: ProviderUpdate) ->
     if not update_fields:
         return await get_provider(provider_id)
 
-    params = (update_fields, provider_id)
+    params = (update_fields, provider_id) # Already a tuple
     try:
         result = await query(pool, provider_db.update_provider_in_db, params, row_mapper=ProviderReturn.from_db_row)
         if result:
@@ -94,14 +98,14 @@ async def update_provider(provider_id: UUID, provider_update: ProviderUpdate) ->
     finally:
         await pool.close()
 
-async def delete_provider(provider_id: UUID) -> bool:
-    """Deletes a provider record by its ID."""
+async def delete_provider(provider_id: UUID, ngroup_id: Optional[UUID] = None) -> bool:
+    """Deletes a provider record by its ID, optionally filtering by ngroup ID"""
     pool: Pool = await get_connection_pool()
-    params = (provider_id,)
     try:
+        params = (provider_id, ngroup_id)  # Always pass as a tuple
         result = await query(pool, provider_db.delete_provider_from_db, params)
         if not result:
-            raise ProviderNotFoundError(provider_id=provider_id)
+            raise ProviderNotFoundError(provider_id=provider_id, ngroup_id=ngroup_id)
         return result
     except Exception as e:
         logger.error(f"Error deleting provider: {e}", exc_info=True)
@@ -116,7 +120,8 @@ async def list_providers(
     """Retrieves all provider records with optional filters."""
     pool: Pool = await get_connection_pool()
     try:
-        results = await query(pool, provider_db.list_providers_from_db, (ngroup_id, can_upload), row_mapper=ProviderReturn.from_db_row)
+        params = (ngroup_id, can_upload)  # Always pass as a tuple
+        results = await query(pool, provider_db.list_providers_from_db, params, row_mapper=ProviderReturn.from_db_row)
         return results
     except Exception as e:
         logger.error(f"Error listing providers: {e}", exc_info=True)
