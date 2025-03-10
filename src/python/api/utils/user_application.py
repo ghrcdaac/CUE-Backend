@@ -114,4 +114,4 @@ async def get_ngroups_for_form() -> List[NgroupListReturn]:
 
 async def get_providers_for_ngroup(ngroup_id: UUID) -> List[ProviderListReturn]:
     """Retrieves a list of providers for a specific ngroup."""
-    return await list_providers()
+    return await list_providers(ngroup_id=ngroup_id)
