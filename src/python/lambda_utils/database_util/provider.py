@@ -1,5 +1,6 @@
+# lambda_utils/database_util/provider.py (Corrected)
 from asyncpg import Connection, UniqueViolationError, DataError, ForeignKeyViolationError
-from typing import Tuple, List, Optional, Any 
+from typing import Tuple, List, Optional, Dict, Any
 from uuid import UUID
 
 from lambda_utils.type_util.provider import ProviderReturn
@@ -15,122 +16,172 @@ async def create_provider_in_db(conn: Connection, params: Tuple) -> List[Provide
         RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact
     """
     try:
-        return await conn.fetch(insert_query, *params)  
+        return await conn.fetch(insert_query, *params)
     except UniqueViolationError as e:
-        logger.error(f"Failed to create provider: {e}", exc_info=True)
-        raise ValueError("Unique constraint violation.")
-    except ForeignKeyViolationError as e:
-        logger.error(f"Failed to create provider: {e}", exc_info=True)
-        raise ValueError("Foreign key violation.")
-    except DataError as e:
-        logger.error(f"Failed to create provider: {e}", exc_info=True)
-        raise ValueError("Invalid data.")
+        logger.error(f"Failed to create provider(Unique): {e}", exc_info=True)
+        raise ValueError("A provider with the given name already exists.")
+    except ForeignKeyViolationError:
+        logger.error(f"Failed to create provider(FK): {e}", exc_info=True)
+        raise ValueError("Invalid ngroup_id or point_of_contact provided.")
     except Exception as e:
-        logger.error(f"Error creating provider: {e}", exc_info=True)
+        logger.error(f"Failed to create provider(Unexpected): {e}", exc_info=True)
         raise
 
-async def get_provider_from_db(conn: Connection, params: Tuple) -> List[ProviderReturn]:
-    """Retrieves a provider by ID, optionally filtering by ngroup_id."""
-    provider_id = params[0]  
-    ngroup_id = params[1] if len(params) > 1 else None
-
+async def get_provider_from_db(conn: Connection, params: Tuple) -> List:
+    """Retrieves a provider record from the database by its ID."""
     select_query = """
         SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
         FROM provider
         WHERE id = $1
     """
-    query_params: List[Any] = [provider_id]  
-
-    if ngroup_id:
-        select_query += " AND ngroup_id = $2"
-        query_params.append(ngroup_id)
-
     try:
-        return await conn.fetch(select_query, *query_params)  
+        return await conn.fetch(select_query, *params)
     except Exception as e:
         logger.error(f"Error getting provider: {e}", exc_info=True)
         raise
 
-async def get_provider_by_lookup_from_db(conn: Connection, params: Tuple) -> List[ProviderReturn]:
-    """Retrieves a provider by short_name or long_name."""
+async def get_provider_from_db_ngroup(conn: Connection, params: Tuple) -> List:
+    """Retrieves a provider record by its ID, filtered by ngroup ID"""
     select_query = """
         SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
         FROM provider
-        WHERE short_name = $1 OR long_name = $2
+        WHERE id = $1 AND ngroup_id = $2
     """
     try:
-        return await conn.fetch(select_query, *params)  
+        return await conn.fetch(select_query, *params)
     except Exception as e:
-        logger.error(f"Error during provider lookup: {e}", exc_info=True)
+        logger.error(f"Error getting provider with ngroup: {e}", exc_info=True)
         raise
 
-async def update_provider_in_db(conn: Connection, params: Tuple) -> List[ProviderReturn]:
-    """Updates an existing provider."""
+async def get_provider_by_short_name_from_db(conn: Connection, params: Tuple) -> List:
+    """Retrieves a provider record from the database by short_name."""
+    select_query = """
+     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+        WHERE short_name = $1
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error getting provider by short_name: {e}", exc_info=True)
+        raise
+
+async def get_provider_by_long_name_from_db(conn: Connection, params: Tuple) -> List:
+    """Retrieves a provider record from the database by long_name."""
+    select_query = """
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+        WHERE long_name = $1
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error getting provider by long_name: {e}", exc_info=True)
+        raise
+async def update_provider_in_db(conn: Connection, params: Tuple) -> List:
+    """Updates an existing provider record in the database."""
     update_fields, provider_id = params
     set_clause_parts = []
-    values: List[Any] = []  
-
-    for i, (field, value) in enumerate(update_fields.items()):
-        set_clause_parts.append(f"{field} = ${i + 1}")
+    values = []
+    for field, value in update_fields.items():
+        set_clause_parts.append(f"{field} = ${len(values) + 1}")
         values.append(value)
 
-    values.append(provider_id)
+    values.append(provider_id)  # Add provider_id at the end
     set_clause = ", ".join(set_clause_parts)
+
     update_query = f"""
-        UPDATE provider SET {set_clause}
+        UPDATE provider
+        SET {set_clause}
         WHERE id = ${len(values)}
         RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact
     """
+
     try:
-        return await conn.fetch(update_query, *values)  
+        return await conn.fetch(update_query, *values)
+    except UniqueViolationError as e:
+        logger.error(f"Failed to update provider(Unique): {e}", exc_info=True)
+        raise ValueError("A provider with the given short_name already exists")
+    except ForeignKeyViolationError:
+        logger.error(f"Failed to update provider(FK): {e}", exc_info=True)
+        raise ValueError("Invalid ngroup_id or point_of_contact provided")
     except Exception as e:
-        logger.error(f"Error updating provider: {e}", exc_info=True)
-        raise
+         logger.error(f"Failed to update provider (unexpected): {e}", exc_info=True)
+         raise
 
 async def delete_provider_from_db(conn: Connection, params: Tuple) -> bool:
-    """Deletes a provider by ID, optionally filtering by ngroup_id."""
-    provider_id = params[0]
-    ngroup_id = params[1] if len(params) > 1 else None
-
+    """Deletes a provider record from the database by its ID."""
     delete_query = """
         DELETE FROM provider
         WHERE id = $1
     """
-    query_params: List[Any] = [provider_id]
-    if ngroup_id:
-        delete_query += " AND ngroup_id = $2"
-        query_params.append(ngroup_id)
-
     try:
-        result = await conn.execute(delete_query, *query_params)  
-        return result.startswith("DELETE")
+        result = await conn.execute(delete_query, *params)
+        return result == "DELETE 1"
     except Exception as e:
         logger.error(f"Error deleting provider: {e}", exc_info=True)
         raise
 
-async def list_providers_from_db(conn: Connection, params: Tuple) -> List[ProviderReturn]:
-    """Lists providers, filtering by ngroup_id and can_upload."""
-    ngroup_id, can_upload = params[0], params[1] if len(params) > 1 else None  
-    query_parts = ["SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact FROM provider"]
-    where_parts = []
-    query_params: List[Any] = []
-
-    if ngroup_id:
-        where_parts.append("ngroup_id = $1")
-        query_params.append(ngroup_id)
-    if can_upload is not None:
-        where_parts.append(f"can_upload = ${len(query_params) + 1}")
-        query_params.append(can_upload)
-
-    if where_parts:
-        query_parts.append("WHERE")
-        query_parts.append(" AND ".join(where_parts))
-
-    select_query = " ".join(query_parts)
-    logger.info(f"Listing providers with query: {select_query} and params: {query_params}")
-
+async def delete_provider_from_db_ngroup(conn: Connection, params: Tuple) -> bool:
+    """Deletes a provider record by ID, filtered by ngroup_id."""
+    delete_query = """
+        DELETE FROM provider
+        WHERE id = $1 AND ngroup_id = $2
+    """
     try:
-        return await conn.fetch(select_query, *query_params)  
+        result = await conn.execute(delete_query, *params)
+        return result.startswith("DELETE")
+    except Exception as e:
+        logger.error(f"Error deleting provider with ngroup filter: {e}", exc_info=True)
+        raise
+
+async def list_providers_from_db(conn: Connection) -> List:
+    """Retrieves all provider records from the database."""
+    select_query = """
+     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+    """
+    try:
+        return await conn.fetch(select_query)
     except Exception as e:
         logger.error(f"Error listing providers: {e}", exc_info=True)
+        raise
+
+async def list_providers_from_db_ngroup(conn: Connection, params: Tuple) -> List:
+    """Retrieves provider records filtered by ngroup_id."""
+    select_query = """
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+        WHERE ngroup_id = $1
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error listing providers with ngroup filter: {e}", exc_info=True)
+        raise
+
+async def list_providers_from_db_upload(conn: Connection, params: Tuple) -> List:
+    """Retrieves provider records filtered by can_upload."""
+    select_query = """
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+        WHERE can_upload = $1
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error listing providers with can_upload filter: {e}", exc_info=True)
+        raise
+
+async def list_providers_from_db_ngroup_and_upload(conn: Connection, params: Tuple) -> List:
+    """Retrieves provider records filtered by ngroup_id and can_upload."""
+    select_query = """
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        FROM provider
+        WHERE ngroup_id = $1 AND can_upload = $2
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error listing providers with ngroup and can_upload filters: {e}", exc_info=True)
         raise
