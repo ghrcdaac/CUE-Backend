@@ -31,30 +31,30 @@ async def refresh_token(request: RefreshTokenRequest, cognito_auth = Depends(get
         ) from e
 
 
-@router.get("/verify-email")
-async def verify_email_route(
-    request: Request,
-    current_user: dict = Depends(get_cognito_auth().get_current_user),  
-    cognito_auth = Depends(get_cognito_auth) # Use Depends
-):
-    """
-    Verifies the user's email address in Cognito.
-    """
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    # Use the access token from the Authorization header
-    auth_header = request.headers.get("Authorization")
-    access_token = auth_header.split(" ")[1]
+# @router.get("/verify-email")
+# async def verify_email_route(
+#     request: Request,
+#     current_user: dict = Depends(get_cognito_auth().get_current_user),  
+#     cognito_auth = Depends(get_cognito_auth) # Use Depends
+# ):
+#     """
+#     Verifies the user's email address in Cognito.
+#     """
+#     if not current_user:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+#     # Use the access token from the Authorization header
+#     auth_header = request.headers.get("Authorization")
+#     access_token = auth_header.split(" ")[1]
 
-    try:
-        result = cognito_auth.verify_email(access_token)
-        return result
-    except HTTPException as e:
-        raise e  # Re-raise HTTP exceptions from auth
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        ) from e
+#     try:
+#         result = cognito_auth.verify_email(access_token)
+#         return result
+#     except HTTPException as e:
+#         raise e  # Re-raise HTTP exceptions from auth
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+#         ) from e
 
 
 @router.get("/verify-token")
@@ -127,17 +127,17 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         ) from e
 
-@router.post("/admin/verify-email")  # New endpoint for admin verification
+@router.post("/verify-email")  # New endpoint for admin verification
 async def admin_verify_email_route(
     username: str = Body(..., embed=True),
-    current_user: dict = Depends(get_cognito_auth().get_current_user),
+    
     cognito_auth: CognitoAuth = Depends(get_cognito_auth)
 ):
     """
     Admin endpoint to manually verify a user's email.  Requires admin privileges.
     """
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    # if not current_user:
+    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     # # Add authorization check here (e.g., check for an "admin" role in cognito:groups)
     # if "admin" not in current_user.get("cognito:groups", []):  # Example: Check for admin group
