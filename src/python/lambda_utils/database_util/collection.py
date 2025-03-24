@@ -1,5 +1,6 @@
+# lambda_utils/database_util/collection.py
 from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError, DataError
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Any
 from uuid import UUID
 import logging
 
@@ -15,42 +16,42 @@ async def create_collection_in_db(conn: Connection, params: Tuple) -> List:
     try:
         return await conn.fetch(insert_query, *params)
     except UniqueViolationError as e:
-        logger.error(f"Failed to create collection due to unique constraint violation: {e}", exc_info=True)
-        raise ValueError("A collection with the given short_name already exists.")
+        logger.error(f"Failed to create collection: {e}", exc_info=True)
+        raise ValueError("Unique constraint violation.")
     except ForeignKeyViolationError as e:
-        logger.error(f"Failed to create collection due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid ngroup_id, egress_id, or provider_id provided.")
+        logger.error(f"Failed to create collection: {e}", exc_info=True)
+        raise ValueError("Foreign key violation.")
     except DataError as e:
-        logger.error(f"Failed to create collection due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for creating a collection.")
+        logger.error(f"Failed to create collection: {e}", exc_info=True)
+        raise ValueError("Invalid data.")
     except Exception as e:
-        logger.error(f"An unexpected error occurred while creating a collection: {e}", exc_info=True)
+        logger.error(f"Failed to create collection: {e}", exc_info=True)
         raise
 
 async def get_collection_from_db(conn: Connection, params: Tuple) -> List:
-    """Retrieves a collection record from the database by its ID."""
+    """Retrieves a collection record from the database by its ID, filtered by ngroup_id."""
     select_query = """
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
-        WHERE id = $1
+        WHERE id = $1 AND ngroup_id = $2  -- Filter by ID and ngroup_id
     """
     try:
         return await conn.fetch(select_query, *params)
     except Exception as e:
-        logger.error(f"An unexpected error occurred while getting a collection: {e}", exc_info=True)
+        logger.error(f"Error getting collection: {e}", exc_info=True)
         raise
 
 async def get_collection_by_lookup_from_db(conn: Connection, params: Tuple) -> List:
-    """Retrieves a collection record from the database by short_name."""
+    """Retrieves a collection record by short_name, filtered by ngroup_id."""
     select_query = """
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
-        WHERE short_name = $1
+        WHERE short_name = $1 AND ngroup_id = $2  -- Filter by short_name and ngroup_id
     """
     try:
         return await conn.fetch(select_query, *params)
     except Exception as e:
-        logger.error(f"An unexpected error occurred during collection lookup: {e}", exc_info=True)
+        logger.error(f"Error during collection lookup: {e}", exc_info=True)
         raise
 
 async def update_collection_in_db(conn: Connection, params: Tuple) -> List:
@@ -69,65 +70,70 @@ async def update_collection_in_db(conn: Connection, params: Tuple) -> List:
     try:
         return await conn.fetch(update_query, *values)
     except UniqueViolationError as e:
-        logger.error(f"Failed to update collection due to unique constraint violation: {e}", exc_info=True)
-        raise ValueError("A collection with the given short_name already exists.")
+        logger.error(f"Failed to update collection: {e}", exc_info=True)
+        raise ValueError("Unique constraint violation.")
     except ForeignKeyViolationError as e:
-        logger.error(f"Failed to update collection due to foreign key violation: {e}", exc_info=True)
-        raise ValueError("Invalid ngroup_id, egress_id, or provider_id provided.")
+        logger.error(f"Failed to update collection: {e}", exc_info=True)
+        raise ValueError("Foreign key violation.")
     except DataError as e:
-        logger.error(f"Failed to update collection due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for updating a collection.")
+        logger.error(f"Failed to update collection: {e}", exc_info=True)
+        raise ValueError("Invalid data.")
     except Exception as e:
-        logger.error(f"An unexpected error occurred while updating a collection: {e}", exc_info=True)
+        logger.error(f"Failed to update collection: {e}", exc_info=True)
         raise
 
+
 async def delete_collection_from_db(conn: Connection, params: Tuple) -> bool:
-    """Deletes a collection record from the database by its ID."""
+    """Deletes a collection record by its ID, filtered by ngroup_id."""
     delete_query = """
         DELETE FROM collection
-        WHERE id = $1
+        WHERE id = $1 AND ngroup_id = $2  -- Filter by ID and ngroup_id
     """
     try:
         result = await conn.execute(delete_query, *params)
         return result == "DELETE 1"
     except Exception as e:
-        logger.error(f"An unexpected error occurred while deleting a collection: {e}", exc_info=True)
+        logger.error(f"Error deleting collection: {e}", exc_info=True)
         raise
 
-async def list_collections_from_db(conn: Connection) -> List:
-    """Retrieves all collection records from the database."""
+async def list_collections_from_db(conn: Connection, params: Tuple) -> List:
+    """Retrieves all collection records, filtered by ngroup_id."""
     select_query = """
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
+        WHERE ngroup_id = $1  -- Filter by ngroup_id
     """
     try:
-        return await conn.fetch(select_query)
+        return await conn.fetch(select_query, *params)
     except Exception as e:
-        logger.error(f"An unexpected error occurred while listing collections: {e}", exc_info=True)
+        logger.error(f"Error listing collections: {e}", exc_info=True)
         raise
 
 async def list_files_for_collection_from_db(conn: Connection, params: Tuple) -> List:
-    """Retrieves all files associated with a collection from the database with pagination."""
-    collection_id, limit, offset = params
+    """Lists files for a collection, filtered by ngroup_id, with pagination."""
+    collection_id, ngroup_id, limit, offset = params
     select_query = """
-        SELECT id, name, type, cueuser_uploaded, size_bytes, collection_id, edpub, checksum
-        FROM file
-        WHERE collection_id = $1
-        LIMIT $2 OFFSET $3
+        SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.edpub, f.checksum
+        FROM file f
+        JOIN collection c ON f.collection_id = c.id
+        WHERE c.id = $1 AND c.ngroup_id = $2  -- Filter by collection_id and ngroup_id
+        LIMIT $3 OFFSET $4
     """
     try:
-        return await conn.fetch(select_query, collection_id, limit, offset)
+        return await conn.fetch(select_query, collection_id, ngroup_id, limit, offset)
     except Exception as e:
-        logger.error(f"An unexpected error occurred while listing files for collection: {e}", exc_info=True)
+        logger.error(f"Error listing files: {e}", exc_info=True)
         raise
 
 async def count_files_for_collection_from_db(conn: Connection, params: Tuple) -> int:
-    """Counts the total number of files associated with a collection."""
+    """Counts files for a collection, filtered by ngroup_id."""
+    collection_id, ngroup_id = params  # Expect ngroup_id as well
     count_query = """
-        SELECT COUNT(*) as count
-        FROM file
-        WHERE collection_id = $1
-    """
+    SELECT COUNT(*) as count
+    FROM file f
+    JOIN collection c ON f.collection_id = c.id
+    WHERE c.id = $1 AND c.ngroup_id = $2  -- Filter by collection_id and ngroup_id
+"""
     try:
         result = await conn.fetchrow(count_query, *params)
         return result['count'] if result else 0

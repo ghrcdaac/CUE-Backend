@@ -1,15 +1,16 @@
+
 from asyncio.log import logger
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, status
 from uuid import UUID
 from typing import List, Optional
 
 from utils.user_application import (create_user_application, get_user_application,
-                                      update_user_application, delete_user_application,
-                                      list_user_applications, UserApplicationNotFoundError, get_ngroups_for_form,
-                                         get_providers_for_ngroup)
+                                    update_user_application, delete_user_application,
+                                    list_user_applications, UserApplicationNotFoundError, get_ngroups_for_form,
+                                        get_providers_for_ngroup, UnauthorizedError)
 from lambda_utils.type_util.user_application import (UserApplicationCreate,
-                                                     UserApplicationReturn,
-                                                     UserApplicationUpdate)
+                                                    UserApplicationReturn,
+                                                    UserApplicationUpdate)
 
 from lambda_utils.type_util.ngroup import NgroupListReturn
 from lambda_utils.type_util.provider import ProviderListReturn
@@ -44,9 +45,9 @@ async def get_providers_for_ngroup_endpoint(ngroup_id: UUID):
 
 
 @router.get("/{user_application_id}", response_model=UserApplicationReturn)
-async def get_user_application_endpoint(user_application_id: UUID):
+async def get_user_application_endpoint(user_application_id: UUID, ngroup_id: Optional[UUID] = Query(None, description="Filter by ngroup ID")):
     try:
-        user_application = await get_user_application(user_application_id)
+        user_application = await get_user_application(user_application_id, ngroup_id)
         return user_application
     except UserApplicationNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -70,9 +71,9 @@ async def update_user_application_endpoint(user_application_id: UUID, user_appli
         ) from e
 
 @router.delete("/{user_application_id}", response_model=bool)
-async def delete_user_application_endpoint(user_application_id: UUID):
+async def delete_user_application_endpoint(user_application_id: UUID, ngroup_id: Optional[UUID] = Query(None, description="Filter by ngroup ID")):
     try:
-        success = await delete_user_application(user_application_id)
+        success = await delete_user_application(user_application_id, ngroup_id)
         return success
     except UserApplicationNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -82,13 +83,10 @@ async def delete_user_application_endpoint(user_application_id: UUID):
         ) from e
 
 
-
-
-
 @router.get("/", response_model=List[UserApplicationReturn])
-async def list_user_applications_endpoint():
+async def list_user_applications_endpoint(ngroup_id: Optional[UUID] = Query(None, description="Filter by ngroup ID")):
     try:
-        return await list_user_applications()
+        return await list_user_applications(ngroup_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)

@@ -9,23 +9,23 @@ class ProviderBase(BaseModel):
 
 class ProviderCreate(ProviderBase):
     ngroup_id: UUID
-    point_of_contact_user_id: UUID
+    point_of_contact: UUID
 
 class ProviderUpdate(BaseModel):
     short_name: Optional[str] = None
     long_name: Optional[str] = None
     can_upload: Optional[bool] = None
-    point_of_contact_user_id: Optional[UUID] = None
+    point_of_contact: Optional[UUID] = None
 
 class ProviderReturn(ProviderBase):
     id: UUID
     ngroup_id: UUID
-    point_of_contact_user_id: UUID
+    point_of_contact: UUID
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "ProviderReturn":
-        id, ngroup_id, short_name, long_name, can_upload, point_of_contact_user_id = row
-        return cls(id=id, ngroup_id=ngroup_id, short_name=short_name, long_name=long_name, can_upload=can_upload, point_of_contact_user_id=point_of_contact_user_id)
+        id, ngroup_id, short_name, long_name, can_upload, point_of_contact = row
+        return cls(id=id, ngroup_id=ngroup_id, short_name=short_name, long_name=long_name, can_upload=can_upload, point_of_contact=point_of_contact)
     
 
 class ProviderListReturn(BaseModel):
