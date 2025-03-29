@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List 
 from uuid import UUID
 from datetime import datetime
 
@@ -23,29 +23,36 @@ class FileUpdate(FileBase):
 class FileReturn(FileBase):
     id: UUID
     cueuser_uploaded: UUID
-    collection_id: UUID    
+    collection_id: UUID
     size_bytes: int
     edpub: bool
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "FileReturn":
         (
-            id, 
-            name, 
-            file_type, 
-            cueuser_uploaded, 
-            size_bytes, 
-            collection_id, 
-            edpub, 
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
             checksum
         ) = row
         return cls(
-            id=id, 
-            name=name, 
-            type=file_type, 
-            cueuser_uploaded=cueuser_uploaded, 
-            size_bytes=size_bytes, 
-            collection_id=collection_id, 
-            edpub=edpub, 
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
             checksum=checksum
         )
+
+# Added for pagination response in file_status endpoints (can live here or shared types)
+class PaginatedFileResponse(BaseModel):
+    items: List[FileReturn]
+    total: int
+    page: int
+    page_size: int
