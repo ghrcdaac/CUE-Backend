@@ -44,7 +44,7 @@ async def get_ngroup_id_for_file(file_id: UUID) -> Optional[UUID]:
           logger.error(f"Error getting ngroup ID for file {file_id}: {e}", exc_info=True)
           raise # Re-raise db errors
      finally:
-          await pool.close()
+          pool.release(conn)
 
 
 # --- CRUD Functions ---
@@ -74,7 +74,7 @@ async def create_file(file: FileCreate, user_ngroup_id: UUID) -> FileReturn:
         logger.error(f"Error creating file: {e}", exc_info=True)
         raise # Re-raise other unexpected errors
     finally:
-        await pool.close()
+        pool.release(conn)
 
 async def get_file(file_id: UUID) -> FileReturn:
     """Retrieves a file record by its ID. Authorization check happens in endpoint."""

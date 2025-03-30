@@ -3,7 +3,7 @@ from pydantic import BaseModel, field_validator, Field
 from typing import Optional, Tuple, List, Dict
 from uuid import UUID
 from datetime import datetime, timezone, date
-
+from lambda_utils.type_util.file import FileReturn
 
 
 class MetricsQueryParameters(BaseModel):
@@ -75,8 +75,19 @@ class FileStatusReturn(BaseModel):
     class Config:
         populate_by_name = True 
 
+class FileStatusMetricsSummary(BaseModel):
+    """Combined metrics summary for file statuses."""
+    daily_volume: List[DailyMetricItem]
+    daily_count: List[DailyMetricItem]
+    overall_volume: OverallMetricResult
+    overall_count: OverallMetricResult
+    status_counts: Dict[str, int]
+
+    class Config:
+        populate_by_name = True 
+
 class PaginatedFileResponse(BaseModel):
-    items: List[FileStatusReturn]
+    items: List[FileReturn]
     total: int
     page: int
     page_size: int

@@ -21,12 +21,12 @@ from utils.file import get_ngroup_id_for_file, FileNotFoundError as BaseFileNotF
 
 from lambda_utils.type_util.file_status import (FileStatusCreate,
                                                FileStatusReturn,
-                                               FileStatusUpdate, PaginatedFileResponse )
-from lambda_utils.type_util.file import FileReturn
+                                               FileStatusUpdate, PaginatedFileResponse, FileStatusMetricsSummary  )
+
 
 from utils.file_status import (
     calculate_daily_volume, calculate_daily_count,
-    calculate_overall_volume, calculate_overall_count
+    calculate_overall_volume, calculate_overall_count, get_metrics_summary 
 )
 from lambda_utils.type_util.file_status import (
     DailyMetricItem, OverallMetricResult, MetricsQueryParameters
@@ -40,6 +40,31 @@ router = APIRouter(prefix="/file_status", tags=["file_status"])
 # Note: Removed the separate get_user_ngroup_id helper function from here
 
 # --- Define Specific Paths FIRST ---
+
+@router.get("/metrics/summary", response_model=FileStatusMetricsSummary, tags=["file_status_metrics"])
+async def metrics_summary_endpoint(
+    ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
+    params: MetricsQueryParameters = Depends(),
+    current_user: dict = Depends(get_current_user_with_ngroup) # Use your auth dependency
+):
+    """
+    Get a combined summary of file status metrics (counts, volumes)
+    for a specific NGROUP, filtered. Inclusive end date. Auth required.
+    """
+    user_ngroup_id = current_user.get('ngroup_id') # Safely get ngroup_id
+    if not user_ngroup_id:
+         raise HTTPException(status_code=403, detail="User NGROUP information missing.")
+    if ngroup_id != user_ngroup_id:
+        raise HTTPException(status_code=403, detail="Not authorized for specified ngroup.")
+
+    try:
+        summary_data = await get_metrics_summary(ngroup_id, params)
+        return summary_data
+    except Exception as e:
+        logger.error(f"Failed in metrics_summary_endpoint for ngroup {ngroup_id}: {e}", exc_info=True)
+        # Consider more specific error handling if needed (e.g., 404 if ngroup doesn't exist)
+        raise HTTPException(status_code=500, detail="Error calculating metrics summary.")
+
 
 @router.get("/metrics/daily_volume", response_model=List[DailyMetricItem], tags=["file_status_metrics"])
 async def daily_volume_endpoint(
