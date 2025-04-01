@@ -1,12 +1,14 @@
-from pydantic import BaseModel, PositiveInt, Base64Str
+from typing import Optional
+from pydantic import BaseModel, PositiveInt
 
 
 class upload_url_pld(BaseModel):
     file_name: str
-    checksum: Base64Str
+    checksum: str
     size: PositiveInt
     collection: str
-    daac: str
+    file_type: str
+    collection_path: Optional[str] = None
     
 class upload_url_return(BaseModel):
     url: str

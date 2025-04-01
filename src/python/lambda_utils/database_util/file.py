@@ -14,7 +14,7 @@ async def create_file_in_db(conn: Connection, params: Tuple) -> List:
         RETURNING id, name, type, cueuser_uploaded, size_bytes, collection_id, edpub, checksum
     """
     try:
-        return await conn.fetch(insert_query, *params)
+        return await conn.fetchrow(insert_query, *params)
     except UniqueViolationError as e:
         logger.error(f"Failed to create file due to unique constraint violation: {e}", exc_info=True)
         raise ValueError("A file with the given attributes already exists.")

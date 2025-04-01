@@ -1,12 +1,16 @@
+import asyncio
 import os
 import time
 from typing import Optional
-
 import boto3
 import requests
 from jose import jwk, jwt
 from jose.utils import base64url_decode
 from fastapi import HTTPException, status, Request
+from asyncpg.pool import Pool
+from lambda_utils.database_util.db_util import query, get_connection_pool
+import lambda_utils.database_util.cueuser_auth as cueuser_auth_db
+from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 
 
 class CognitoAuth:
@@ -27,15 +31,29 @@ class CognitoAuth:
             self._keys = response.json()
             self._keys["fetched_at"] = time.time()
         return self._keys["keys"]
+    
+    async def _get_user(self, claims):
+        pool: Pool = await get_connection_pool()
+        user_id = claims['sub']
+        params = (user_id,)
+        try:
+            user = await query(pool, cueuser_auth_db.get_cueuser_from_auth, params, row_mapper=CueuserAuthBearer.from_db_row)
+            return dict(user[0])
+        except Exception as e:
+            print(f"Error retrieving user from database: {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
+        finally:
+            await pool.close()
 
-    async def get_current_user(self, request: Request) -> Optional[dict]:
+    def get_current_user(self, request: Request) -> Optional[dict]:
         """Verifies the access token and retrieves user attributes."""
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return None
         try:
             bearer_token = auth_header.split(" ")[1]
-            return self.verify_token(bearer_token)
+            temp = self.verify_token(bearer_token)
+            return temp
         except Exception:
             return None
 
@@ -66,7 +84,9 @@ class CognitoAuth:
         audience = claims['aud'] if 'aud' in claims else claims['client_id']
         if audience != self.client_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token was not issued for this app client')
-        return claims
+
+        user =  asyncio.run(self._get_user(claims))
+        return user
 
     def refresh_tokens(self, refresh_token: str) -> dict:
         """Refreshes access and ID tokens using a refresh token."""
