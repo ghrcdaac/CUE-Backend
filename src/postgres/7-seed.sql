@@ -80,6 +80,9 @@ INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647
 INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'view_scan_results');
 INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'metrics');
 
+-- ngroup
+INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'ghrc_daac', 'GHRC DAAC');
+
 -- Provider
 INSERT INTO role (id, short_name, long_name) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'provider', 'Provider');
 INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'upload');
@@ -92,6 +95,9 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_auth (id, refresh_token)
     VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', '123');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+    VALUES ('2821d300-70a1-7009-73ce-d832bf01cb4e', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+
 
 
 INSERT INTO cueuser (id, email, name, cueusername)
@@ -101,3 +107,35 @@ INSERT INTO cueuser_auth (id,refresh_token)
 
 INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+
+-- Provider
+INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of_contact)
+    VALUES (
+        'd3f9c1a7-4b8e-4c6b-9a2f-1e7d5a8c9b3d',
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        'demo_provider',
+        'Demo Provider',
+        TRUE,
+        '2821d300-70a1-7009-73ce-d832bf01cb4e'
+    );
+
+-- Egress
+INSERT INTO egress (id, type, path, config, ngroup_id)
+    VALUES (
+        'f8c2b6e3-d5b4-4e7a-8c1f-2a4d9e6b7c3a',
+        's3',
+        's3://ghrc-bucket',
+        '{"bucket": "ghrc-bucket", "region": "us-east-1"}',
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479'
+    );
+
+-- Collection
+INSERT INTO collection (id, ngroup_id, egress_id, short_name, provider_id, active)
+    VALUES (
+        'a7e2f4c8-5d9b-4e6a-8c1f-2b4d9e7a6c3f',
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        'f8c2b6e3-d5b4-4e7a-8c1f-2a4d9e6b7c3a',
+        'demo_collection',
+        'd3f9c1a7-4b8e-4c6b-9a2f-1e7d5a8c9b3d',
+        TRUE
+    );

@@ -77,3 +77,35 @@ async def list_cueuser_auths_from_db(conn: Connection) -> List:
     except Exception as e:
         logger.error(f"An unexpected error occurred while listing cueuser_auth records: {e}", exc_info=True)
         raise
+    
+async def get_cueuser_from_auth(conn: Connection, params: Tuple) -> List:
+    """Retrieves the cueuser permission info from the DB."""
+    select_query = """
+        SELECT 
+            c.id,
+            c.cueusername,
+            c.edpub_id,
+            cn.ngroup_id,
+            cp.provider_id,
+            r.short_name as role_short_name,
+            array_agg(rp.privilege) as privileges
+        FROM
+            cueuser c
+        LEFT JOIN
+            cueuser_ngroup cn ON c.id = cn.cueuser_id
+        LEFT JOIN
+            cueuser_provider cp ON c.id = cp.cueuser_id
+        LEFT JOIN
+            cueuser_role cr ON c.id = cr.cueuser_id
+        LEFT JOIN
+            role as r ON cr.role_id = r.id
+        LEFT JOIN
+            role_privilege rp ON r.id = rp.role_id
+        WHERE c.id = $1
+        GROUP BY c.id, c.cueusername, c.edpub_id, cn.ngroup_id, cp.provider_id, r.short_name
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting cueuser ID from auth: {e}", exc_info=True)
+        raise
