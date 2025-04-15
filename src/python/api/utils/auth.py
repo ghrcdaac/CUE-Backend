@@ -1,19 +1,23 @@
+from fastapi import HTTPException, status, Request, Depends
+import asyncio
 import os
 import time
 from typing import Optional
 import logging 
 from uuid import UUID 
-
 import boto3
 import requests
 from jose import jwk, jwt
 from jose.utils import base64url_decode
-
-from fastapi import HTTPException, status, Request, Depends
+from asyncpg.pool import Pool
+from lambda_utils.database_util.db_util import query, get_connection_pool
+import lambda_utils.database_util.cueuser_auth as cueuser_auth_db
+from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 
 from utils import cueuser
 
 logger = logging.getLogger(__name__)
+
 
 
 class CognitoAuth:
@@ -32,27 +36,27 @@ class CognitoAuth:
         if self._keys is None or time.time() - self._keys_fetched_at > 3600:
             logger.info("Fetching Cognito JWKS keys...")
             url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
-            try:
-                 response = requests.get(url, timeout=5) # Added timeout
-                 response.raise_for_status()
-                 self._keys = response.json().get("keys") # Store only keys
-                 self._keys_fetched_at = time.time()
-                 if not self._keys:
-                      logger.error("JWKS keys list is empty or missing.")
-                      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='JWKS key format error')
-            except requests.exceptions.RequestException as e:
-                 logger.error(f"Error fetching JWKS keys: {e}", exc_info=True)
-                 # Keep using stale keys if available and fetch failed recently
-                 if self._keys and time.time() - self._keys_fetched_at < 600: # Stale for 10 mins ok
-                      logger.warning("Using stale JWKS keys due to fetch error.")
-                      return self._keys
-                 else:
-                      self._keys = None # Force refetch next time if completely failed
-                      raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='Could not fetch authentication keys') from e
-        return self._keys
+            response = requests.get(url)
+            response.raise_for_status()
+            self._keys = response.json()
+            self._keys["fetched_at"] = time.time()
+        return self._keys["keys"]
+    
+    async def _get_user(self, claims):
+        pool: Pool = await get_connection_pool()
+        user_id = claims['sub']
+        params = (user_id,)
+        try:
+            user = await query(pool, cueuser_auth_db.get_cueuser_from_auth, params, row_mapper=CueuserAuthBearer.from_db_row)
+            return dict(user[0])
+        except Exception as e:
+            print(f"Error retrieving user from database: {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
+        finally:
+            await pool.close()
 
-    async def get_current_user(self, request: Request) -> Optional[dict]: 
-        """Verifies the access token from header and returns claims."""
+    def get_current_user(self, request: Request) -> Optional[dict]:
+        """Verifies the access token and retrieves user attributes."""
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             logger.warning("Authorization header missing")
@@ -62,16 +66,10 @@ class CognitoAuth:
             if not auth_header.startswith("Bearer "):
                  raise ValueError("Invalid Authorization header format")
             bearer_token = auth_header.split(" ")[1]
-            return self.verify_token(bearer_token) # Verify and return claims
-        except ValueError as e:
-             logger.warning(f"Auth header error: {e}")
-             return None # Treat as unauthenticated
-        except HTTPException as e:
-             logger.warning(f"Token verification failed: {e.detail}")
-             raise e # Re-raise HTTPExceptions from verify_token
-        except Exception as e:
-            logger.error(f"Unexpected error getting user claims: {e}", exc_info=True)
-            return None # Treat as unauthenticated
+            temp = self.verify_token(bearer_token)
+            return temp
+        except Exception:
+            return None
 
     def verify_token(self, token: str) -> dict:
         """Verifies a JWT token against the Cognito User Pool."""
@@ -116,21 +114,11 @@ class CognitoAuth:
                 logger.warning(f"Token audience '{audience}' does not match client ID.")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token was not issued for this application')
 
-            # Additional check: 'token_use' should be 'access' or 'id'
-            token_use = claims.get('token_use')
-            if token_use not in ['access', 'id']:
-                 logger.warning(f"Invalid token_use: {token_use}")
-                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token use')
-
-            logger.info(f"Token verified successfully for user: {claims.get('username') or claims.get('sub')}")
-            return claims
-
-        except jwt.ExpiredSignatureError:
-            logger.warning("Token is expired (caught by jose).")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token is expired')
+            user =  asyncio.run(self._get_user(claims))
+            return user
+        
         except Exception as e:
-            logger.error(f"Error during token claim verification: {e}", exc_info=True)
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token verification failed')
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"An unexpected error occurred: {str(e)}")
 
     def refresh_tokens(self, refresh_token: str) -> dict:
         """Refreshes access and ID tokens using a refresh token."""

@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS file (
     cueuser_uploaded UUID NOT NULL,
     size_bytes INT NOT NULL,
     collection_id UUID NOT NULL,
+    collection_path VARCHAR,
     edpub BOOLEAN NOT NULL DEFAULT FALSE,
     checksum VARCHAR NOT NULL,
     PRIMARY KEY (id),
