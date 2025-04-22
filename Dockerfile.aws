@@ -1,5 +1,7 @@
 FROM public.ecr.aws/lambda/python:3.12
 
+RUN dnf install -y gcc
+
 COPY ./src/python/api ./
 COPY ./src/python/lambda_utils ./lambda_utils
 

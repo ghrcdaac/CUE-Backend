@@ -44,10 +44,10 @@ resource "aws_lambda_function" "cue_api"{
     timeout             = 180
     environment{
         variables = {
-            DB_USER = var.db_user
-            DB_HOST = var.db_host
-            DB_DATABASE = var.db_database
-            DB_PASSWORD = var.db_password
+            PG_USER = var.db_user
+            PG_HOST = var.db_host
+            PB_DB = var.db_database
+            PB_PASS = var.db_password
             POOL_ID = var.pool_id
             CLIENT_ID = var.client_id
             CLIENT_SECRET = var.client_secret
