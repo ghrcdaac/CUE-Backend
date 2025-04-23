@@ -1,15 +1,13 @@
-# utils/file_status.py
 import json
 from asyncpg.pool import Pool
-# Assuming db_util has get_connection_pool and query
 from lambda_utils.database_util.db_util import query, get_connection_pool
 from lambda_utils.database_util import file_status as file_status_db
 from lambda_utils.database_util import file as file_db
 from lambda_utils.type_util.file_status import (FileStatusCreate, FileStatusReturn,
                                               FileStatusUpdate, DailyMetricItem,
                                               OverallMetricResult, MetricsQueryParameters,
-                                              # Import the new summary model here later
-                                              FileStatusMetricsSummary) # Added import placeholder
+                                              
+                                              FileStatusMetricsSummary)
 from lambda_utils.type_util.file import FileReturn
 
 from typing import List, Optional, Tuple, Dict, Any
@@ -19,7 +17,6 @@ from datetime import datetime, timezone, date
 
 logger = logging.getLogger(__name__)
 
-# --- Custom Errors ---
 class FileStatusNotFoundError(Exception):
      def __init__(self, id: UUID):
          super().__init__(f"File status not found for file ID: {id}")
@@ -30,12 +27,11 @@ class AuthorizationError(Exception):
         super().__init__(message)
 
 
-# --- Constants ---
 BYTES_TO_GB = 1 / (1024**3)
 VALID_FILE_STATUSES = ["unscanned", "clean", "infected", "scan_failed", "distributed"]
 
 
-# --- CRUD Functions ---
+
 async def create_file_status(file_status: FileStatusCreate, user_ngroup_id: UUID) -> FileStatusReturn:
     """Creates a new file_status record, verifying file belongs to user's ngroup."""
     pool: Pool = await get_connection_pool()
@@ -51,7 +47,14 @@ async def create_file_status(file_status: FileStatusCreate, user_ngroup_id: UUID
                 raise AuthorizationError(f"File {file_status.id} does not belong to user's group {user_ngroup_id}.")
 
             scan_results_json = json.dumps(file_status.scan_results) if file_status.scan_results else None
-            params = (file_status.id, file_status.status, scan_results_json)
+            params = (
+                file_status.id,
+                file_status.status,
+                scan_results_json,
+                file_status.upload_time,  
+                file_status.scan_start,   
+                file_status.scan_end      
+            )
             # Pass the acquired connection to the db function
             result = await file_status_db.create_file_status_in_db(conn, params)
 
@@ -64,7 +67,7 @@ async def create_file_status(file_status: FileStatusCreate, user_ngroup_id: UUID
     except Exception as e:
         logger.error(f"Error creating file_status for file {file_status.id}: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 
 async def get_file_status(id: UUID) -> FileStatusReturn:
@@ -83,12 +86,12 @@ async def get_file_status(id: UUID) -> FileStatusReturn:
     except Exception as e:
         logger.error(f"Error getting file_status {id}: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'query' helper
+    
 
 async def update_file_status(id: UUID, file_status_update: FileStatusUpdate) -> FileStatusReturn:
     """Updates an existing file_status record. Authorization check happens in endpoint."""
     pool: Pool = await get_connection_pool()
-    update_fields = {k: v for k, v in file_status_update.model_dump(exclude_none=True)}
+    update_fields = {k: v for k, v in file_status_update.model_dump(exclude_none=True).items()}
     if not update_fields:
          try:
             return await get_file_status(id) # Return current if no update
@@ -108,7 +111,7 @@ async def update_file_status(id: UUID, file_status_update: FileStatusUpdate) -> 
     except Exception as e:
         logger.error(f"Error updating file_status {id}: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'query' helper
+    
 
 async def delete_file_status(id: UUID) -> bool:
     """Deletes a file_status record by id. Authorization check happens in endpoint."""
@@ -129,7 +132,7 @@ async def delete_file_status(id: UUID) -> bool:
     except Exception as e:
         logger.error(f"Error deleting file_status {id}: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def list_file_statuses(ngroup_id: UUID) -> List[FileStatusReturn]:
     """Retrieves all file_status records for a specific ngroup."""
@@ -141,10 +144,7 @@ async def list_file_statuses(ngroup_id: UUID) -> List[FileStatusReturn]:
     except Exception as e:
         logger.error(f"Error listing file_statuses for ngroup {ngroup_id}: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'query' helper
-
-
-# --- Metric and Listing Functions (Signatures updated) ---
+    
 
 async def get_file_status_counts(ngroup_id: UUID, filters: MetricsQueryParameters) -> Dict[str, int]:
     """Calculates counts for each file status for a specific ngroup."""
@@ -161,7 +161,7 @@ async def get_file_status_counts(ngroup_id: UUID, filters: MetricsQueryParameter
     except Exception as e:
         logger.error(f"Error calculating status counts: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def calculate_daily_volume(ngroup_id: UUID, filters: MetricsQueryParameters) -> List[DailyMetricItem]:
     """Calculates daily volume in GB for a specific ngroup."""
@@ -175,7 +175,7 @@ async def calculate_daily_volume(ngroup_id: UUID, filters: MetricsQueryParameter
     except Exception as e:
         logger.error(f"Error calculating daily volume: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def calculate_daily_count(ngroup_id: UUID, filters: MetricsQueryParameters) -> List[DailyMetricItem]:
     """Calculates daily file count for a specific ngroup."""
@@ -189,7 +189,7 @@ async def calculate_daily_count(ngroup_id: UUID, filters: MetricsQueryParameters
     except Exception as e:
         logger.error(f"Error calculating daily count: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def calculate_overall_volume(ngroup_id: UUID, filters: MetricsQueryParameters) -> OverallMetricResult:
     """Calculates overall volume in GB for a specific ngroup."""
@@ -208,7 +208,7 @@ async def calculate_overall_volume(ngroup_id: UUID, filters: MetricsQueryParamet
     except Exception as e:
         logger.error(f"Error calculating overall volume: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def calculate_overall_count(ngroup_id: UUID, filters: MetricsQueryParameters) -> OverallMetricResult:
     """Calculates overall file count for a specific ngroup."""
@@ -226,7 +226,7 @@ async def calculate_overall_count(ngroup_id: UUID, filters: MetricsQueryParamete
     except Exception as e:
         logger.error(f"Error calculating overall count: {e}", exc_info=True)
         raise
-    # No finally block needed for release when using 'async with'
+   
 
 async def list_files_by_status(
     ngroup_id: UUID,
@@ -258,9 +258,7 @@ async def list_files_by_status(
     except Exception as e:
         logger.error(f"Error listing files by status: {e}", exc_info=True)
         raise
-    # REMOVED finally block with pool.release(conn) as it's handled by 'async with'
 
-# --- Add the new combined metrics function here (from Suggestion 2) ---
 async def get_metrics_summary(ngroup_id: UUID, filters: MetricsQueryParameters) -> FileStatusMetricsSummary:
     """Calculates and aggregates all file status metrics."""
     pool: Pool = await get_connection_pool()
@@ -308,5 +306,4 @@ async def get_metrics_summary(ngroup_id: UUID, filters: MetricsQueryParameters) 
 
     except Exception as e:
         logger.error(f"Error calculating metrics summary for ngroup {ngroup_id}: {e}", exc_info=True)
-        # Depending on desired behavior, could return partial results or raise
-        raise # Re-raise the exception to be handled by the endpoint
+        raise

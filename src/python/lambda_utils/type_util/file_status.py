@@ -31,6 +31,9 @@ class FileStatusCreate(BaseModel):
     id: UUID
     status: str
     scan_results: Optional[dict] = None
+    upload_time: datetime
+    scan_start: Optional[datetime] = None
+    scan_end: Optional[datetime] = None
     
 
     @field_validator('status')

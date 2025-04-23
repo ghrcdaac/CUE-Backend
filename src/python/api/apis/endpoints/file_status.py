@@ -1,16 +1,12 @@
-# endpoints/file_status.py
-
 from fastapi import APIRouter, HTTPException, Depends, Query
 from uuid import UUID
 from typing import List, Dict
 from datetime import date
 import logging
 
-# --- Import Authentication ---
-# Import the NEW dependency function
+
 from utils.auth import get_current_user_with_ngroup, get_cognito_auth # Keep old one if needed elsewhere
 
-# --- Import utils and types ---
 from utils.file_status import (create_file_status,
                                delete_file_status,
                                get_file_status,
@@ -34,12 +30,9 @@ from lambda_utils.type_util.file_status import (
 
 logger = logging.getLogger(__name__)
 
-# --- Router Definition ---
 router = APIRouter(prefix="/file_status", tags=["file_status"])
 
-# Note: Removed the separate get_user_ngroup_id helper function from here
 
-# --- Define Specific Paths FIRST ---
 
 @router.get("/metrics/summary", response_model=FileStatusMetricsSummary, tags=["file_status_metrics"])
 async def metrics_summary_endpoint(
@@ -70,7 +63,7 @@ async def metrics_summary_endpoint(
 async def daily_volume_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
     params: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Get daily volume (GB) for a specific NGROUP, filtered. Inclusive end date. Auth required.
@@ -88,7 +81,7 @@ async def daily_volume_endpoint(
 async def daily_count_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
     params: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Get daily count for a specific NGROUP, filtered. Inclusive end date. Auth required.
@@ -106,7 +99,7 @@ async def daily_count_endpoint(
 async def overall_volume_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
     params: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Get overall volume (GB) for a specific NGROUP, filtered. Inclusive end date. Auth required.
@@ -124,7 +117,7 @@ async def overall_volume_endpoint(
 async def overall_count_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
     params: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Get overall count for a specific NGROUP, filtered. Inclusive end date. Auth required.
@@ -142,7 +135,7 @@ async def overall_count_endpoint(
 async def status_counts_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID (DAAC/Org)"),
     params: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Get status counts for a specific NGROUP, filtered. Inclusive end date. Auth required.
@@ -163,7 +156,7 @@ async def list_files_by_status_endpoint(
     page: int = Query(1, ge=1, description="Page number starting from 1."),
     page_size: int = Query(20, ge=1, le=100, description="Number of items per page."),
     filters: MetricsQueryParameters = Depends(),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     List files for a specific NGROUP by status, filtered. Inclusive end date. Auth required.
@@ -183,7 +176,7 @@ async def list_files_by_status_endpoint(
 @router.get("/", response_model=List[FileStatusReturn])
 async def list_file_statuses_endpoint(
     ngroup_id: UUID = Query(..., description="Mandatory NGROUP ID"),
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Retrieves file status records for a specific NGROUP. Auth required.
@@ -205,7 +198,7 @@ async def list_file_statuses_endpoint(
 @router.post("/", response_model=FileStatusReturn)
 async def create_file_status_endpoint(
     file_status: FileStatusCreate,
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Creates a file status record. Auth required. Verifies file belongs to user's ngroup.
@@ -228,7 +221,7 @@ async def create_file_status_endpoint(
 @router.get("/{id}", response_model=FileStatusReturn)
 async def get_file_status_endpoint(
     id: UUID, # This is file_id
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Retrieves a specific file status by file ID. Auth required. Verifies file belongs to user's ngroup.
@@ -257,7 +250,7 @@ async def get_file_status_endpoint(
 async def update_file_status_endpoint(
     id: UUID, # This is file_id
     file_status_update: FileStatusUpdate,
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Updates a file status. Auth required. Verifies file belongs to user's ngroup.
@@ -287,7 +280,7 @@ async def update_file_status_endpoint(
 @router.delete("/{id}", response_model=bool)
 async def delete_file_status_endpoint(
     id: UUID, # This is file_id
-    current_user: dict = Depends(get_current_user_with_ngroup) # Use new dependency
+    current_user: dict = Depends(get_current_user_with_ngroup) 
 ):
     """
     Deletes a file status. Auth required. Verifies file belongs to user's ngroup.

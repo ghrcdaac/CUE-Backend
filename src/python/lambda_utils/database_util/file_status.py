@@ -70,8 +70,8 @@ async def _build_metrics_query_parts(
 async def create_file_status_in_db(conn: Connection, params: Tuple) -> List:
     """Inserts a new file_status record into the database."""
     insert_query = """
-        INSERT INTO file_status (id, upload_time, status, scan_results)
-        VALUES ($1, CURRENT_TIMESTAMP, $2::file_status_type, $3::jsonb)
+        INSERT INTO file_status (id, status, scan_results, upload_time, scan_start, scan_end)
+        VALUES ($1, $2::file_status_type, $3::jsonb, $4, $5, $6)
         RETURNING id, upload_time, scan_start, scan_end, egress_start, status, scan_results
     """
    
