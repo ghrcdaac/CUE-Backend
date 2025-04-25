@@ -12,6 +12,17 @@ from lambda_utils.database_util import collection as collection_db
 from lambda_utils.type_util.upload import upload_url_pld, upload_url_return
 from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 
+def _get_s3_client():
+    if os.environ.get("ENV") == "dev":
+        s3Client = boto3.client('s3',
+                                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+                                region_name="us-west-2"
+        )
+    else:
+        s3Client = boto3.client('s3')
+    return s3Client
+
 async def generate_upload_url(params:upload_url_pld, user:CueuserAuthBearer) -> upload_url_return:
     #db action for file tracking here
 
@@ -84,4 +95,58 @@ async def generate_upload_url(params:upload_url_pld, user:CueuserAuthBearer) -> 
         print(e)
         raise(HTTPException(status_code=500, detail="Error generating upload URL"))
     
+    return resp
+
+async def start_multipart_upload(params:dict) -> dict:
+    s3Client = _get_s3_client()  
+          
+    try:
+        resp = s3Client.create_multipart_upload(
+            Bucket="cue-sit-dmz",
+            Key=f"{params["file_name"]}",
+            ChecksumAlgorithm="SHA256",
+            ChecksumeType="FULL_OBJECT",
+        )
+    except Exception as e:
+        print(e)
+        raise(HTTPException(status_code=500, detail="Error starting multipart upload"))
+    return resp
+
+async def complete_multipart_upload(params:dict) -> dict:
+    s3Client = _get_s3_client()
+    try:
+        resp = s3Client.complete_multipart_upload(
+            Bucket="cue-sit-dmz",
+            Key=f"{params["file_name"]}",
+            MultipartUpload={
+                params["parts"]
+            },
+            UploadId=params["upload_id"],
+            ChecksumSha256=f"{params["checksum"]}",
+            ChecksumType="FULL_OBJECT"
+        )
+    except Exception as e:
+        print(e)
+        raise(HTTPException(status_code=500, detail="Error completing multipart upload"))
+    return resp
+
+async def abort_multipart_upload(params:dict) -> dict:
+    pass
+
+async def get_part_upload_url(params:dict) -> dict:
+    s3Client = _get_s3_client()
+    try:
+        resp = s3Client.generate_presigned_url(
+            'upload_part',
+            Params={
+                'Bucket': "cue-sit-dmz",
+                'Key': f"{params["file_name"]}",
+                'PartNumber': params["part_number"],
+                'UploadId': params["upload_id"]
+            },
+            ExpiresIn=60
+        )
+    except Exception as e:
+        print(e)
+        raise(HTTPException(status_code=500, detail="Error generating part upload URL"))
     return resp
