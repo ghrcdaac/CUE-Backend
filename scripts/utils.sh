@@ -14,6 +14,8 @@ clear_artifacts() {
 
 create_dependency_zip() {
     mkdir -p ${DIR}/temp/package
+    echo ${DIR}/artifacts
+    echo ${DIR}/src/python/lambda_utils
     pip install -r ${DIR}/src/python/event_lambdas/requirements.txt -t ${DIR}/temp/package
     cp -R ${DIR}/src/python/lambda_utils ${DIR}/temp/package
     cd ${DIR}/temp/package
@@ -25,6 +27,7 @@ create_dependency_zip() {
 install_lambda() {
     cd ${DIR}/artifacts
     cp ${DIR}/src/python/event_lambdas/${1}.py .
+    echo ${DIR}/src/python/event_lambdas/${1}.py
     cp ${DIR}/temp/my_deployment_package.zip ${1}-lambda.zip
     zip ${1}-lambda.zip ${1}.py
     rm ${1}.py
