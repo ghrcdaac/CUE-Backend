@@ -336,13 +336,14 @@ async def get_current_user_with_ngroup(
 
     try:
         # *** Adapt this key based on your Cognito setup for user's DB ID ***
-        user_db_id_str = current_user_claims.get('sub') # 'sub' is typically the Cognito UUID
+        print(current_user_claims)
+        user_db_id_str = current_user_claims.get('id') # 'sub' is typically the Cognito UUID
         if not user_db_id_str:
-             raise ValueError("User ID ('sub') missing from token claims.")
-        user_db_id = UUID(user_db_id_str)
+             raise ValueError("User ID ('id') missing from token claims.")
+        user_db_id = user_db_id_str
 
     except (KeyError, ValueError, TypeError) as e:
-         logger.error(f"Error parsing user ID ('sub') from token claims: {e}", exc_info=True)
+         logger.error(f"Error parsing user ID ('id') from token claims: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid user identifier in token.")
 
     try:

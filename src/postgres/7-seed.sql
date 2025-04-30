@@ -81,7 +81,7 @@ INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647
 INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647-3e29e6418e21', 'metrics');
 
 -- ngroup
-INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'ghrc_daac', 'GHRC DAAC');
+INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'GHRC', 'GHRC DAAC');
 
 -- Provider
 INSERT INTO role (id, short_name, long_name) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'provider', 'Provider');
@@ -101,12 +101,15 @@ INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
 
 
 INSERT INTO cueuser (id, email, name, cueusername)
-    VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', 'fake1@email.com', 'Navaneeth Selvaraj', 'nselvaraj_local');
+    VALUES ('0831b3b0-b071-70ca-9c91-7c0994e79aaf', 'ns0066@uah.edu', 'Navaneeth Selvaraj', 'nselvaraj');
 INSERT INTO cueuser_auth (id,refresh_token)
-    VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', '123');
+    VALUES ('0831b3b0-b071-70ca-9c91-7c0994e79aaf', '123');
 
 INSERT INTO cueuser_role (cueuser_id, role_id)
-    VALUES ('7821f370-9051-70bb-5060-1b59692dd9b9', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+    VALUES ('0831b3b0-b071-70ca-9c91-7c0994e79aaf', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+VALUES ('0831b3b0-b071-70ca-9c91-7c0994e79aaf', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
 -- Provider
 INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of_contact)
