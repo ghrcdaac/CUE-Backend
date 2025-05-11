@@ -17,14 +17,12 @@ from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 from utils.auth import get_cognito_auth
 from utils.JWTBearer import bearer_scheme
 
-# Assume get_cognito_auth() and bearer_scheme are correctly set up
+
 
 router = APIRouter(
     prefix="/upload",
     tags=["upload"],
-    # Add authentication dependency at the router level if all routes need it
-    # dependencies=[Depends(get_cognito_auth().get_current_user)]
-    # Or add individually per route if needed
+
 )
 
 

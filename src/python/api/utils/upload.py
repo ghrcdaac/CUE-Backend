@@ -41,9 +41,6 @@ def _get_s3_client():
         s3Client = boto3.client('s3')
     return s3Client
 
-# --- Bucket Name ---
-# Define bucket name centrally, preferably from environment variable
-S3_BUCKET_NAME = os.environ.get("S3_UPLOAD_BUCKET", "cue-sit-dmz") # Default if not set
 
 # --- Single File Upload URL Generation ---
 # (Assuming this function is mostly correct, focusing on multipart)
