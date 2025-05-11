@@ -111,6 +111,8 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
 VALUES ('0831b3b0-b071-70ca-9c91-7c0994e79aaf', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
+
+
 -- Provider
 INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of_contact)
     VALUES (
@@ -119,7 +121,7 @@ INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of
         'demo_provider',
         'Demo Provider',
         TRUE,
-        '2821d300-70a1-7009-73ce-d832bf01cb4e'
+        '0831b3b0-b071-70ca-9c91-7c0994e79aaf'
     );
 
 -- Egress

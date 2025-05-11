@@ -2,7 +2,7 @@
 name = "cue-backend"
 version = "0.1.0"
 description = "AWS code and infrastucture for the CUE enterprise product"
-authors = ["Davis Gaunt <bdg0015@uah.edu>", "Navaneeth Selvaraj <ns0066@uah.edu>"]
+authors = ["Navaneeth Selvaraj <ns0066@uah.edu>", "Davis Gaunt <bdg0015@uah.edu>"]
 license = "Apache-2.0"
 readme = "README.md"
 package-mode = false
