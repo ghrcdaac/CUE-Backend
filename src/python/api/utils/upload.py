@@ -1,384 +1,331 @@
-# utils/upload.py
-
 import os
 import boto3
-from botocore.exceptions import ClientError # Import ClientError
+from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
-
-# Keep existing imports for db, types, etc.
-from asyncpg.pool import Pool
-from datetime import datetime, timezone
-from lambda_utils.database_util.db_util import get_connection_pool
-from lambda_utils.database_util import file as file_db
-from lambda_utils.database_util import file_status as file_status_db
-from lambda_utils.database_util import collection as collection_db
-
-from lambda_utils.type_util.upload import upload_url_pld, upload_url_return
-from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 import logging
+from uuid import uuid4, UUID
+from datetime import datetime, timezone, timedelta 
+from typing import Tuple, Dict, Any, Optional 
+from pathlib import Path 
 
+from asyncpg.pool import Pool # type: ignore
+
+from lambda_utils.database_util.db_util import get_connection_pool
+from lambda_utils.database_util import collection as collection_db_utils
+from lambda_utils.database_util import provider as provider_db_utils
+from lambda_utils.database_util import file as file_db_utils
+from lambda_utils.database_util import file_status as file_status_db_utils
+
+from lambda_utils.type_util.upload import (
+    MultipartStartRequestPayload, MultipartStartResponsePayload,
+    MultipartGetPartUrlRequestPayload, MultipartGetPartUrlResponsePayload,
+    MultipartCompleteRequestPayload, MultipartCompleteResponsePayload,
+    MultipartAbortRequestPayload
+)
+from lambda_utils.type_util.upload import ( 
+    UploadURLPayload, UploadURLResponse,
+    ConfirmSingleUploadPayload, ConfirmSingleUploadResponse
+)
+from lambda_utils.type_util.collection import CollectionReturn
+from lambda_utils.type_util.provider import ProviderReturn
+from lambda_utils.type_util.cueuser_auth import CueuserAuthBearer
 
 logger = logging.getLogger(__name__)
 S3_BUCKET_NAME = os.environ.get("S3_UPLOAD_BUCKET", "cue-sit-dmz")
 
-# --- S3 Client Initialization ---
-# Consider initializing the client once, maybe using Depends or a global variable
-# For simplicity, keeping the function for now.
+_permission_cache: Dict[Tuple[str, str], Tuple[CollectionReturn, ProviderReturn, datetime]] = {}
+PERMISSION_CACHE_TTL_SECONDS = 300  
+
 def _get_s3_client():
-    # Use environment variables for bucket names too
-    # bucket_name = os.environ.get("S3_UPLOAD_BUCKET", "default-bucket-name")
-    # Using hardcoded "cue-sit-dmz" as per original code for now
+    # ... (same as before) ...
     if os.environ.get("ENV") == "dev":
-        # Ensure AWS credentials and region are set correctly for dev
-        # Using environment variables is generally preferred over hardcoding in code
-        s3Client = boto3.client('s3',
-                                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-                                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-                                region_name=os.environ.get("AWS_REGION", "us-west-2") # Use env var for region
-                               )
+        logger.debug("Initializing S3 client for DEV environment.") 
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.environ.get("AWS_REGION", "us-west-2")
+        )
     else:
-        # For non-dev, rely on IAM roles or instance profiles
-        s3Client = boto3.client('s3')
-    return s3Client
+        logger.debug("Initializing S3 client for non-DEV (IAM role based).") 
+        s3_client = boto3.client('s3')
+    return s3_client
 
+async def _validate_upload_permissions(
+    conn, collection_short_name: str, user: CueuserAuthBearer
+) -> Tuple[CollectionReturn, ProviderReturn]:
+    # ... (same as backend_utils_upload_py_v5) ...
+    user_id_from_token = user.get('id')
+    user_ngroup_id_from_token = user.get('ngroup_id')
 
-# --- Single File Upload URL Generation ---
-# (Assuming this function is mostly correct, focusing on multipart)
-async def generate_upload_url(params: upload_url_pld, user: CueuserAuthBearer) -> upload_url_return:
-    # Existing database logic...
+    if not user_id_from_token or not user_ngroup_id_from_token:
+        logger.error(f"User {user_id_from_token} missing id or ngroup_id in token/claims.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User identity or group information missing.")
+
+    user_ngroup_id_str = str(user_ngroup_id_from_token)
+    cache_key = (user_ngroup_id_str, collection_short_name)
+    
+    cached_entry = _permission_cache.get(cache_key)
+    if cached_entry:
+        collection_obj_cached, provider_obj_cached, cached_time = cached_entry
+        if datetime.now(timezone.utc) - cached_time < timedelta(seconds=PERMISSION_CACHE_TTL_SECONDS):
+            logger.info(f"Using cached permissions for user_ngroup '{user_ngroup_id_str}', collection '{collection_short_name}'.")
+            return collection_obj_cached, provider_obj_cached
+        else:
+            logger.info(f"Cached permissions expired for '{cache_key}'. Re-fetching.")
+            _permission_cache.pop(cache_key, None)
+
+    logger.info(f"Validating permissions from DB for user_ngroup '{user_ngroup_id_str}', collection '{collection_short_name}'.")
+    user_ngroup_id_uuid = UUID(user_ngroup_id_str)
+
+    collection_lookup_params = (collection_short_name, user_ngroup_id_uuid)
+    collection_rows = await collection_db_utils.get_collection_by_lookup_from_db(conn, collection_lookup_params)
+    if not collection_rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Collection '{collection_short_name}' not found or not accessible.")
+    collection_obj = CollectionReturn.from_db_row(collection_rows[0])
+
+    if not collection_obj.active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Collection '{collection_short_name}' is not active.")
+
+    provider_rows = await provider_db_utils.get_provider_from_db(conn, (collection_obj.provider_id,))
+    if not provider_rows:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Provider config error for coll '{collection_short_name}'.")
+    provider_obj = ProviderReturn.from_db_row(provider_rows[0])
+
+    if provider_obj.ngroup_id != user_ngroup_id_uuid:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Provider config mismatch for coll '{collection_short_name}'.")
+
+    if not provider_obj.can_upload:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Provider '{provider_obj.short_name}' for coll '{collection_short_name}' cannot upload.")
+
+    _permission_cache[cache_key] = (collection_obj, provider_obj, datetime.now(timezone.utc))
+    return collection_obj, provider_obj
+
+# --- Single File Upload ---
+async def generate_upload_url(params: UploadURLPayload, user: CueuserAuthBearer) -> UploadURLResponse:
     pool: Pool = await get_connection_pool()
     conn = await pool.acquire()
-    file_id = None # Initialize file_id
+    # Backend generates the UUID which will be the file.id AND the S3 object key.
+    app_generated_file_id_and_s3_key = str(uuid4())
     try:
-        async with conn.transaction():
-            # Simplified payload for collection lookup
-            collection_payload = (params.collection, user.get('ngroup_id')) # Assuming user is dict-like
-            collection_resp = await collection_db.get_collection_by_lookup_from_db(conn, collection_payload)
-            if not collection_resp:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Collection not found or access denied")
-
-            collection_id = collection_resp[0][0]
-
-            # Simplified payload for file creation
-            file_payload = (
-                params.file_name,
-                params.file_type,
-                user.get('id'), # Assuming user is dict-like
-                params.size,
-                collection_id,
-                False, # Assuming this relates to multipart status
-                params.checksum
-            )
-            file_resp = await file_db.create_file_in_db(conn, file_payload)
-            if not file_resp:
-                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create file record in database")
-            file_id = file_resp[0] # Get the generated file ID
-
-            # Simplified payload for file status
-            status_payload = (
-                file_id,
-                datetime.now(timezone.utc),
-                'unscanned', # Initial status
-                None
-            )
-            await file_status_db.create_file_status_in_db(conn, status_payload)
-
-    except HTTPException as e:
-        raise e # Re-raise HTTP exceptions
+        await _validate_upload_permissions(conn, params.collection, user)
+        logger.info(f"Permissions validated for single upload. App-generated File ID/S3 Key: {app_generated_file_id_and_s3_key}")
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Database error in generate_upload_url: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interacting with database")
+        logger.error(f"Error during permission validation for single upload: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error validating upload permissions.")
     finally:
-        if conn:
-            await pool.release(conn)
+        if conn: await pool.release(conn)
 
-    if not file_id:
-         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to obtain file ID for S3 key")
-
-    # Generate presigned POST URL using the file_id as the key
-    s3Client = _get_s3_client()
-    s3_key = str(file_id) # Use the database file ID as the S3 Key
-
+    s3_client = _get_s3_client()
     try:
-        # Note: generate_presigned_post is for HTML form uploads.
-        # If the client does a direct PUT/POST, generate_presigned_url might be simpler.
-        # Assuming presigned POST is required by the client's single_file logic.
-        presigned_data = s3Client.generate_presigned_post(
-            Bucket=S3_BUCKET_NAME,
-            Key=s3_key,
-            Fields={ # Fields the client's form MUST include
-                'x-amz-checksum-sha256': params.checksum,
-                'Content-Type': params.file_type # Ensure content type is included
-            },
-            Conditions=[ # Conditions the upload must satisfy
-                {'x-amz-checksum-sha256': params.checksum},
-                {'Content-Type': params.file_type},
-                ["content-length-range", 0, params.size + 1024] # Allow some tolerance? Or exact size?
+        presigned_data = s3_client.generate_presigned_post(
+            Bucket=S3_BUCKET_NAME, Key=app_generated_file_id_and_s3_key,
+            Fields={'x-amz-checksum-sha256': params.checksum, 'Content-Type': params.file_type},
+            Conditions=[
+                {'x-amz-checksum-sha256': params.checksum}, {'Content-Type': params.file_type},
+                ["content-length-range", 0 if params.size == 0 else 1, params.size + (1024*1024)]
             ],
-            ExpiresIn=3600 # Increased expiry time (e.g., 1 hour)
+            ExpiresIn=3600 
         )
-        # The client needs both the URL and the required fields
-        return upload_url_return(url=presigned_data['url'], fields=presigned_data['fields'])
-
+        # Return the app_generated_file_id_and_s3_key as s3_key
+        return UploadURLResponse(url=presigned_data['url'], fields=presigned_data['fields'], s3_key=app_generated_file_id_and_s3_key)
     except ClientError as e:
-        print(f"S3 ClientError generating presigned POST: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error generating upload URL")
+        logger.error(f"S3 ClientError (presigned POST, key: {app_generated_file_id_and_s3_key}): {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error generating S3 upload URL")
+
+async def confirm_single_file_upload_impl(params: ConfirmSingleUploadPayload, user: CueuserAuthBearer) -> ConfirmSingleUploadResponse:
+    pool: Pool = await get_connection_pool()
+    conn = await pool.acquire()
+    # params.s3_key is the app-generated UUID from generate_upload_url, to be used as file.id
+    file_id_to_insert = UUID(params.s3_key) 
+    try:
+        collection_obj, _ = await _validate_upload_permissions(conn, params.collection, user)
+        
+        async with conn.transaction(): # type: ignore
+            # file_db_utils.create_file_in_db now needs to accept 8 params:
+            # (id, name, type, cueuser_id, size, coll_id, coll_path, edpub, checksum)
+            # Note: The DDL for file.id should be `id UUID NOT NULL PRIMARY KEY` (no default)
+            file_create_payload = (
+                file_id_to_insert,      # id (the S3 key, which is our app-generated UUID)
+                params.file_name,       # name
+                params.file_type,       # type
+                UUID(str(user.get('id'))), # cueuser_uploaded
+                params.size_bytes,      # size_bytes
+                collection_obj.id,      # collection_id
+                params.collection_path, # collection_path
+                False,                  # edpub (default)
+                params.checksum         # checksum
+            )
+            # This assumes your file_db_utils.create_file_in_db is updated to take these 9 params
+            # and inserts the provided ID.
+            file_record = await file_db_utils.create_file_in_db(conn, file_create_payload)
+            if not file_record or file_record.get('id') != file_id_to_insert:
+                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create file record with specified ID upon confirmation.")
+            
+            status_payload = (
+                file_id_to_insert, 'unscanned', None, 
+                datetime.now(timezone.utc), None, None
+            )
+            await file_status_db_utils.create_file_status_in_db(conn, status_payload) # type: ignore
+            logger.info(f"Confirmed single upload. DB File ID & S3 Key: {file_id_to_insert}")
+            return ConfirmSingleUploadResponse(file_id=str(file_id_to_insert), status='unscanned')
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Unexpected error generating presigned POST: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error generating upload URL")
+        logger.error(f"Error in confirm_single_file_upload for S3 key {params.s3_key}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error confirming single file upload.")
+    finally:
+        if conn: await pool.release(conn)
 
 
 # --- Multipart Upload Functions ---
-
-async def start_multipart_upload(params: dict, user: CueuserAuthBearer) -> dict:
-    """
-    Initiates a multipart upload in S3.
-    Uses the filename as the S3 key (consider changing this).
-    Returns a dictionary containing the upload_id.
-    """
-    s3Client = _get_s3_client()
-    file_name = params.get("file_name")
-    # collection = params.get("collection") # Optional: Use for DB logging or key prefix
-    # upload_target = params.get("upload_target") # Optional: Use for DB logging or key prefix
-
-    if not file_name:
-        raise ValueError("Missing 'file_name' in request body")
-
-    # *** S3 Key Strategy Decision Point ***
-    # Using filename directly is risky for collisions.
-    # Alternatives:
-    # 1. Generate a unique ID (UUID) here.
-    # 2. Create a DB record first (like single upload) and use its ID.
-    # 3. Use a prefix based on collection/user/date + filename.
-    # For now, sticking to original logic:
-    s3_key = file_name
-    # Consider adding user/collection prefix: s3_key = f"{user.cueusername}/{collection}/{file_name}"
-
-    # TODO: Add database record creation here if needed to track multipart uploads
-    # Similar to generate_upload_url, create entries in file and file_status tables.
-    # Store the s3_key used.
-
+async def start_multipart_upload_impl(params: MultipartStartRequestPayload, user: CueuserAuthBearer) -> MultipartStartResponsePayload:
+    pool: Pool = await get_connection_pool()
+    conn = await pool.acquire()
+    # Backend generates the UUID which will be the file.id AND the S3 object key.
+    app_generated_file_id_and_s3_key = str(uuid4())
+    s3_upload_id: Optional[str] = None
     try:
-        print(f"Starting multipart upload for key: {s3_key} in bucket: {S3_BUCKET_NAME}")
-        response = s3Client.create_multipart_upload(
-            Bucket=S3_BUCKET_NAME,
-            Key=s3_key,
-            # ContentType=params.get('file_type', 'application/octet-stream'), # Optional: Set content type
-            # ChecksumAlgorithm='SHA256' # Specify if you intend S3 to calculate checksums
-        )
-        upload_id = response.get('UploadId')
-        if not upload_id:
-             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get UploadId from S3")
+        await _validate_upload_permissions(conn, params.collection, user)
+        logger.info(f"Permissions validated for multipart start. App-generated File ID/S3 Key: {app_generated_file_id_and_s3_key}")
+    except HTTPException:
+        if conn: await pool.release(conn)
+        raise
+    except Exception as e:
+        logger.error(f"Error during permission validation for multipart start: {e}", exc_info=True)
+        if conn: await pool.release(conn)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error validating upload permissions.")
+    finally: 
+        if conn: await pool.release(conn)
 
-        print(f"Multipart upload started. Upload ID: {upload_id}")
-        # Return only the upload ID as expected by the client
-        return {"upload_id": upload_id}
+    s3_client = _get_s3_client()
+    try:
+        logger.info(f"Starting multipart upload with S3 for S3 key: {app_generated_file_id_and_s3_key}")
+        response = s3_client.create_multipart_upload(
+            Bucket=S3_BUCKET_NAME, Key=app_generated_file_id_and_s3_key, ContentType=params.content_type,
+        )
+        s3_upload_id = response.get('UploadId')
+        if not s3_upload_id:
+            logger.error(f"Failed to get UploadId from S3 for key {app_generated_file_id_and_s3_key}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get UploadId from S3")
+        
+        logger.info(f"Multipart initiated with S3. S3 Upload ID: {s3_upload_id}, S3 Key: {app_generated_file_id_and_s3_key}")
+        return MultipartStartResponsePayload(upload_id=s3_upload_id, s3_key=app_generated_file_id_and_s3_key)
 
     except ClientError as e:
-        print(f"S3 ClientError starting multipart upload: {e}")
-        error_code = e.response.get('Error', {}).get('Code')
-        if error_code == 'AccessDenied':
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied to start multipart upload.")
-        else:
-             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"S3 error starting multipart upload: {error_code or 'Unknown'}")
-    except Exception as e:
-        print(f"Unexpected error starting multipart upload: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error starting multipart upload")
+        logger.error(f"S3 ClientError starting multipart for key {app_generated_file_id_and_s3_key}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="S3 error starting multipart upload")
 
 
-async def get_part_upload_url(params: dict, user: CueuserAuthBearer) -> dict:
-    """
-    Generates a presigned URL for uploading a single part.
-    Returns a dictionary containing the presigned_url.
-    """
-    s3Client = _get_s3_client()
-    file_name = params.get("file_name")
-    upload_id = params.get("upload_id")
-    part_number_str = params.get("part_number")
-    # We still receive content_type, might be useful for logging or other logic
-    content_type = params.get("content_type")
-
-    # Validation (keep validation)
-    if not file_name:
-        logger.warning("get_part_upload_url: Missing 'file_name'")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing required parameter: file_name")
-    if not upload_id:
-        logger.warning("get_part_upload_url: Missing 'upload_id'")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing required parameter: upload_id")
-    if not part_number_str:
-        logger.warning("get_part_upload_url: Missing 'part_number'")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing required parameter: part_number")
-    if not content_type:
-        # Log if missing, but don't necessarily fail if not strictly needed for presigning Params
-        logger.warning(f"get_part_upload_url: 'content_type' missing in request for part {part_number_str}.")
-        # content_type = 'application/octet-stream' # Assign default if needed elsewhere
-
+async def get_part_upload_url_impl(params: MultipartGetPartUrlRequestPayload, user: CueuserAuthBearer) -> MultipartGetPartUrlResponsePayload:
+    s3_client = _get_s3_client()
+    # params.file_name from client is the s3_key (our app_generated_file_id_and_s3_key)
+    s3_object_key = params.file_name 
     try:
-        part_number = int(part_number_str)
-        if part_number <= 0:
-             raise ValueError("Part number must be a positive integer.")
-    except (TypeError, ValueError):
-         logger.warning(f"get_part_upload_url: Invalid 'part_number' provided: {part_number_str}")
-         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid part_number: {part_number_str}")
-
-    s3_key = file_name
-
-    try:
-        logger.info(f"Generating presigned URL for Part {part_number}, Key: {s3_key}, UploadID: {upload_id}") # Removed ContentType from log msg
-
-        # *** CORRECTED: Remove ContentType from Params ***
+        logger.debug(f"Generating presigned URL for Part {params.part_number}, S3 Key: {s3_object_key}, S3 UploadID: {params.upload_id}")
         presign_params = {
-            'Bucket': S3_BUCKET_NAME,
-            'Key': s3_key,
-            'UploadId': upload_id,
-            'PartNumber': part_number,
-           
+            'Bucket': S3_BUCKET_NAME, 'Key': s3_object_key,
+            'UploadId': params.upload_id, 'PartNumber': params.part_number,
         }
-        logger.debug(f"Params for generate_presigned_url: {presign_params}")
-
-        presigned_url = s3Client.generate_presigned_url(
-            ClientMethod='upload_part',
-            Params=presign_params,
-            ExpiresIn=3600,
-            HttpMethod='PUT'
+        presigned_url = s3_client.generate_presigned_url(
+            ClientMethod='upload_part', Params=presign_params, ExpiresIn=3600, HttpMethod='PUT'
         )
-        logger.info(f"Successfully generated URL for part {part_number}")
-        logger.debug(f"Generated URL (first 100 chars): {presigned_url[:100]}...")
-        return {"presigned_url": presigned_url}
-
+        logger.debug(f"Successfully generated URL for part {params.part_number}")
+        return MultipartGetPartUrlResponsePayload(presigned_url=presigned_url)
     except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'No message')
-        logger.error(f"S3 ClientError generating part URL: Code={error_code}, Message='{error_message}'", exc_info=True)
-        if error_code == 'AccessDenied':
-             detail = "Permission denied by S3 to generate upload URL for this part. Check IAM permissions (s3:PutObject)."
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
-        else:
-             detail = f"S3 error generating part URL: {error_code}"
-             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
-    except Exception as e:
-        logger.error(f"Unexpected error in get_part_upload_url: {type(e).__name__}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error generating part upload URL.")
+        logger.error(f"S3 ClientError (part URL, key {s3_object_key}, part {params.part_number}): {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="S3 error generating part upload URL")
 
 
-
-async def complete_multipart_upload(params: dict, user: CueuserAuthBearer) -> dict:
-    """
-    Completes a multipart upload in S3.
-    Requires the list of parts with ETags and the final object checksum.
-    """
-    s3Client = _get_s3_client()
-    file_name = params.get("file_name")
-    upload_id = params.get("upload_id")
-    parts_list = params.get("parts") # This is the list of dicts [{PartNumber, ETag, ChecksumSHA256?}]
-    full_checksum = params.get("checksum") # Base64 SHA256 of the full file
-
-    if not all([file_name, upload_id, parts_list, full_checksum]):
-        raise ValueError("Missing 'file_name', 'upload_id', 'parts', or 'checksum' in request body")
-
-    if not isinstance(parts_list, list):
-         raise ValueError("'parts' must be a list")
-
-    # Use the same S3 key strategy as in start_multipart_upload
-    s3_key = file_name
-
-    # Structure for boto3: {'Parts': [{'PartNumber': ..., 'ETag': ...}, ...]}
-    # The client sends the ChecksumSHA256 for each part, but complete_multipart_upload
-    # primarily cares about PartNumber and ETag. S3 validates parts based on ETags.
-    # We need to ensure the ETag doesn't have extra quotes.
-    formatted_parts = []
-    for part in parts_list:
-        if isinstance(part, dict) and 'PartNumber' in part and 'ETag' in part:
-            formatted_parts.append({
-                'PartNumber': part['PartNumber'],
-                'ETag': str(part['ETag']).strip('"') # Ensure ETag is string and strip quotes
-            })
-        else:
-             raise ValueError("Invalid structure in 'parts' list. Each item must be a dict with 'PartNumber' and 'ETag'.")
-
+async def complete_multipart_upload_impl(params: MultipartCompleteRequestPayload, user: CueuserAuthBearer) -> MultipartCompleteResponsePayload:
+    s3_client = _get_s3_client()
+    # params.s3_key is the app-generated UUID from /start, which will be the file.id
+    file_id_for_db_and_s3_key = UUID(params.s3_key) 
+    
+    formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': str(part.ETag).strip('"')} for part in params.parts]
     multipart_payload = {'Parts': formatted_parts}
+    s3_response_dict: Dict[str, Any] = {} 
 
+    pool: Pool = await get_connection_pool()
+    conn = await pool.acquire()
     try:
-        print(f"Completing multipart upload for Key: {s3_key}, UploadID: {upload_id}")
-        print(f"Parts payload: {multipart_payload}") # Log the structure being sent
-        print(f"Full file checksum: {full_checksum}")
-
-        response = s3Client.complete_multipart_upload(
-            Bucket=S3_BUCKET_NAME,
-            Key=s3_key,
-            UploadId=upload_id,
-            MultipartUpload=multipart_payload,
-            # Request S3 to validate the assembled object against the provided checksum
-            ChecksumSHA256=full_checksum
+        logger.info(f"Attempting to complete multipart upload with S3 for Key: {str(file_id_for_db_and_s3_key)}, S3 UploadID: {params.upload_id}")
+        s3_response = s3_client.complete_multipart_upload(
+            Bucket=S3_BUCKET_NAME, Key=str(file_id_for_db_and_s3_key), UploadId=params.upload_id,
+            MultipartUpload=multipart_payload, ChecksumSHA256=params.checksum
         )
-        print(f"Multipart upload completed successfully. Response: {response}")
+        s3_response_dict = s3_response 
+        final_etag = s3_response_dict.get('ETag','').strip('"')
+        logger.info(f"S3 Multipart upload completed successfully for S3 key {str(file_id_for_db_and_s3_key)}. S3 ETag: {final_etag}")
 
-        # TODO: Update database status for the file (e.g., change status from 'uploading' to 'uploaded' or 'pending_scan')
-        # You'll need the file_id associated with this upload (requires DB record creation in start_multipart_upload)
+        collection_obj, _ = await _validate_upload_permissions(conn, params.collection, user)
 
-        # Return the S3 response (contains ETag, Location, etc.)
-        return response
-
+        async with conn.transaction(): # type: ignore
+            # file_db_utils.create_file_in_db now needs to accept 9 params:
+            # (id, name, type, cueuser_id, size, coll_id, coll_path, edpub, checksum)
+            file_create_payload = (
+                file_id_for_db_and_s3_key, # Use the app-generated UUID as the file.id
+                params.file_name,       # Original local filename for 'name' column
+                params.content_type,    # Original content_type
+                UUID(str(user.get('id'))), # cueuser_uploaded
+                params.final_file_size, # size_bytes
+                collection_obj.id,      # collection_id
+                params.collection_path, # User's target sub-path
+                False,                  # edpub (default)
+                params.checksum         # overall_checksum
+            )
+            file_record = await file_db_utils.create_file_in_db(conn, file_create_payload)
+            if not file_record or file_record.get('id') != file_id_for_db_and_s3_key:
+                logger.critical(f"CRITICAL: S3 MPU complete for {str(file_id_for_db_and_s3_key)}, but DB file record creation/match failed.")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="File uploaded to S3, but failed to record in database with correct ID. Please contact support.")
+            
+            status_payload = (
+                file_id_for_db_and_s3_key, 'unscanned', None, 
+                datetime.now(timezone.utc), None, None
+            )
+            await file_status_db_utils.create_file_status_in_db(conn, status_payload) # type: ignore
+            logger.info(f"DB records created for file {str(file_id_for_db_and_s3_key)} with status 'unscanned'.")
+        
+        return MultipartCompleteResponsePayload(
+            Location=s3_response_dict.get('Location', ''), Bucket=s3_response_dict.get('Bucket', S3_BUCKET_NAME),
+            Key=s3_response_dict.get('Key', str(file_id_for_db_and_s3_key)), ETag=final_etag
+        )
     except ClientError as e:
-        print(f"S3 ClientError completing multipart upload: {e}")
+        logger.error(f"S3 ClientError (complete multipart, key {str(file_id_for_db_and_s3_key)}): {e}", exc_info=True)
         error_code = e.response.get('Error', {}).get('Code')
-        # Specific error handling (e.g., InvalidPartOrder, NoSuchUpload)
-        if error_code == 'InvalidPart':
-             detail = "One or more parts specified were invalid."
-        elif error_code == 'InvalidPartOrder':
-             detail = "Parts were not specified in ascending order."
-        elif error_code == 'NoSuchUpload':
-             detail = f"The specified multipart upload ID ({upload_id}) does not exist."
-        elif error_code == 'EntityTooSmall':
-             detail = "A part size was too small (min 5MB, except last part)."
-        elif error_code == 'XAmzContentSHA256Mismatch':
-             detail = "The provided final checksum did not match the S3 calculated checksum."
-        else:
-             detail = f"S3 error completing multipart upload: {error_code or 'Unknown'}"
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) # Usually 400 for completion errors
-    except Exception as e:
-        print(f"Unexpected error completing multipart upload: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error completing multipart upload")
+        detail = f"S3 error completing multipart: {error_code or 'Unknown'}"
+        if error_code == 'XAmzContentSHA256Mismatch':
+            detail = "Final file checksum (SHA256) mismatch with S3."
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    except HTTPException: 
+        raise
+    except Exception as e: 
+        logger.error(f"Error during complete_multipart_upload_impl for S3 key {str(file_id_for_db_and_s3_key)}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error completing upload.")
+    finally:
+        if conn: await pool.release(conn)
 
 
-async def abort_multipart_upload(params: dict, user: CueuserAuthBearer) -> None:
-    """
-    Aborts an ongoing multipart upload in S3.
-    """
-    s3Client = _get_s3_client()
-    file_name = params.get("file_name")
-    upload_id = params.get("upload_id")
-
-    if not all([file_name, upload_id]):
-        raise ValueError("Missing 'file_name' or 'upload_id' in request body")
-
-    # Use the same S3 key strategy as in start_multipart_upload
-    s3_key = file_name
-
+async def abort_multipart_upload_impl(params: MultipartAbortRequestPayload, user: CueuserAuthBearer) -> None:
+    s3_client = _get_s3_client()
+    # params.s3_key is the app-generated UUID from /start
+    s3_object_key_to_abort = params.s3_key 
+    
+    # No DB records were created at /start for the file in this transactional model,
+    # so no DB cleanup is needed here for the file or file_status table.
     try:
-        print(f"Aborting multipart upload for Key: {s3_key}, UploadID: {upload_id}")
-        s3Client.abort_multipart_upload(
-            Bucket=S3_BUCKET_NAME,
-            Key=s3_key,
-            UploadId=upload_id
+        logger.info(f"Aborting multipart with S3 for S3 Key: {s3_object_key_to_abort}, S3 UploadID: {params.upload_id}")
+        s3_client.abort_multipart_upload(
+            Bucket=S3_BUCKET_NAME, Key=s3_object_key_to_abort, UploadId=params.upload_id
         )
-        print(f"Multipart upload aborted successfully: {upload_id}")
-
-        # TODO: Update database status for the file (e.g., change status to 'aborted' or 'failed')
-        # Requires DB record creation in start_multipart_upload.
-
-        return # No content to return on success (204)
-
+        logger.info(f"Multipart aborted with S3 for S3 key {s3_object_key_to_abort}, Upload ID: {params.upload_id}")
     except ClientError as e:
-        print(f"S3 ClientError aborting multipart upload: {e}")
+        logger.warning(f"S3 ClientError (abort multipart, key {s3_object_key_to_abort}): {e}", exc_info=True)
         error_code = e.response.get('Error', {}).get('Code')
         if error_code == 'NoSuchUpload':
-             # If the upload doesn't exist, it's effectively aborted. Maybe log a warning but don't fail.
-             print(f"Warning: Multipart upload {upload_id} not found during abort (already completed or aborted?).")
-             return # Treat as success from client perspective
-        else:
-             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"S3 error aborting multipart upload: {error_code or 'Unknown'}")
-    except Exception as e:
-        print(f"Unexpected error aborting multipart upload: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error aborting multipart upload")
-
+            logger.info(f"MPU {params.upload_id} not found during S3 abort. Treating as effectively aborted.")
+            return 
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"S3 error aborting: {error_code or 'Unknown'}")
