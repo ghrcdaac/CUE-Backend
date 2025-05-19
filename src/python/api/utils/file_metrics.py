@@ -1,6 +1,5 @@
 from asyncpg.pool import Pool
 from lambda_utils.database_util.db_util import query, get_connection_pool
-from lambda_utils.database_util import file_metrics as file_metrics_db
 from lambda_utils.type_util.file_metrics import (SummaryCostReturn, DailyCostReturn, TotalCostReturn, CostReturn, FilesMetadata)
 from typing import List, Optional
 from uuid import UUID 
