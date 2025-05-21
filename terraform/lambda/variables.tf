@@ -1,67 +1,94 @@
+// ./lambda/variables.tf
+
 variable "region" {
-    type = string
+  description = "AWS region."
+  type        = string
 }
 
 variable "account_id" {
-    type = string
+  description = "AWS Account ID."
+  type        = string
 }
 
 variable "cue_scan_event_role_arn" {
-    type = string
+  description = "IAM Role ARN for the CUE Scan Event Lambda."
+  type        = string
 }
 
-variable "cue_api_lambda_role_arn"{
-    type = string
+variable "cue_api_lambda_role_arn" {
+  description = "IAM Role ARN for the CUE API Lambda."
+  type        = string
 }
 
 variable "cue_css_scan_sns_arn" {
-    type = string
+  description = "ARN of the SNS topic for CUE CSS scans."
+  type        = string
 }
 
 variable "db_user" {
-    type = string
+  description = "Database username."
+  type        = string
 }
 
 variable "db_host" {
-    type = string
+  description = "Database host endpoint."
+  type        = string
 }
 
 variable "db_database" {
-    type = string
+  description = "Database name."
+  type        = string
 }
 
 variable "db_password" {
-    type = string
+  description = "Database password."
+  type        = string
+  sensitive   = true // Mark password as sensitive
 }
 
 variable "db_port" {
-    type = string
+  description = "Database port."
+  type        = string // Or number, but your python code uses os.getenv which returns string
 }
 
 variable "subnet_ids" {
-    type = list(string)
+  description = "List of subnet IDs for Lambda VPC configuration."
+  type        = list(string)
 }
 
 variable "security_group_ids" {
-    type = list(string)
+  description = "List of security group IDs for Lambda VPC configuration."
+  type        = list(string)
 }
 
 variable "api_id" {
-    type = string
+  description = "API Gateway ID."
+  type        = string
 }
 
 variable "api_docker" {
-    type = string
+  description = "ECR Image URI for the API Lambda."
+  type        = string
 }
 
 variable "pool_id" {
-    type = string
+  description = "Cognito User Pool ID or similar identifier."
+  type        = string
 }
 
-variable "client_id"{
-    type = string
+variable "client_id" {
+  description = "Cognito Client ID or similar identifier."
+  type        = string
 }
 
-variable "client_secret"{
-    type = string
+variable "client_secret" {
+  description = "Cognito Client Secret or similar identifier."
+  type        = string
+  sensitive   = true // Mark client_secret as sensitive
+}
+
+variable "lambda_env_vars" {
+  description = "A map of additional environment variables for the Lambda functions."
+  type        = map(string)
+  default     = {}
 }
