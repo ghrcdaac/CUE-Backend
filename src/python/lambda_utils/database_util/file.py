@@ -24,9 +24,9 @@ async def get_ngroup_id_for_file_db(conn: Connection, file_id: UUID) -> Optional
 async def create_file_in_db(conn: Connection, params: Tuple) -> List:
     """Inserts a new file record into the database."""
     insert_query = """
-        INSERT INTO file (name, type, cueuser_uploaded, size_bytes, collection_id, edpub, checksum)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, type, cueuser_uploaded, size_bytes, collection_id, edpub, checksum
+        INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, collection_path, edpub, checksum)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id, name, type, cueuser_uploaded, size_bytes, collection_id, collection_path, edpub, checksum 
     """
     try:
         return await conn.fetchrow(insert_query, *params)
