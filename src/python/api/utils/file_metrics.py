@@ -6,7 +6,7 @@ from typing import List
 from uuid import UUID 
 import logging 
 from datetime import datetime, timedelta, date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
