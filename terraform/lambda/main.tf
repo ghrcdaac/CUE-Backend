@@ -10,10 +10,11 @@ resource "aws_lambda_function" "cue_scan_event" {
     timeout                 = 180
     environment {
         variables = {
-            DB_USER = var.db_user
-            DB_HOST = var.db_host
-            DB_DATABASE = var.db_database
-            DB_PASSWORD = var.db_password
+            PG_USER     = var.db_user     
+            PG_HOST     = var.db_host     
+            PG_DB       = var.db_database 
+            PG_PASS     = var.db_password 
+            PG_PORT     = var.db_port
         }
     }
     vpc_config {
@@ -46,11 +47,14 @@ resource "aws_lambda_function" "cue_api"{
         variables = {
             PG_USER = var.db_user
             PG_HOST = var.db_host
-            PB_DB = var.db_database
-            PB_PASS = var.db_password
+            PG_DB = var.db_database
+            PG_PASS = var.db_password
+            PG_PORT     = var.db_port
             POOL_ID = var.pool_id
             CLIENT_ID = var.client_id
             CLIENT_SECRET = var.client_secret
+            POOL_MIN_SIZE = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
+            POOL_MAX_SIZE = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
         }
     }
     vpc_config {

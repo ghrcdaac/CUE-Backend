@@ -1,0 +1,18 @@
+#!/bin/bash
+export bamboo_AWS_ACCESS_KEY_ID="YOUR_BAMBOO_AWS_ACCESS_KEY_ID_VALUE"
+export bamboo_AWS_SECRET_ACCESS_KEY="YOUR_BAMBOO_AWS_SECRET_KEY_VALUE"
+export bamboo_AWS_REGION="us-west-2"
+export bamboo_ACCOUNT_ID="123456789012"
+export bamboo_STATE_BUCKET="your-terraform-state-bucket-name"
+export bamboo_DB_PASSWORD="YOUR_RDS_DATABASE_PASSWORD_VALUE"
+export bamboo_RDS_CLUSTER_IDENTIFIER="your-rds-cluster-identifier-from-aws"
+export bamboo_SECURITY_GROUP_IDS='["sg-yourFirstSecurityGroupId","sg-yourSecondSecurityGroupId"]'
+export bamboo_SUBNET_IDS='["subnet-yourFirstSubnetId","subnet-yourSecondSubnetId"]'
+export bamboo_CUE_CSS_SCAN_SNS_ARN="arn:aws:sns:us-west-2:123456789012:your-cue-css-scan-topic"
+export bamboo_LAMBDA_EXECUTION_POLICY_ARN="arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+export bamboo_API_ID="yourApiGatewayRestApiId"
+export bamboo_API_DOCKER="123456789012.dkr.ecr.us-west-2.amazonaws.com/your-api-image:latest"
+export bamboo_POOL_ID="yourCognitoUserPoolId"
+export bamboo_CLIENT_ID="yourCognitoAppClientId"
+export bamboo_CLIENT_SECRET="YOUR_COGNITO_APP_CLIENT_SECRET_VALUE"
+export bamboo_LAMBDA_ADDITIONAL_ENV_VARS='{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70", "LOG_LEVEL": "INFO" }'
