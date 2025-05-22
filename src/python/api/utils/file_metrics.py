@@ -2,11 +2,12 @@ from asyncpg.pool import Pool
 from lambda_utils.database_util.db_util import get_connection_pool
 from lambda_utils.database_util import file_metrics as file_metrics_db
 from lambda_utils.type_util.file_metrics import SummaryCostReturn, CostReturn, MetricsQueryParameters
-from typing import List
+from typing import List, Tuple
 from uuid import UUID 
 import logging 
 from datetime import datetime, timedelta, date
 from decimal import Decimal, getcontext, ROUND_UP
+from math import ceil
 
 logger = logging.getLogger(__name__)
 decimal_context = getcontext()
@@ -78,7 +79,7 @@ async def get_summary_cost(ngroup_id:UUID, params: MetricsQueryParameters) -> Su
     except Exception as e:
         logger.error(f"Error calculating summary costs: {e}", exc_info=True)
 
-async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  page:int, page_size:int) -> List[CostReturn]:
+async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  page:int, page_size:int) -> Tuple[List[CostReturn], int, int]:
     """Retrieve metrics and calculate collection costs."""
     pool: Pool = await get_connection_pool()
     conn = None
@@ -94,12 +95,14 @@ async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  p
 
     collection_metrics = []
     metrics_count = 0
+    pages = 0
 
     try:
         async with pool.acquire() as conn:
             metrics_count = await file_metrics_db.count_collection_metrics(conn, ngroup_id, filters_dict)
             if metrics_count > 0 and offset < metrics_count:
                 collection_metrics = await file_metrics_db.get_collection_metrics(conn, ngroup_id, filters_dict, page_size, offset)
+                pages = ceil(metrics_count / page_size)
 
     except Exception as e:
         logger.error(f"Error retrieving collection metrics: {e}", exc_info=True)
@@ -122,11 +125,11 @@ async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  p
                                             "cost": cost,
                                         }
                                 )
-        return collection_cost, metrics_count
+        return collection_cost, metrics_count, pages
     except Exception as e:
         logger.error(f"Error calculating collection costs: {e}", exc_info=True)
 
-async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:int, page_size:int) -> List[CostReturn]:
+async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:int, page_size:int) -> Tuple[List[CostReturn], int, int]:
     """Retrieve metrics and calculate file costs."""
     pool: Pool = await get_connection_pool()
     conn = None
@@ -142,12 +145,14 @@ async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:in
 
     file_metrics = []
     metrics_count = 0
+    pages = 0
 
     try:
         async with pool.acquire() as conn:
             metrics_count = await file_metrics_db.count_file_metrics(conn, ngroup_id, filters_dict)
             if metrics_count > 0 and offset < metrics_count:
                 file_metrics = await file_metrics_db.get_file_metrics(conn, ngroup_id, filters_dict, page_size, offset)
+                pages = ceil(metrics_count / page_size)
 
     except Exception as e:
         logger.error(f"Error retrieving file metrics {e}", exc_info=True)
@@ -170,7 +175,7 @@ async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:in
                     "cost": cost,
                 }
             )
-        return file_cost, metrics_count
+        return file_cost, metrics_count, pages
 
     except Exception as e:
         logger.error(f"Error calculating file costs: {e}", exc_info=True)
