@@ -71,7 +71,7 @@ async def get_daily_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str,
     try:
         return await conn.fetch(full_query, *params)
     except Exception as e:
-        logger.error(f"Error fetching file metrics: {e}", exc_info=True)
+        logger.error(f"Error fetching daily metrics: {e}", exc_info=True)
         raise
 
 async def get_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any], limit:int, offset:int) -> List:
@@ -82,11 +82,23 @@ async def get_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict
     params.extend([limit, offset])
     groupby_clause = " GROUP BY f.collection_id, c.short_name"
     pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
-    full_query = select_clause + query_suffix + groupby_clause + pagination_clause
+    orderby_clause = " ORDER BY size"
+    full_query = select_clause + query_suffix + groupby_clause + orderby_clause + pagination_clause
     try:
         return await conn.fetch(full_query, *params)
     except Exception as e:
-        logger.error(f"Error fetching file metrics: {e}", exc_info=True)
+        logger.error(f"Error fetching collection metrics: {e}", exc_info=True)
+        raise
+
+async def count_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any]) -> int:
+    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
+    select_clause = "SELECT COUNT(DISTINCT(c.id)) "
+    full_query = select_clause + query_suffix
+    try:
+        count = await conn.fetchval(full_query, *params)
+        return int(count) if count is not None else 0
+    except Exception as e:
+        logger.error(f"Error counting collection metrics: {e}", exc_info=True)
         raise
 
 async def get_file_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any], limit:int, offset:int) -> List:
@@ -96,9 +108,21 @@ async def get_file_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, 
     offset_param_index = len(params) + 2
     params.extend([limit, offset])
     pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
-    full_query = select_clause + query_suffix + pagination_clause
+    orderby_clause = " ORDER BY size"
+    full_query = select_clause + query_suffix + orderby_clause + pagination_clause
     try:
         return await conn.fetch(full_query, *params)
+    except Exception as e:
+        logger.error(f"Error fetching file metrics: {e}", exc_info=True)
+        raise
+
+async def count_file_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any]) -> int:
+    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
+    select_clause = "SELECT COUNT(f.id) "
+    full_query = select_clause + query_suffix
+    try:
+        count = await conn.fetchval(full_query, *params)
+        return int(count) if count is not None else 0
     except Exception as e:
         logger.error(f"Error fetching file metrics: {e}", exc_info=True)
         raise

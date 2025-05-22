@@ -6,17 +6,20 @@ from typing import List
 from uuid import UUID 
 import logging 
 from datetime import datetime, timedelta, date
-from decimal import Decimal
+from decimal import Decimal, getcontext, ROUND_UP
 
 logger = logging.getLogger(__name__)
+decimal_context = getcontext()
+decimal_context.rounding=ROUND_UP
 
+# temporary values for cost calculation
 AWS_COST = Decimal(0.00001)
 SCAN_COST = Decimal(0.00005)
 
 def format_to_GB(bytes:int) -> str:
     """Helper function to format size into GB string"""
-    gbs = bytes / (1024**3)
-    return f"{gbs}GB"
+    gbs = Decimal(bytes / (1024**3)) if bytes > 0 else Decimal(0)
+    return f"{gbs:.2f}GB"
 
 
 async def get_summary_cost(ngroup_id:UUID, params: MetricsQueryParameters) -> SummaryCostReturn:
@@ -41,24 +44,28 @@ async def get_summary_cost(ngroup_id:UUID, params: MetricsQueryParameters) -> Su
     try:
         # calculate results
         daily_cost = []
-        _total_cost = 0
-        total_size = 0
+        _total_cost = Decimal(0)
+        total_size = Decimal(0)
         total_file_count = 0
         for record in daily_metrics:
             size = Decimal(record.get("size"))
-            aws_cost = Decimal(size * AWS_COST)
+            aws_cost = size * AWS_COST
             scan_duration = record.get("scan_duration")
             scan_cost = scan_duration * SCAN_COST if scan_duration else 0
             cost = aws_cost + scan_cost
+            cost = cost.quantize(Decimal(0.00))
             _date = datetime.strftime(record.get("date"), "%Y-%m-%d")
             daily_cost.append({"date": _date, "cost": cost})
             _total_cost += cost
             total_size += size
             total_file_count += record.get("file_count")
 
-        total_cost = {"cost": _total_cost, "start_date": params.start_date, "end_date": params.end_date}
-        cost_per_byte = _total_cost/total_size if _total_cost > 0 and total_size > 0 else 0
+        total_cost = {"cost": _total_cost.quantize(Decimal(0.00)), "start_date": params.start_date, "end_date": params.end_date}
+        cost_per_byte = Decimal(0)
+        if _total_cost > 0 and total_size > 0:
+            cost_per_byte = Decimal(_total_cost/total_size)
 
+        cost_per_byte = cost_per_byte.quantize(Decimal(0.00))
         files_metadata = {
             "number_of_files": total_file_count,
             "size": format_to_GB(total_size),
@@ -85,9 +92,15 @@ async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  p
     offset = (page - 1) * page_size
     filters_dict = params.model_dump(exclude_none=True)
 
+    collection_metrics = []
+    metrics_count = 0
+
     try:
         async with pool.acquire() as conn:
-           collection_metrics = await file_metrics_db.get_collection_metrics(conn, ngroup_id, filters_dict, page_size, offset)
+            metrics_count = await file_metrics_db.count_collection_metrics(conn, ngroup_id, filters_dict)
+            if metrics_count > 0 and offset < metrics_count:
+                collection_metrics = await file_metrics_db.get_collection_metrics(conn, ngroup_id, filters_dict, page_size, offset)
+
     except Exception as e:
         logger.error(f"Error retrieving collection metrics: {e}", exc_info=True)
         raise
@@ -101,6 +114,7 @@ async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  p
             aws_cost = size * AWS_COST
             scan_cost = scan_duration * SCAN_COST if scan_duration else 0
             cost = aws_cost + scan_cost
+            cost = cost.quantize(Decimal(0.00))
             collection_cost.append(
                                         {
                                             "name": record.get("name"),
@@ -108,7 +122,7 @@ async def get_cost_collection(ngroup_id:UUID, params: MetricsQueryParameters,  p
                                             "cost": cost,
                                         }
                                 )
-        return collection_cost
+        return collection_cost, metrics_count
     except Exception as e:
         logger.error(f"Error calculating collection costs: {e}", exc_info=True)
 
@@ -126,9 +140,14 @@ async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:in
     offset = (page - 1) * page_size
     filters_dict = params.model_dump(exclude_none=True)
 
+    file_metrics = []
+    metrics_count = 0
+
     try:
         async with pool.acquire() as conn:
-            file_metrics = await file_metrics_db.get_file_metrics(conn, ngroup_id, filters_dict, page_size, offset)
+            metrics_count = await file_metrics_db.count_file_metrics(conn, ngroup_id, filters_dict)
+            if metrics_count > 0 and offset < metrics_count:
+                file_metrics = await file_metrics_db.get_file_metrics(conn, ngroup_id, filters_dict, page_size, offset)
 
     except Exception as e:
         logger.error(f"Error retrieving file metrics {e}", exc_info=True)
@@ -143,6 +162,7 @@ async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:in
             aws_cost = size * AWS_COST
             scan_cost = scan_duration * SCAN_COST if scan_duration else 0
             cost = aws_cost + scan_cost
+            cost = cost.quantize(Decimal(0.00))
             file_cost.append(
                 {
                     "name": record.get("name"),
@@ -150,7 +170,7 @@ async def get_cost_file(ngroup_id:UUID, params: MetricsQueryParameters,  page:in
                     "cost": cost,
                 }
             )
-        return file_cost
+        return file_cost, metrics_count
 
     except Exception as e:
         logger.error(f"Error calculating file costs: {e}", exc_info=True)

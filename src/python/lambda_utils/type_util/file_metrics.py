@@ -38,3 +38,7 @@ class SummaryCostReturn(BaseModel):
     daily_cost: List[DailyCostReturn]
     total_cost: TotalCostReturn
     files_metadata: FilesMetadata
+
+class PaginatedReturn(BaseModel):
+    costs: List[CostReturn]
+    total_count: int
