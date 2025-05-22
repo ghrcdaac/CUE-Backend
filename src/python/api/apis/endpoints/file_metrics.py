@@ -44,7 +44,7 @@ async def get_collection_cost(
         raise HTTPException(status_code=403, detail="Not authorized for specified ngroup.")
     try:
         collection_cost, total_count, pages = await get_cost_collection(ngroup_id, params, page, page_size)
-        return PaginatedReturn(items=collection_cost, total=total_count, page=page, size=page_size, pages=pages)
+        return PaginatedReturn(costs=collection_cost, total=total_count, page=page, size=page_size, pages=pages)
     except Exception as e:
         logger.error(f"Failed in collection_cost endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error calculating collection cost.")
@@ -63,7 +63,7 @@ async def get_file_cost(
         raise HTTPException(status_code=403, detail="Not authorized for specified ngroup.")
     try:
         file_cost, total_count, pages = await get_cost_file(ngroup_id, params, page, page_size)
-        return PaginatedReturn(items=file_cost, total=total_count, page=page, size=page_size, pages=pages)
+        return PaginatedReturn(costs=file_cost, total=total_count, page=page, size=page_size, pages=pages)
     except Exception as e:
         logger.error(f"Failed in collection_cost endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error calculating collection cost.")

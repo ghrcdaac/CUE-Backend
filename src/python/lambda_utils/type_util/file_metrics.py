@@ -40,7 +40,7 @@ class SummaryCostReturn(BaseModel):
     files_metadata: FilesMetadata
 
 class PaginatedReturn(BaseModel):
-    items: List[CostReturn]
+    costs: List[CostReturn]
     total: int
     page: int
     size: int
