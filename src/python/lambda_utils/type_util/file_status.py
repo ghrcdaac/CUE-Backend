@@ -1,6 +1,6 @@
 import json
 from pydantic import BaseModel, field_validator, Field
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 from uuid import UUID
 from datetime import datetime, timezone, date
 from lambda_utils.type_util.file import FileReturn
@@ -89,8 +89,159 @@ class FileStatusMetricsSummary(BaseModel):
     class Config:
         populate_by_name = True 
 
+class UnscannedFileReturn(FileReturn):
+    upload_time: datetime
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "UnscannedFileReturn":
+        (
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
+            checksum,
+            upload_time
+        ) = row
+        return cls(
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
+            checksum=checksum,
+            upload_time=upload_time
+        )
+
+class CleanFileReturn(FileReturn):
+    scan_start: datetime
+    scan_end: datetime
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "CleanFileReturn":
+        (
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
+            checksum,
+            scan_start,
+            scan_end
+        ) = row
+        return cls(
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
+            checksum=checksum,
+            scan_start=scan_start,
+            scan_end=scan_end
+        )
+
+class InfectedFileReturn(FileReturn):
+    scan_results: str
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "InfectedFileReturn":
+        (
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
+            checksum,
+            scan_results
+        ) = row
+        return cls(
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
+            checksum=checksum,
+            scan_results=scan_results
+        )
+class ScanFailedFileReturn(FileReturn):
+    scan_results: str
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "ScanFailedFileReturn":
+        (
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
+            checksum,
+            scan_results
+        ) = row
+        return cls(
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
+            checksum=checksum,
+            scan_results=scan_results
+        )
+
+class DistributedFileReturn(FileReturn):
+    egress_start: datetime
+
+    @classmethod
+    def from_db_row(cls, row: Tuple) -> "DistributedFileReturn":
+        (
+            id,
+            name,
+            file_type,
+            cueuser_uploaded,
+            size_bytes,
+            collection_id,
+            edpub,
+            checksum,
+            egress_start
+        ) = row
+        return cls(
+            id=id,
+            name=name,
+            type=file_type,
+            cueuser_uploaded=cueuser_uploaded,
+            size_bytes=size_bytes,
+            collection_id=collection_id,
+            edpub=edpub,
+            checksum=checksum,
+            egress_start=egress_start
+        )
+
+FileResponse = Union[
+    FileReturn,
+    UnscannedFileReturn,
+    CleanFileReturn,
+    InfectedFileReturn,
+    ScanFailedFileReturn,
+    DistributedFileReturn,
+    ]
+
 class PaginatedFileResponse(BaseModel):
-    items: List[FileReturn]
+    items: List[FileResponse]
     total: int
     page: int
     page_size: int
