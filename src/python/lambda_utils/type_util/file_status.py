@@ -90,7 +90,7 @@ class FileStatusMetricsSummary(BaseModel):
         populate_by_name = True 
 
 class UnscannedFileReturn(FileReturn):
-    upload_time: datetime
+    upload_time: Optional[datetime]
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "UnscannedFileReturn":
@@ -118,8 +118,8 @@ class UnscannedFileReturn(FileReturn):
         )
 
 class CleanFileReturn(FileReturn):
-    scan_start: datetime
-    scan_end: datetime
+    scan_start: Optional[datetime]
+    scan_end: Optional[datetime]
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "CleanFileReturn":
@@ -149,7 +149,7 @@ class CleanFileReturn(FileReturn):
         )
 
 class InfectedFileReturn(FileReturn):
-    scan_results: str
+    scan_results: Optional[str]
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "InfectedFileReturn":
@@ -176,7 +176,7 @@ class InfectedFileReturn(FileReturn):
             scan_results=scan_results
         )
 class ScanFailedFileReturn(FileReturn):
-    scan_results: str
+    scan_results: Optional[str]
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "ScanFailedFileReturn":
@@ -204,7 +204,7 @@ class ScanFailedFileReturn(FileReturn):
         )
 
 class DistributedFileReturn(FileReturn):
-    egress_start: datetime
+    egress_start: Optional[datetime]
 
     @classmethod
     def from_db_row(cls, row: Tuple) -> "DistributedFileReturn":
