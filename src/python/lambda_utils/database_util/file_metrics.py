@@ -82,7 +82,7 @@ async def get_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict
     params.extend([limit, offset])
     groupby_clause = " GROUP BY f.collection_id, c.short_name"
     pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
-    orderby_clause = " ORDER BY size"
+    orderby_clause = " ORDER BY c.short_name"
     full_query = select_clause + query_suffix + groupby_clause + orderby_clause + pagination_clause
     try:
         return await conn.fetch(full_query, *params)
