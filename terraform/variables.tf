@@ -2,14 +2,6 @@ variable "region"{
     type = string
 }
 
-variable "access_key" {
-    type = string
-}
-
-variable "secret_key" {
-    type = string
-}
-
 variable "account_id" {
     type = string
 }
@@ -55,5 +47,9 @@ variable "client_id"{
 }
 
 variable "client_secret"{
+    type = string
+}
+
+variable "s3_upload_bucket"{
     type = string
 }
