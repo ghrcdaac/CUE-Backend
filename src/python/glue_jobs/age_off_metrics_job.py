@@ -37,7 +37,6 @@ def main(host: str, port: str, database: str, user: str, password: str, param_na
 
         # query RDS database for metrics older than retention period
         columns, metrics = get_aged_off_metrics(conn, retention_period)
-        print(metrics)
 
         #load records into dataframe
         df = pd.DataFrame(metrics, columns=columns)
@@ -116,7 +115,7 @@ def get_aged_off_metrics(conn, retention_period: int) -> Tuple[List[str], List]:
     query = """
                 SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.edpub,
                        f.checksum, fs.upload_time, fs.scan_start, fs.scan_end, fs.egress_start, fs.status, fs.scan_results,
-                       c.provider_id, DATE(fs.upload_time) as date
+                       c.provider_id, c.ngroup_id, DATE(fs.upload_time) as date
                 FROM 
                     file f 
                 JOIN
@@ -129,7 +128,7 @@ def get_aged_off_metrics(conn, retention_period: int) -> Tuple[List[str], List]:
     column_names = ["id", "name", "type", "cueuser_uploaded",
                     "size_bytes", "collection_id", "collection_path", "edpub",
                     "checksum", "upload_time", "scan_start", "scan_end",
-                    "egress_start", "status", "scan_results", "provider_id",
+                    "egress_start", "status", "scan_results", "provider_id", "ngroup_id",
                     "date"]
     try:
         with conn:
@@ -168,19 +167,25 @@ def upload_to_s3(df: DataFrame, bucket: str) -> List[str]:
     data_path = "/tmp/metrics"
     os.makedirs(data_path, exist_ok=True)
 
+    parquet_schema = pa.schema([("id", pa.string()), ("name", pa.string()), ("type", pa.string()), ("cueuser_uploaded", pa.string()),
+                                ("size_bytes", pa.int64()), ("collection_id", pa.string()), ("collection_path", pa.string()), ("edpub", pa.bool_()),
+                                ("checksum", pa.string()), ("upload_time", pa.timestamp("us", tz="UTC")), ("scan_start", pa.timestamp("us", tz="UTC")), ("scan_end", pa.timestamp("us", tz="UTC")),
+                                ("egress_start", pa.timestamp("us", tz="UTC")), ("status", pa.string()), ("scan_results", pa.string()), ("provider_id", pa.string()),
+                                ("ngroup_id", pa.string()), ("date", pa.date64())])
+
     s3_client = boto3.client("s3")
     for (date, collection_id, provider_id, cueuser_uploaded), group in df.groupby(["date", "collection_id", "provider_id", "cueuser_uploaded"]):
         #Create partition directory
-        partition_path = os.path.join(data_path, f"date={date}/collection={collection_id}/provider={provider_id}/cueuser={cueuser_uploaded}")
+        partition_path = os.path.join(data_path, f"date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}")
         os.makedirs(partition_path, exist_ok=True)
 
         #Convert Dataframe group to Parquet file
         temp_parquet_file = os.path.join(partition_path, "data.parquet")
-        table = pa.Table.from_pandas(group)
+        table = pa.Table.from_pandas(group, schema=parquet_schema)
         pq.write_table(table, temp_parquet_file)
 
         #Upload the Parquet file
-        s3_path = f"/data/date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}/data.parquet"
+        s3_path = f"/data/metrics/date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}/data.parquet"
         md5_checksum = calculate_md5(temp_parquet_file)
         try:
             # store in s3
