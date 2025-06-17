@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS file (
     FOREIGN KEY (collection_id) REFERENCES collection(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_file_id ON file(id);
+
 CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE account_type AS ENUM ('daac', 'provider');
 
