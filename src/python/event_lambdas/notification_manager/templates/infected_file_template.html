@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+  .header { background-color: #d9534f; color: white; padding: 10px; text-align: center; border-radius: 5px 5px 0 0; }
+  .content { padding: 20px; }
+  .footer { font-size: 0.8em; text-align: center; color: #777; margin-top: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left;}
+  th { background-color: #f2f2f2; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>CUE Security Alert: Infected File Detected</h2>
+    </div>
+    <div class="content">
+      <p>This is an automated notification to inform you that a file uploaded to the CUE system has been identified as malicious.</p>
+      <h3>Scan Details:</h3>
+      <table>
+        <tr>
+          <th>File ID (Key)</th>
+          <td>{{ file_id }}</td>
+        </tr>
+        <tr>
+          <th>Scan Result</th>
+          <td><strong>{{ scan_result }}</strong></td>
+        </tr>
+        <tr>
+          <th>Date Scanned</th>
+          <td>{{ date_scanned }}</td>
+        </tr>
+        <tr>
+          <th>Detected Threats</th>
+          <td>{{ virus_names }}</td>
+        </tr>
+      </table>
+      <p>The file has been handled according to security protocols. No further action is required from you unless otherwise specified.</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message from the Cloud Upload Environment (CUE) system.</p>
+    </div>
+  </div>
+</body>
+</html>

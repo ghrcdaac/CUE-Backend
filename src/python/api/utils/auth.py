@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 class CognitoAuth:
 
     def __init__(self):
+        logger.info("Initializing CognitoAuth instance and reading environment variables...")
         self.region = os.environ.get("AWS_REGION", "us-west-2") 
         self.user_pool_id = os.environ["POOL_ID"]
         self.client_id = os.environ["CLIENT_ID"]
@@ -48,6 +49,7 @@ class CognitoAuth:
         params = (user_id,)
         try:
             user = await query(pool, cueuser_auth_db.get_cueuser_from_auth, params, row_mapper=CueuserAuthBearer.from_db_row)
+            print(user)
             return dict(user[0])
         except Exception as e:
             print(f"Error retrieving user from database: {e}")
@@ -311,9 +313,16 @@ class CognitoAuth:
             ) from e
 
 
-_cognito_auth_instance = CognitoAuth()
+_cognito_auth_instance: Optional[CognitoAuth] = None
+
 def get_cognito_auth() -> CognitoAuth:
-    """Returns a singleton instance of the CognitoAuth class."""
+    """
+    Returns a singleton instance of the CognitoAuth class.
+    The instance is created on the first call, not at module import time.
+    """
+    global _cognito_auth_instance
+    if _cognito_auth_instance is None:
+        _cognito_auth_instance = CognitoAuth()
     return _cognito_auth_instance
 
 
