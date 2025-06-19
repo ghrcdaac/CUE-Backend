@@ -168,7 +168,7 @@ def upload_to_s3(df: DataFrame, bucket: str) -> List[str]:
     os.makedirs(data_path, exist_ok=True)
 
     parquet_schema = pa.schema([("id", pa.string()), ("name", pa.string()), ("type", pa.string()), ("cueuser_uploaded", pa.string()),
-                                ("size_bytes", pa.int64()), ("collection_id", pa.string()), ("collection_path", pa.string()), ("edpub", pa.bool_()),
+                                ("size_bytes", pa.int32()), ("collection_id", pa.string()), ("collection_path", pa.string()), ("edpub", pa.bool_()),
                                 ("checksum", pa.string()), ("upload_time", pa.timestamp("us", tz="UTC")), ("scan_start", pa.timestamp("us", tz="UTC")), ("scan_end", pa.timestamp("us", tz="UTC")),
                                 ("egress_start", pa.timestamp("us", tz="UTC")), ("status", pa.string()), ("scan_results", pa.string()), ("provider_id", pa.string()),
                                 ("ngroup_id", pa.string()), ("date", pa.date64())])
