@@ -71,9 +71,17 @@ variable "metric_retention_period_name" {
 }
 
 variable "glue_availability_zone" {
-  type        = string
+    type = string
 }
 
 variable "glue_subnet_id" {
-  type        = string
+    type = string
 }
+
+variable "cue_archive_database_name" {
+    type = string
+}
+
+variable "cue_archive_results_bucket" {
+    type = string
+} 

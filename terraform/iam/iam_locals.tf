@@ -29,4 +29,24 @@ locals {
     region     = var.region
     account_id = var.account_id
   })
+
+  cue_archive_api_lambda_assume_role_rendered = templatefile("${path.module}/cue_archive_api_lambda_assume_role.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
+  cue_archive_api_lambda_policy_rendered = templatefile("${path.module}/cue_archive_api_lambda_policy.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
+  cue_crawler_assume_role_rendered = templatefile("${path.module}/cue_crawler_assume_role.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
+  cue_crawler_policy_rendered = templatefile("${path.module}/cue_crawler_policy.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
 }
