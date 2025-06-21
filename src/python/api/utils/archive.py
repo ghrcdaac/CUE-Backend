@@ -77,6 +77,9 @@ async def get_query_results(query_exec_id: UUID) -> List[ArchiveReturn]:
         response = s3_client.get_object(Bucket=bucket_name, Key=key)
         json_data = response["Body"].read().decode('utf-8')
         json_array = json.loads(json_data)
+        if not isinstance(json_array, list):
+            logger.error(f"Query failed for this reason {json_array["message"]}")
+            raise HTTPException(status_code=400, detail=json_array["detail"])
         results = [ArchiveReturn.convert_str(json_obj) for json_obj in json_array]
         return results
     except ClientError as ce:

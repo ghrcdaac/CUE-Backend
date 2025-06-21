@@ -19,9 +19,9 @@ def handler(event: Dict, context):
             return
         results_bucket = os.environ["RESULTS_BUCKET"]
         query_state = detail.get("currentState")
+        query_exec_id = detail.get("queryExecutionId")
+        key = f"{query_exec_id}.json"
         if query_state == "SUCCEEDED":
-            query_exec_id = detail.get("queryExecutionId")
-            key = f"{query_exec_id}.json"
             results_json = get_results(query_exec_id)
             store_result(results_json, results_bucket, key)
             logger.info(f"Successfully stored {key}")
@@ -73,7 +73,7 @@ def get_error_reason(query_exec_id: str) -> str:
         error_msg = ""
         athena_client = boto3.client("athena")
         response = athena_client.get_query_execution(QueryExecutionId=query_exec_id)
-        error_msg = response['Status']['StateChangeReason']
+        error_msg = response['QueryExecution']['Status']['StateChangeReason']
         return error_msg
     except KeyError as ke:
         logger.error(f"Expected key is missing {ke}", exc_info=True)
