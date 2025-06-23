@@ -77,7 +77,6 @@ resource "aws_lambda_function" "notification_manager" {
   }
 }
 
-
 resource "aws_lambda_function" "cue_api" {
   function_name = "cue_api"
   role          = var.cue_api_lambda_role_arn
@@ -85,7 +84,7 @@ resource "aws_lambda_function" "cue_api" {
   package_type  = "Image"
   timeout       = 180
   kms_key_arn   = null
-  
+
   environment {
     variables = {
       PG_USER          = var.db_user
@@ -108,9 +107,9 @@ resource "aws_lambda_function" "cue_api" {
   }
 }
 
-
 # --- Triggers, Events, and other resources ---
 
+# RESTORED: This trigger now correctly points from SQS directly to the cue_scan_event Lambda.
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   event_source_arn = aws_sqs_queue.scan_results_queue.arn
   function_name    = aws_lambda_function.cue_scan_event.arn
@@ -150,9 +149,7 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
 }
 
-
 # --- Logging ---
-
 resource "aws_cloudwatch_log_group" "cue_scan_event_lg" {
   name              = "/aws/lambda/cue_scan_event"
   retention_in_days = 14

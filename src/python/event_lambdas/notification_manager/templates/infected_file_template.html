@@ -2,14 +2,17 @@
 <html>
 <head>
 <style>
-  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-  .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-  .header { background-color: #d9534f; color: white; padding: 10px; text-align: center; border-radius: 5px 5px 0 0; }
-  .content { padding: 20px; }
-  .footer { font-size: 0.8em; text-align: center; color: #777; margin-top: 20px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px;}
-  th, td { border: 1px solid #ddd; padding: 8px; text-align: left;}
-  th { background-color: #f2f2f2; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; line-height: 1.6; color: #333; }
+  .container { max-width: 650px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .header { background-color: #d9534f; color: white; padding: 15px; text-align: center; border-radius: 8px 8px 0 0; }
+  .header h2 { margin: 0; font-size: 24px; }
+  .content { padding: 25px; }
+  .content p { margin: 0 0 15px 0; }
+  .footer { font-size: 0.8em; text-align: center; color: #777; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 25px; }
+  th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+  th { background-color: #f8f8f8; font-weight: 600; width: 35%; }
+  strong { color: #d9534f; }
 </style>
 </head>
 <body>
@@ -19,26 +22,40 @@
     </div>
     <div class="content">
       <p>This is an automated notification to inform you that a file uploaded to the CUE system has been identified as malicious.</p>
-      <h3>Scan Details:</h3>
+      
+      <h3>File Details</h3>
       <table>
         <tr>
-          <th>File ID (Key)</th>
-          <td>{{ file_id }}</td>
+          <th>File Name</th>
+          <td>{{ file_name }}</td>
         </tr>
-        <tr>
-          <th>Scan Result</th>
-          <td><strong>{{ scan_result }}</strong></td>
+         <tr>
+          <th>Uploaded By</th>
+          <td>{{ uploader_name }}</td>
+        </tr>
+         <tr>
+          <th>Collection</th>
+          <td>{{ collection_name }}</td>
         </tr>
         <tr>
           <th>Date Scanned</th>
           <td>{{ date_scanned }}</td>
         </tr>
         <tr>
+          <th>Scan Result</th>
+          <td><strong>{{ scan_result }}</strong></td>
+        </tr>
+        <tr>
           <th>Detected Threats</th>
           <td>{{ virus_names }}</td>
         </tr>
+        <tr>
+          <th>File ID (Key)</th>
+          <td><small>{{ file_id }}</small></td>
+        </tr>
       </table>
-      <p>The file has been handled according to security protocols. No further action is required from you unless otherwise specified.</p>
+      
+      <p>The file has been handled according to security protocols. No further action is required from you at this time.</p>
     </div>
     <div class="footer">
       <p>This is an automated message from the Cloud Upload Environment (CUE) system.</p>

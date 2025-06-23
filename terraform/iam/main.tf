@@ -4,6 +4,14 @@
 resource "aws_iam_role" "cue_scan_event_role" {
   name               = "CUEScanEventRole"
   assume_role_policy = file("${path.module}/cue_scan_event_assume_role.json")
+
+  lifecycle {
+    prevent_destroy = true
+    # This tells Terraform to not worry if the tags on the live resource
+    # are different from what's defined here. This prevents the
+    # ConcurrentModification error caused by fighting over tags.
+    ignore_changes = [tags, tags_all]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "cue_scan_event_vpc" {
@@ -26,6 +34,11 @@ resource "aws_iam_role_policy" "cue_scan_event_policy" {
 resource "aws_iam_role" "cue_api_lambda_role" {
   name               = "CUEApiLambdaRole"
   assume_role_policy = file("${path.module}/cue_api_lambda_assume_role.json")
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [tags, tags_all]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "cue_api_lambda_vpc" {
@@ -43,6 +56,11 @@ resource "aws_iam_role_policy" "cue_api_lambda_policy" {
 resource "aws_iam_role" "notification_manager_role" {
   name               = "CUENotificationManagerRole"
   assume_role_policy = file("${path.module}/cue_scan_event_assume_role.json")
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [tags, tags_all]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "notification_manager_vpc" {
@@ -60,6 +78,11 @@ resource "aws_iam_role_policy" "notification_manager_policy" {
 resource "aws_iam_role" "email_sender_role" {
   name               = "CUEEmailSenderRole"
   assume_role_policy = file("${path.module}/cue_scan_event_assume_role.json")
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [tags, tags_all]
+  }
 }
 
 resource "aws_iam_role_policy" "email_sender_policy" {

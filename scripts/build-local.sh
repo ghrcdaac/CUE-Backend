@@ -21,8 +21,14 @@ if [ -z "${bamboo_ACCOUNT_ID}" ] || [ -z "${bamboo_AWS_REGION}" ]; then
     exit 1
 fi
 
+echo "---"
+echo "Validated environment variables."
+echo "Using AWS Account ID: ${bamboo_ACCOUNT_ID}"
+echo "Using AWS Region:     ${bamboo_AWS_REGION}"
+echo "---"
+
 # --- Build Lambda Artifacts ---
-# echo "STEP 1: Building Lambda artifacts..."
+echo "STEP 1: Building Lambda artifacts..."
 # bash ./scripts/build.sh
 
 #--- Build and Push API Docker Image ---
@@ -61,7 +67,7 @@ export TF_VAR_sender_email="${bamboo_SENDER_EMAIL}"
 export TF_VAR_ses_source_arn="${bamboo_SES_SOURCE_ARN}"
 export TF_VAR_ses_configuration_set_name="${bamboo_SES_CONFIGURATION_SET_NAME}"
 export TF_VAR_ses_region="${bamboo_SES_REGION}"
-export TF_VAR_kms_key_arn="${bamboo_KMS_KEY_ARN}"
+
 
 
 echo "Initializing Terraform..."
@@ -76,3 +82,26 @@ terraform apply -auto-approve
 
 echo "Deployment complete."
 
+# --- Safer Deployment Workflow to create plan ---
+# echo "STEP 3A: Creating Terraform plan..."
+# # This saves the plan to a file so we can review it before applying.
+# terraform plan -out=tfplan
+
+# echo "------------------------------------------------------------------------"
+# echo "Terraform plan created at 'terraform/tfplan'."
+# echo "Please review the plan. It will show you exactly what will be added, changed, or destroyed."
+# echo "Pay close attention to any resources marked for replacement (shown as '-/+')."
+# echo "------------------------------------------------------------------------"
+
+# # Ask for confirmation before applying the plan.
+# read -p "Do you want to apply this plan? (yes/no) " -n 1 -r
+# echo # Move to a new line
+# if [[ $REPLY =~ ^[Yy]$ ]]
+# then
+#     echo "STEP 3B: Applying Terraform configuration..."
+#     terraform apply "tfplan"
+#     echo "Deployment complete."
+# else
+#     echo "Plan not applied. Exiting."
+#     exit 0
+# fi

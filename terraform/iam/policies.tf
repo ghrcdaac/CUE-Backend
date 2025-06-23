@@ -23,3 +23,4 @@ data "aws_iam_policy_document" "email_sender_policy" {
     resources = ["*"]
   }
 }
+

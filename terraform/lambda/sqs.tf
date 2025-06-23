@@ -14,7 +14,7 @@ resource "aws_sqs_queue" "scan_results_queue" {
   name = "cue-scan-results-queue"
   # How long SQS should hide a message after the Lambda receives it.
   # This should be longer than your Lambda's timeout.
-  visibility_timeout_seconds = 120 
+  visibility_timeout_seconds = 181 
 
   # Configuration for the Dead-Letter Queue.
   redrive_policy = jsonencode({

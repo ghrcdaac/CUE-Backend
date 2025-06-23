@@ -1,21 +1,45 @@
+# --- src/python/event_lambdas/infected_logger/handler.py ---
 import asyncio
 import json
 import logging
 import os
 from typing import Any, Dict, Optional
 
-from asyncpg.pool import Pool
+# --- Aggressive Logging Configuration for Debugging ---
+# We configure the root logger immediately to catch any possible error.
+try:
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    # Using force=True ensures the logger is reconfigured even in a warm container.
+    logging.basicConfig(level=log_level, format='%(levelname)s:[%(name)s]:%(message)s', force=True)
+    logger = logging.getLogger(__name__)
+    logger.info("Initial logging configured successfully.")
+except Exception as e:
+    # This is a last resort if basic logging setup fails.
+    print(f"CRITICAL: Failed to configure logger: {e}")
 
-from lambda_utils.database_util.db_util import get_connection_pool
-from .db import RecordNotFoundError # Import our custom exception
-from .logic import process_scan_result
-from .model import parse_and_validate_message
+# --- Defensive Imports ---
+# We will now import modules one by one inside a try block to find the source of the crash.
+try:
+    from asyncpg.pool import Pool
+    from asyncpg.exceptions import ForeignKeyViolationError
+    from lambda_utils.database_util.db_util import get_connection_pool
+    logger.info("Successfully imported standard libraries and asyncpg.")
 
-# --- Logging Configuration ---
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
-logger = logging.getLogger(__name__)
-log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-logging.getLogger().setLevel(log_level)
+    from .model import parse_and_validate_message
+    logger.info("Successfully imported 'model' module.")
+
+    from .logic import process_scan_result
+    logger.info("Successfully imported 'logic' module.")
+
+except ImportError as e:
+    logger.critical(f"CRITICAL IMPORT ERROR: Failed to import a required module. This is likely the cause of the silent failure. Error: {e}", exc_info=True)
+    # Raising here will ensure the Lambda exits with a clear error if an import fails.
+    raise
+except Exception as e:
+    logger.critical(f"An unexpected error occurred during the import phase: {e}", exc_info=True)
+    raise
+
+logger.info("Lambda container successfully initialized with all modules.")
 
 
 def parse_sqs_record(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -27,7 +51,6 @@ def parse_sqs_record(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return None
         return json.loads(message_body_str)
     except json.JSONDecodeError:
-        # This is expected for the non-JSON health messages. Log as warning.
         logger.warning(f"Message body is not valid JSON, likely a health check. Body: '{message_body_str}'")
         return None
     except Exception as e:
@@ -35,8 +58,9 @@ def parse_sqs_record(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def async_handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
-    """Asynchronous main handler logic."""
+async def async_handler(event: Dict[str, Any], context: object):
+    """Async handler to process one or more events."""
+    logger.info("Async handler started. Processing event.")
     pool = None
     try:
         logger.info("Initializing database connection pool for this invocation.")
@@ -48,29 +72,23 @@ async def async_handler(event: Dict[str, Any], context: object) -> Dict[str, Any
 
         if not validated_messages:
             logger.warning("No valid messages found after SQS parsing and validation.")
-            return {"statusCode": 200, "body": "No valid messages to process."}
+            return
 
         logger.info(f"Processing {len(validated_messages)} validated message(s).")
         tasks = [process_scan_result(msg, pool) for msg in validated_messages]
         
-        # MODIFIED: We now check the results of our tasks.
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Check if any of the tasks failed.
         failed_tasks = [res for res in results if isinstance(res, Exception)]
         if failed_tasks:
-            # If any task failed (e.g., with our RecordNotFoundError),
-            # we raise the first exception. This tells SQS to retry the whole batch.
             logger.error(f"{len(failed_tasks)} task(s) failed. Raising exception to trigger SQS retry.")
             raise failed_tasks[0]
 
-    except RecordNotFoundError as e:
-        # Specifically catch our custom error to log it clearly and re-raise.
+    except ForeignKeyViolationError as e:
         logger.error(f"Race condition detected: {e}. Raising error to trigger SQS retry.")
         raise
     except Exception as e:
         logger.critical(f"A critical error occurred in the handler, will trigger retry: {e}", exc_info=True)
-        # Re-raising the exception is crucial for SQS retries.
         raise
     finally:
         if pool:
@@ -78,12 +96,15 @@ async def async_handler(event: Dict[str, Any], context: object) -> Dict[str, Any
             await pool.close()
 
     logger.info("Finished processing event successfully.")
-    return {"statusCode": 200, "body": "Successfully processed event batch."}
-
 
 
 def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     """Synchronous entry point for AWS Lambda."""
     logger.info(f"Received event from SQS record(s): {event} ")
     logger.info(f"Received event with {len(event.get('Records', []))} SQS record(s).")
-    return asyncio.run(async_handler(event, context))
+    try:
+        asyncio.run(async_handler(event, context))
+    except Exception as e:
+        logger.critical(f"FATAL: Unhandled exception in top-level handler: {e}", exc_info=True)
+        # Re-raising is important for Lambda to know the invocation failed.
+        raise

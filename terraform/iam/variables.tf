@@ -26,3 +26,13 @@ variable "email_sender_lambda_arn" {
   description = "The ARN of the email_sender Lambda function."
   type        = string
 }
+
+variable "sqs_queue_arn" {
+  description = "The ARN of the main SQS queue for scan results."
+  type        = string
+}
+
+variable "scan_event_lambda_arn" {
+  description = "The ARN of the cue_scan_event Lambda function."
+  type        = string
+}
