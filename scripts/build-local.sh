@@ -6,9 +6,24 @@ export AWS_SECRET_ACCESS_KEY="${bamboo_AWS_SECRET_ACCESS_KEY}"
 export AWS_DEFAULT_REGION="${bamboo_AWS_REGION}"
 export STATE_BUCKET="${bamboo_STATE_BUCKET}"
 
+# --- TEMPORARY DEBUGGING  ---
+echo "SCRIPT USING AWS_ACCESS_KEY_ID: [${AWS_ACCESS_KEY_ID}]"
+echo "SCRIPT USING AWS_DEFAULT_REGION: [${AWS_DEFAULT_REGION}]"
+echo "SCRIPT USING STATE_BUCKET: [${STATE_BUCKET}]"
+echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+# --- END TEMPORARY DEBUGGING ---
+
+# Test credentials with AWS CLI 
+aws sts get-caller-identity
+if [ $? -ne 0 ]; then
+  echo "AWS CLI get-caller-identity failed. Check credentials."
+  exit 1
+fi
+
 cd terraform
 
 terraform init \
+  -reconfigure \
   -backend-config="bucket=$STATE_BUCKET" \
   -backend-config="key=terraform.tfstate" \
   -backend-config="region=$AWS_DEFAULT_REGION"
@@ -29,5 +44,6 @@ export TF_VAR_pool_id="${bamboo_POOL_ID}"
 export TF_VAR_client_id="${bamboo_CLIENT_ID}"
 export TF_VAR_client_secret="${bamboo_CLIENT_SECRET}"
 export TF_VAR_lambda_env_vars="${bamboo_LAMBDA_ADDITIONAL_ENV_VARS:-'{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70" }'}"
+export TF_VAR_s3_upload_bucket="${bamboo_S3_UPLOAD_BUCKET}"
 
 terraform apply -auto-approve

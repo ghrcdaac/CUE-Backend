@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 import logging
 
 from utils.upload import ( 
@@ -140,3 +140,23 @@ async def post_multipart_abort(
         logger.error(f"Unexpected error in /multipart/abort for user {user.get('id')}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error aborting multipart upload.")
 
+@router.post("/debug/echo_request_details") # Or use a separate debug router
+async def debug_echo_request(request: Request):
+    raw_body = await request.body()
+    decoded_body_preview = "Could not decode body as UTF-8"
+    try:
+        decoded_body_preview = raw_body.decode('utf-8')[:500] + ("..." if len(raw_body) > 500 else "")
+    except UnicodeDecodeError:
+        decoded_body_preview = f"[Binary body of length {len(raw_body)} bytes]"
+
+    response_details = {
+        "message": "FastAPI received these request details",
+        "method": request.method,
+        "url": str(request.url),
+        "headers": dict(request.headers),
+        "client_host": request.client.host if request.client else "N/A",
+        "body_length": len(raw_body),
+        "body_preview_utf8": decoded_body_preview,
+    }
+    logger.info(f"DEBUG /debug/echo_request_details received: {response_details}")
+    return response_details

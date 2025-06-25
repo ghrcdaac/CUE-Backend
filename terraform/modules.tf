@@ -27,6 +27,7 @@ module "lambda_functions" {
     pool_id = var.pool_id
     client_id = var.client_id
     client_secret = var.client_secret
+    s3_upload_bucket = var.s3_upload_bucket
 }
 
 module "rds"{

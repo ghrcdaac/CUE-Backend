@@ -92,3 +92,8 @@ variable "lambda_env_vars" {
   type        = map(string)
   default     = {}
 }
+
+variable "s3_upload_bucket" {
+  description = "S3 bucket for uplaod"
+  type        = string
+}
