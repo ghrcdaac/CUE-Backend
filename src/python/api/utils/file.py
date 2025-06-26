@@ -7,6 +7,7 @@ from lambda_utils.database_util import collection as collection_db # Needed for 
 from lambda_utils.type_util.file import FileCreate, FileReturn, FileUpdate
 from typing import List, Optional, Tuple
 from uuid import UUID
+from uuid6 import uuid7
 import logging
 
 logger = logging.getLogger(__name__)
