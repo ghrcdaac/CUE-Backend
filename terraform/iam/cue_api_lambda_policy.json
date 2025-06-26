@@ -2,33 +2,33 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Action" : [
+      "Action": [
         "s3:*"
       ],
-      "Effect" : "Allow",
-      "Resource" : "*"
+      "Effect": "Allow",
+      "Resource": "*"
     },
     {
-      "Action" : [
+      "Action": [
         "lambda:InvokeFunction",
         "lambda:InvokeAsync"
       ],
-      "Effect" : "Allow",
-      "Resource" : "*"
+      "Effect": "Allow",
+      "Resource": "*"
     },
     {
-      "Action" : [
+      "Action": [
         "apigateway:*"
       ],
-      "Effect" : "Allow",
-      "Resource" : "*"
+      "Effect": "Allow",
+      "Resource": "*"
     },
     {
-      "Action" : [
+      "Action": [
         "cognito-idp:*"
       ],
-      "Effect" : "Allow",
-      "Resource" : "*"
+      "Effect": "Allow",
+      "Resource": "*"
     }
   ]
 }

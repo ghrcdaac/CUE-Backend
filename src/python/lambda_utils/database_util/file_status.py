@@ -90,6 +90,30 @@ async def create_file_status_in_db(conn: Connection, params: Tuple) -> List:
         logger.error(f"An unexpected error occurred while creating a file_status record: {e}", exc_info=True)
         raise
 
+async def upsert_file_status_in_db(conn: Connection, params: Tuple) -> List:
+    """
+    Atomically creates or updates a file_status record.
+    If a record with the ID exists, it updates it. Otherwise, it inserts a new one.
+    This is used by the upload confirmation endpoints to prevent race conditions.
+    """
+    upsert_query = """
+        INSERT INTO file_status (id, status, upload_time)
+        VALUES ($1, $2::file_status_type, $3)
+        ON CONFLICT (id) DO UPDATE SET
+            status = EXCLUDED.status,
+            upload_time = EXCLUDED.upload_time
+        RETURNING id, status, upload_time;
+    """
+    try:
+        # The params are (id, status, upload_time)
+        return await conn.fetchrow(upsert_query, *params)
+    except ForeignKeyViolationError as e:
+        logger.error(f"UPSERT failed for file_status due to foreign key violation: {e}", exc_info=True)
+        raise ValueError(f"Cannot create status for a file that does not exist: {params[0]}") from e
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during file_status upsert: {e}", exc_info=True)
+        raise
+
 async def get_file_status_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves a file_status record from the database by its id."""
     select_query = """
