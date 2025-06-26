@@ -93,8 +93,7 @@ async def generate_upload_url(params: UploadURLPayload, user: CueuserAuthBearer)
     """Generates a presigned POST URL for a single file upload."""
     pool: Pool = await get_connection_pool()
     conn = await pool.acquire()
-    # Backend generates the UUID which will be the file.id AND the S3 object key.
-    app_generated_file_id_and_s3_key = str(uuid7())#This is generates sequential ID based on timestamps that improves the indexing
+    app_generated_s3_key = str(uuid7())#This is generates sequential ID based on timestamps that improves the indexing
     try:
         await _validate_upload_permissions(conn, params.collection, user)
     finally:
@@ -152,8 +151,7 @@ async def start_multipart_upload_impl(params: MultipartStartRequestPayload, user
     """Initiates a multipart upload with S3."""
     pool: Pool = await get_connection_pool()
     conn = await pool.acquire()
-    # Backend generates the UUID which will be the file.id AND the S3 object key.
-    app_generated_file_id_and_s3_key = str(uuid7())#This is generates sequential ID based on timestamps that improves the indexing
+    app_generated_s3_key = str(uuid7())#This is generates sequential ID based on timestamps that improves the indexing
     s3_upload_id: Optional[str] = None
     try:
         await _validate_upload_permissions(conn, params.collection, user)
