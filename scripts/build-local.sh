@@ -9,6 +9,7 @@ export STATE_BUCKET="${bamboo_STATE_BUCKET}"
 cd terraform
 
 terraform init \
+  -reconfigure \
   -backend-config="bucket=$STATE_BUCKET" \
   -backend-config="key=terraform.tfstate" \
   -backend-config="region=$AWS_DEFAULT_REGION"
@@ -29,5 +30,9 @@ export TF_VAR_pool_id="${bamboo_POOL_ID}"
 export TF_VAR_client_id="${bamboo_CLIENT_ID}"
 export TF_VAR_client_secret="${bamboo_CLIENT_SECRET}"
 export TF_VAR_lambda_env_vars="${bamboo_LAMBDA_ADDITIONAL_ENV_VARS:-'{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70" }'}"
-
+export TF_VAR_cue_archive_bucket="${bamboo_S3_ARCHIVE_BUCKET}"
+export TF_VAR_metric_retention_period_name="${bamboo_METRIC_RETENTION_PERIOD_NAME}"
+export TF_VAR_metric_retention_period_value="${bamboo_METRIC_RETENTION_PERIOD_VALUE}"
+export TF_VAR_glue_availability_zone="${bamboo_GLUE_AVAILABILITY_ZONE}"
+export TF_VAR_glue_subnet_id="${bamboo_GLUE_SUBNET_ID}"
 terraform apply -auto-approve

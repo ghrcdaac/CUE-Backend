@@ -57,3 +57,23 @@ variable "client_id"{
 variable "client_secret"{
     type = string
 }
+
+variable "cue_archive_bucket" {
+    type = string
+}
+
+variable "metric_retention_period_value" {
+    type = string
+}
+
+variable "metric_retention_period_name" {
+    type = string
+}
+
+variable "glue_availability_zone" {
+  type        = string
+}
+
+variable "glue_subnet_id" {
+  type        = string
+}
