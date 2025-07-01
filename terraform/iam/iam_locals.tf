@@ -30,6 +30,7 @@ locals {
     account_id = var.account_id
   })
 
+
   cue_archive_api_lambda_assume_role_rendered = templatefile("${path.module}/cue_archive_api_lambda_assume_role.json", {
     region     = var.region
     account_id = var.account_id
@@ -49,4 +50,5 @@ locals {
     region     = var.region
     account_id = var.account_id
   })
+
 }

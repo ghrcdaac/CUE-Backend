@@ -51,6 +51,7 @@ module "glue"{
     subnet_id = var.glue_subnet_id
     security_group_ids = var.security_group_ids
     availability_zone = var.glue_availability_zone
+
 }
 
 module "archive_api"{
@@ -65,4 +66,5 @@ module "archive_api"{
     cue_archive_bucket = var.cue_archive_bucket
     cue_archive_results_bucket = var.cue_archive_results_bucket
     cue_crawler_role_arn = module.iam_role.cue_crawler_role_arn
+
 }

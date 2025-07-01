@@ -47,6 +47,7 @@ resource "aws_iam_policy" "cue_glue_job_policy" {
 resource "aws_iam_role_policy_attachment" "cue_glue_job_role_attach" {
   role = aws_iam_role.cue_glue_job_role.name 
   policy_arn = aws_iam_policy.cue_glue_job_policy.arn
+
 }
 
 # archive api lambda Role
@@ -81,4 +82,5 @@ resource "aws_iam_policy" "cue_crawler_policy" {
 resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
   role = aws_iam_role.cue_crawler_role.name 
   policy_arn = aws_iam_policy.cue_crawler_policy.arn
+
 }
