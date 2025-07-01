@@ -1,18 +1,23 @@
-DIR=$(pwd)
+#!/bin/bash
 
-#Set up functions
-source $DIR/scripts/utils.sh
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$( dirname "$DIR" )"
 
-#Cleanup from past builds
+echo "Project root directory: ${DIR}"
+
+source "${DIR}/scripts/utils.sh"
+
+# Cleanup from past builds
 setup_temp
 clear_artifacts
 
-#Install event lambdas
+# Package all event-driven lambdas
 create_dependency_zip
 install_lambda infected-logger
+install_lambda notification-manager
+install_lambda email-sender
 
-#Build API Docker image
-#build_api
-
-#Cleanup
+# Cleanup
 remove_temp
+
+echo "All Lambda functions built successfully."

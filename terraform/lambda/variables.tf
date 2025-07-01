@@ -10,13 +10,8 @@ variable "account_id" {
   type        = string
 }
 
-variable "cue_scan_event_role_arn" {
-  description = "IAM Role ARN for the CUE Scan Event Lambda."
-  type        = string
-}
-
-variable "cue_api_lambda_role_arn" {
-  description = "IAM Role ARN for the CUE API Lambda."
+variable "lambda_execution_policy_arn" {
+  description = "The ARN for the basic Lambda execution policy (for VPC access)."
   type        = string
 }
 
@@ -48,7 +43,7 @@ variable "db_password" {
 
 variable "db_port" {
   description = "Database port."
-  type        = string // Or number, but your python code uses os.getenv which returns string
+  type        = string
 }
 
 variable "subnet_ids" {
@@ -91,4 +86,50 @@ variable "lambda_env_vars" {
   description = "A map of additional environment variables for the Lambda functions."
   type        = map(string)
   default     = {}
+}
+
+variable "s3_upload_bucket" {
+  description = "S3 bucket for upload"
+  type        = string
+}
+
+# --- SES Configuration Variables ---
+variable "sender_email" {
+  description = "The email address to send notifications from."
+  type        = string
+}
+
+variable "ses_source_arn" {
+  description = "The ARN of the SES identity (domain/email) that is authorized to send emails."
+  type        = string
+}
+
+variable "ses_configuration_set_name" {
+  description = "The name of the SES Configuration Set to use for sending emails."
+  type        = string
+}
+
+variable "ses_region" {
+  description = "The AWS region where SES is configured (often us-east-1)."
+  type        = string
+}
+
+variable "cue_scan_event_role_arn" {
+  description = "IAM Role ARN for the CUE Scan Event Lambda."
+  type        = string
+}
+
+variable "cue_api_lambda_role_arn" {
+  description = "IAM Role ARN for the CUE API Lambda."
+  type        = string
+}
+
+variable "notification_manager_role_arn" {
+  description = "IAM Role ARN for the Notification Manager Lambda."
+  type        = string
+}
+
+variable "email_sender_role_arn" {
+  description = "IAM Role ARN for the Email Sender Lambda."
+  type        = string
 }
