@@ -50,6 +50,7 @@ variable "client_secret"{
     type = string
 }
 
+
 variable "s3_upload_bucket"{
     type = string
 }
@@ -72,6 +73,37 @@ variable "ses_configuration_set_name" {
 
 variable "ses_region" {
   description = "The AWS region where SES is configured."
+
+variable "cue_archive_bucket" {
+    type = string
+}
+
+variable "metric_retention_period_value" {
+    type = string
+}
+
+variable "metric_retention_period_name" {
+    type = string
+}
+
+variable "glue_availability_zone" {
+
+    type = string
+}
+
+variable "glue_subnet_id" {
+    type = string
+}
+
+variable "cue_archive_database_name" {
+    type = string
+}
+
+variable "cue_archive_results_bucket" {
+    type = string
+} 
+
+variable "glue_subnet_id" {
   type        = string
 }
 

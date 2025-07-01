@@ -100,8 +100,17 @@ INSERT INTO cueuser_auth (id,refresh_token)
 INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('981113a0-10a1-7074-c03e-101f675adb46', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 
+
+
+INSERT INTO cueuser (id, email, name, cueusername)
+    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'fake2@email.com', 'Jerrold Williams', 'jwilliams');
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+INSERT INTO cueuser_auth (id, refresh_token)
+   VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', '123');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-VALUES ('981113a0-10a1-7074-c03e-101f675adb46', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+   VALUES ('981113a0-10a1-7074-c03e-101f675adb46', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+
 
 
 

@@ -6,8 +6,11 @@ from lambda_utils.database_util import file as file_db
 from lambda_utils.type_util.file_status import (FileStatusCreate, FileStatusReturn,
                                               FileStatusUpdate, DailyMetricItem,
                                               OverallMetricResult, MetricsQueryParameters,
-                                              
+                                              UnscannedFileReturn, CleanFileReturn,
+                                              InfectedFileReturn, ScanFailedFileReturn,
+                                              DistributedFileReturn, FileResponse,
                                               FileStatusMetricsSummary)
+
 from lambda_utils.type_util.file import FileReturn
 
 from typing import List, Optional, Tuple, Dict, Any
@@ -234,7 +237,7 @@ async def list_files_by_status(
     filters: MetricsQueryParameters,
     page: int,
     page_size: int
-) -> Tuple[List[FileReturn], int]:
+) -> Tuple[List[FileResponse], int]:
     """Lists files for a specific ngroup matching a status with filters and pagination."""
     if status not in VALID_FILE_STATUSES:
         raise ValueError(f"Invalid status provided: {status}")
@@ -242,7 +245,6 @@ async def list_files_by_status(
     pool: Pool = await get_connection_pool()
     filter_dict = filters.model_dump(exclude_none=True)
     offset = (page - 1) * page_size
-
     try:
         # Use async with to ensure connection release
         async with pool.acquire() as conn:
@@ -252,7 +254,18 @@ async def list_files_by_status(
             if total_count > 0 and offset < total_count:
                  db_rows = await file_status_db.list_files_by_status_from_db(conn, ngroup_id, status, filter_dict, page_size, offset)
                  # Assuming FileReturn has a from_db_row method
-                 items = [FileReturn.from_db_row(row) for row in db_rows]
+                 if status == "unscanned":
+                     items = [UnscannedFileReturn.from_db_row(row) for row in db_rows]
+                 elif status == "clean":
+                     items = [CleanFileReturn.from_db_row(row) for row in db_rows]
+                 elif status == "infected":
+                     items = [InfectedFileReturn.from_db_row(row) for row in db_rows]
+                 elif status == "scan_failed":
+                     items = [ScanFailedFileReturn.from_db_row(row) for row in db_rows]
+                 elif status == "distributed":
+                     items = [DistributedFileReturn.from_db_row(row) for row in db_rows]
+                 else:
+                    items = [FileReturn.from_db_row(row) for row in db_rows]
 
         return items, total_count
     except Exception as e:

@@ -29,20 +29,28 @@ echo "---"
 
 # --- Build Lambda Artifacts ---
 echo "STEP 1: Building Lambda artifacts..."
-# bash ./scripts/build.sh
+bash ./scripts/build.sh
 
 #--- Build and Push API Docker Image ---
 echo "STEP 2: Building and pushing API Docker image..."
 # The image tag can be parameterized, using 'latest' for local builds is common.
 API_IMAGE_TAG="latest"
-# bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}"
+bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}"
 
 # --- Deploy with Terraform ---
 echo "STEP 3: Running Terraform deployment..."
 cd terraform
 
+
 # The docker image URI needs to be constructed for Terraform
 export TF_VAR_api_docker="${bamboo_ACCOUNT_ID}.dkr.ecr.${bamboo_AWS_REGION}.amazonaws.com/cue/api:${API_IMAGE_TAG}"
+
+terraform init \
+  -reconfigure \
+  -backend-config="bucket=$STATE_BUCKET" \
+  -backend-config="key=terraform.tfstate" \
+  -backend-config="region=$AWS_DEFAULT_REGION"
+
 
 # Export all other variables for Terraform
 export TF_VAR_region="${bamboo_AWS_REGION}"
@@ -67,6 +75,17 @@ export TF_VAR_sender_email="${bamboo_SENDER_EMAIL}"
 export TF_VAR_ses_source_arn="${bamboo_SES_SOURCE_ARN}"
 export TF_VAR_ses_configuration_set_name="${bamboo_SES_CONFIGURATION_SET_NAME}"
 export TF_VAR_ses_region="${bamboo_SES_REGION}"
+
+export TF_VAR_lambda_env_vars="${bamboo_LAMBDA_ADDITIONAL_ENV_VARS:-'{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70" }'}"
+export TF_VAR_cue_archive_bucket="${bamboo_S3_ARCHIVE_BUCKET}"
+export TF_VAR_metric_retention_period_name="${bamboo_METRIC_RETENTION_PERIOD_NAME}"
+export TF_VAR_metric_retention_period_value="${bamboo_METRIC_RETENTION_PERIOD_VALUE}"
+export TF_VAR_glue_availability_zone="${bamboo_GLUE_AVAILABILITY_ZONE}"
+export TF_VAR_glue_subnet_id="${bamboo_GLUE_SUBNET_ID}"
+export TF_VAR_cue_archive_database_name="${bamboo_CUE_ARCHIVE_DATABASE_NAME}"
+export TF_VAR_cue_archive_results_bucket="${bamboo_S3_ARCHIVE_RESULTS_BUCKET}"
+
+
 
 
 

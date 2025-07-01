@@ -1,3 +1,4 @@
+
 # ./terraform/iam/main.tf
 
 # --- CUE Scan Event Lambda Role ---
@@ -44,6 +45,7 @@ resource "aws_iam_role" "cue_api_lambda_role" {
 resource "aws_iam_role_policy_attachment" "cue_api_lambda_vpc" {
   role       = aws_iam_role.cue_api_lambda_role.id
   policy_arn = var.lambda_execution_policy_arn
+
 }
 
 resource "aws_iam_role_policy" "cue_api_lambda_policy" {
@@ -90,3 +92,59 @@ resource "aws_iam_role_policy" "email_sender_policy" {
   role   = aws_iam_role.email_sender_role.id
   policy = data.aws_iam_policy_document.email_sender_policy.json
 }
+
+
+
+# glue job Role
+resource "aws_iam_role" "cue_glue_job_role" {
+  name               = "CUEGlueJobRole"
+  assume_role_policy = local.cue_glue_job_assume_role_rendered 
+}
+
+resource "aws_iam_policy" "cue_glue_job_policy" {
+  name        = "CUEGlueJobPolicy"
+  description = "Policy granting permission to CUE Glue job"
+  policy      = local.cue_glue_job_policy_rendered 
+}
+
+resource "aws_iam_role_policy_attachment" "cue_glue_job_role_attach" {
+  role = aws_iam_role.cue_glue_job_role.name 
+  policy_arn = aws_iam_policy.cue_glue_job_policy.arn
+
+}
+
+# archive api lambda Role
+resource "aws_iam_role" "cue_archive_api_lambda_role" {
+  name               = "CUEArchiveApiLambdaRole"
+  assume_role_policy = local.cue_archive_api_lambda_assume_role_rendered 
+}
+
+resource "aws_iam_role_policy" "cue_archive_api_lambda_policy" {
+  name   = "CUEArchiveApiLambdaPolicy"
+  role   = aws_iam_role.cue_archive_api_lambda_role.id
+  policy = local.cue_archive_api_lambda_policy_rendered 
+}
+
+resource "aws_iam_role_policy_attachment" "cue_archive_api_lambda_execution_role_attach" {
+  role       = aws_iam_role.cue_archive_api_lambda_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+# glue crawler Role
+resource "aws_iam_role" "cue_crawler_role" {
+  name               = "CUECrawlerRole"
+  assume_role_policy = local.cue_crawler_assume_role_rendered 
+}
+
+resource "aws_iam_policy" "cue_crawler_policy" {
+  name        = "CUECrawlerPolicy"
+  description = "Policy granting permission to CUE Glue Crawler"
+  policy      = local.cue_crawler_policy_rendered 
+}
+
+resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
+  role = aws_iam_role.cue_crawler_role.name 
+  policy_arn = aws_iam_policy.cue_crawler_policy.arn
+
+}
+

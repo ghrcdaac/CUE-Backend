@@ -17,3 +17,17 @@ output "email_sender_role_arn" {
   description = "ARN for the Email Sender Lambda Role"
   value       = aws_iam_role.email_sender_role.arn
 }
+
+output "cue_glue_job_role_arn" {
+  value = aws_iam_role.cue_glue_job_role.arn
+
+}
+
+output "cue_archive_api_lambda_role_arn"{
+  value = aws_iam_role.cue_archive_api_lambda_role.arn
+}
+
+output "cue_crawler_role_arn"{
+  value = aws_iam_role.cue_crawler_role.arn
+
+}

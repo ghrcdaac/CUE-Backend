@@ -262,6 +262,25 @@ async def get_status_counts_from_db(conn: Connection, ngroup_id: UUID, filters: 
         logger.error(f"Error fetching status counts: {e}", exc_info=True)
         raise
 
+async def _build_list_select_clause(status: str) -> str:
+    """Helper to build select clauses for list_files_by_status_from_db."""
+    base_clause = "SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.edpub, f.checksum"
+    select_clause = ""
+
+    if status == "unscanned":
+        select_clause = base_clause + ", fs.upload_time"
+    elif status == "clean":
+        select_clause = base_clause + ", fs.scan_start, fs.scan_end"
+    elif status == "infected" or status == "scan_failed":
+        select_clause = base_clause + ", fs.scan_results::text"
+    elif status == "distributed":
+        select_clause = base_clause + ", fs.egress_start"
+    else:
+        select_clause = base_clause
+
+    return select_clause
+
+
 async def list_files_by_status_from_db(conn: Connection, ngroup_id: UUID, status: str, filters: Dict[str, Any], limit: int, offset: int) -> List:
     """Retrieves a paginated list of files for a specific ngroup matching a status."""
     mandatory = {'fs.status': status}
@@ -269,7 +288,7 @@ async def list_files_by_status_from_db(conn: Connection, ngroup_id: UUID, status
     limit_param_index = len(params) + 1
     offset_param_index = len(params) + 2
     params.extend([limit, offset])
-    select_clause = "SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.edpub, f.checksum "
+    select_clause = await _build_list_select_clause(status)
     order_by_clause = " ORDER BY fs.upload_time DESC "
     pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
     full_query = select_clause + query_suffix + order_by_clause + pagination_clause
