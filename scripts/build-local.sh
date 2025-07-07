@@ -87,8 +87,6 @@ export TF_VAR_cue_archive_results_bucket="${bamboo_S3_ARCHIVE_RESULTS_BUCKET}"
 
 
 
-
-
 echo "Initializing Terraform..."
 terraform init \
   -reconfigure \
@@ -101,7 +99,7 @@ terraform apply -auto-approve
 
 echo "Deployment complete."
 
-# --- Safer Deployment Workflow to create plan ---
+# --- Use this for a Safer Deployment Workflow to create plan ---
 # echo "STEP 3A: Creating Terraform plan..."
 # # This saves the plan to a file so we can review it before applying.
 # terraform plan -out=tfplan
