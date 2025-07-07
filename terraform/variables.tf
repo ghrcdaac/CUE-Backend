@@ -73,6 +73,7 @@ variable "ses_configuration_set_name" {
 
 variable "ses_region" {
   description = "The AWS region where SES is configured."
+}
 
 variable "cue_archive_bucket" {
     type = string
@@ -102,8 +103,4 @@ variable "cue_archive_database_name" {
 variable "cue_archive_results_bucket" {
     type = string
 } 
-
-variable "glue_subnet_id" {
-  type        = string
-}
 

@@ -51,6 +51,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Terraform
+tfplan
+
 # Translations
 *.mo
 *.pot
@@ -131,6 +134,10 @@ env.bak/
 venv.bak/
 cue_sit_env.sh
 env-sit.sh
+cue_uat_env.sh
+env-uat.sh
+cue_prod_env.sh
+env-prod.sh
 
 # Spyder project settings
 .spyderproject
