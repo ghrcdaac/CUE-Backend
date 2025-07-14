@@ -2,46 +2,11 @@ import boto3
 from botocore.exceptions import ClientError
 import csv
 import json
-import logging
-import os 
 from io import StringIO
-from typing import Dict
+import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel("INFO")
 
-def handler(event: Dict, context):
-    """Process the results for succeeded athena queries into a JSON file and stores it into a dedicated S3 bucket"""
-    try:
-        detail = event.get('detail')
-        if not detail:
-            logger.info("Event is missing detail cannot process further.")
-            return
-        results_bucket = os.environ["RESULTS_BUCKET"]
-        query_state = detail.get("currentState")
-        query_exec_id = detail.get("queryExecutionId")
-        key = f"{query_exec_id}.json"
-        if query_state == "SUCCEEDED":
-            results_json = get_results(query_exec_id)
-            store_result(results_json, results_bucket, key)
-            logger.info(f"Successfully stored {key}")
-
-        if query_state == "FAILED":
-            logger.info(f"query_execution_id {query_exec_id} failed")
-            error_reason_msg = get_error_reason(query_exec_id)
-            results_json = json.dumps({"detail":"Failed", "message":error_reason_msg})
-            store_result(results_json,results_bucket, key)
-
-    except KeyError as ke:
-        logger.error(f"Expected key is missing {ke}", exc_info=True)
-    except ClientError as ce:
-        message = ce.response["Error"]["Message"]
-        code = ce.response["Error"]["Code"]
-        logger.error(f"{code}: {message}")
-    except Exception as e:
-        logger.error(f"Unexpected error occurred while processing athena query results {e}", exc_info=True)
-    finally:
-        return
 
 def get_results(query_exec_id: str) -> str:
     """Gets the results of the query from results bucket"""
@@ -96,3 +61,17 @@ def store_result(result:str, bucket: str, key: str):
     except Exception as e:
         logger.error(f"Failed to upload JSON results {e}", exc_info=True)
         raise
+
+def process_query(query_state: str, query_exec_id:str, results_bucket: str):
+    """Process the results for athena queries into a JSON file and stores them into a dedicated S3 bucket"""
+    key = f"{query_exec_id}.json"
+    if query_state == "SUCCEEDED":
+        results_json = get_results(query_exec_id)
+        store_result(results_json, results_bucket, key)
+        logger.info(f"Successfully stored {key}")
+
+    if query_state == "FAILED":
+        logger.info(f"query_execution_id {query_exec_id} failed")
+        error_reason_msg = get_error_reason(query_exec_id)
+        results_json = json.dumps({"detail":"Failed", "message":error_reason_msg})
+        store_result(results_json,results_bucket, key)

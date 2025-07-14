@@ -46,6 +46,37 @@ resource "aws_lambda_function" "cue_scan_event" {
   }
 }
 
+resource "aws_lambda_function" "update_cost" {
+  filename         = "../artifacts/update-cost-lambda.zip"
+  function_name    = "cue_update_cost"
+  role             = var.cue_update_cost_lambda_role_arn 
+  handler          = "update_cost.handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  source_code_hash = filesha256("../artifacts/update-cost-lambda.zip")
+  timeout          = 180
+  memory_size      = 256
+
+  environment {
+    variables = {
+      PG_USER       = var.db_user
+      PG_HOST       = var.db_host
+      PG_DB         = var.db_database
+      PG_PASS       = var.db_password
+      PG_PORT       = var.db_port
+      POOL_MIN_SIZE = "1"
+      POOL_MAX_SIZE = "20"
+      LOG_LEVEL     = "INFO"
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
+
+
 resource "aws_lambda_function" "notification_manager" {
   filename         = "../artifacts/notification-manager-lambda.zip"
   function_name    = "cue_notification_manager"
@@ -147,6 +178,25 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   function_name = aws_lambda_function.cue_api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_to_update_cost" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.update_cost.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.update_cost_schedule.arn
+}
+resource "aws_cloudwatch_event_rule" "update_cost_schedule" {
+  name                = "UpdateCostLambdaSchedule"
+  description         = "Schedule to run update cost lambda"
+  schedule_expression = "cron(0 1 * * ? *)"  
+}
+
+resource "aws_cloudwatch_event_target" "update_cost_target" {
+  rule      = aws_cloudwatch_event_rule.update_cost_schedule.name
+  target_id = "UpdateCost"
+  arn       = aws_lambda_function.update_cost.arn
 }
 
 # --- Logging ---

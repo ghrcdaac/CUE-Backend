@@ -84,8 +84,7 @@ export TF_VAR_glue_availability_zone="${bamboo_GLUE_AVAILABILITY_ZONE}"
 export TF_VAR_glue_subnet_id="${bamboo_GLUE_SUBNET_ID}"
 export TF_VAR_cue_archive_database_name="${bamboo_CUE_ARCHIVE_DATABASE_NAME}"
 export TF_VAR_cue_archive_results_bucket="${bamboo_S3_ARCHIVE_RESULTS_BUCKET}"
-
-
+export TF_VAR_cost_explorer_role="${bamboo_COST_EXPLORER_ROLE}"
 
 echo "Initializing Terraform..."
 terraform init \

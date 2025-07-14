@@ -104,3 +104,6 @@ variable "cue_archive_results_bucket" {
     type = string
 } 
 
+variable "cost_explorer_role" {
+    type = string
+}

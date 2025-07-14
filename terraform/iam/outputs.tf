@@ -31,3 +31,7 @@ output "cue_crawler_role_arn"{
   value = aws_iam_role.cue_crawler_role.arn
 
 }
+
+output "cue_update_cost_lambda_role_arn"{
+ value = data.aws_iam_role.cue_cost_explorer_role.arn
+}

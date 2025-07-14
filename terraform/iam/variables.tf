@@ -16,6 +16,10 @@ variable "lambda_execution_policy_arn" {
     type = string
 }
 
+variable "cost_explorer_role" {
+  type = string 
+}
+
 # --- NEW: Variables for resources created in the lambda module ---
 variable "event_bus_arn" {
   description = "The ARN of the EventBridge bus."

@@ -16,6 +16,8 @@ create_dependency_zip
 install_lambda infected-logger
 install_lambda notification-manager
 install_lambda email-sender
+install_lambda process-athena-query
+install_lambda update-cost
 
 # Cleanup
 remove_temp

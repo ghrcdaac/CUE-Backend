@@ -8,11 +8,13 @@ module "iam_role" {
   account_id                  = var.account_id
   lambda_execution_policy_arn = var.lambda_execution_policy_arn
   cue_css_scan_sns_arn        = var.cue_css_scan_sns_arn
+  cost_explorer_role          = var.cost_explorer_role
 
   sqs_queue_arn             = module.lambda_functions.sqs_queue_arn
   scan_event_lambda_arn     = module.lambda_functions.scan_event_lambda_arn
   event_bus_arn             = module.lambda_functions.event_bus_arn
   email_sender_lambda_arn   = module.lambda_functions.email_sender_lambda_arn
+  
 }
 
 module "lambda_functions" {
@@ -29,6 +31,7 @@ module "lambda_functions" {
   cue_api_lambda_role_arn     = module.iam_role.cue_api_lambda_role_arn
   notification_manager_role_arn = module.iam_role.notification_manager_role_arn
   email_sender_role_arn       = module.iam_role.email_sender_role_arn
+  cue_update_cost_lambda_role_arn = module.iam_role.cue_update_cost_lambda_role_arn
 
   # --- Database variables ---
   db_host                     = module.rds.db_host

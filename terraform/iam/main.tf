@@ -148,3 +148,12 @@ resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
 
 }
 
+# --- Update File Cost Lambda Role ---
+data "aws_iam_role" "cue_cost_explorer_role" {
+  name = var.cost_explorer_role
+}
+
+resource "aws_iam_role_policy_attachment" "cue_update_cost_lambda_execution_role_attach" {
+  role       = data.aws_iam_role.cue_cost_explorer_role.name
+  policy_arn = var.lambda_execution_policy_arn
+}

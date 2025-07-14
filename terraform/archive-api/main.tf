@@ -3,23 +3,16 @@ resource "aws_s3_bucket" "cue_archive_results_bucket"{
   bucket = var.cue_archive_results_bucket
 } 
 
-resource "archive_file" "process_athena_query_lambda_zip" {
-  type             = "zip"
-  source_file      = "../src/python/event_lambdas/process-athena-query.py"
-  output_file_mode = "0666"
-  output_path      = "../artifacts/process-athena-query-lambda.zip"
-}
-
 # Process Athena Query Lambda
 
 resource "aws_lambda_function" "cue_process_athena_query"{
     filename                = "../artifacts/process-athena-query-lambda.zip"
     function_name           = "cue_process_athena_query"
     role                    = var.cue_archive_api_lambda_role_arn 
-    handler                 = "process-athena-query.handler"
+    handler                 = "process_athena_query.handler.handler"
     runtime                 = "python3.13"
     architectures           = ["arm64"]
-    source_code_hash        = archive_file.process_athena_query_lambda_zip.output_base64sha256
+    source_code_hash        = filesha256("../artifacts/process-athena-query-lambda.zip")
     timeout                 = 180
 
     environment {

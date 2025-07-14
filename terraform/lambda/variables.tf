@@ -93,6 +93,11 @@ variable "s3_upload_bucket" {
   type        = string
 }
 
+variable "cue_update_cost_lambda_role_arn" {
+  description = "IAM Role ARN for the Update Cost Lambda."
+  type        = string
+}
+
 # --- SES Configuration Variables ---
 variable "sender_email" {
   description = "The email address to send notifications from."

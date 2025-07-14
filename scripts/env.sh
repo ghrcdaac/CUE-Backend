@@ -16,6 +16,7 @@ export bamboo_POOL_ID="yourCognitoUserPoolId"
 export bamboo_CLIENT_ID="yourCognitoAppClientId"
 export bamboo_CLIENT_SECRET="YOUR_COGNITO_APP_CLIENT_SECRET_VALUE"
 export bamboo_LAMBDA_ADDITIONAL_ENV_VARS='{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70", "LOG_LEVEL": "INFO" }'
+export bamboo_COST_EXPLORER_ROLE="yourCostExplorerRole"
 
 # ---  SES Configuration ---
 export bamboo_SENDER_EMAIL="cue-no-reply@nasa.gov"
