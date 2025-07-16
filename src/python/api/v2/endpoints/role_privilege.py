@@ -1,0 +1,44 @@
+from fastapi import APIRouter, HTTPException, Depends
+from uuid import UUID
+from typing import List
+
+from v2.utils.role_privilege import (
+    create_role_privilege_association,
+    delete_role_privilege_association,
+    list_privileges_for_role,
+    list_roles_with_privilege,
+    RolePrivilegeAssociationError,
+    RolePrivilegeNotFoundError
+)
+from lambda_utils.type_util.role_privilege import RolePrivilegeCreate
+
+
+router = APIRouter(prefix="/role-privilege", tags=["role-privilege"])
+
+@router.post("/associate", response_model=bool)
+async def associate_role_with_privilege_endpoint(data: RolePrivilegeCreate, ):
+    try:
+        return await create_role_privilege_association(data)
+    except RolePrivilegeAssociationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/dissociate", response_model=bool)
+async def dissociate_role_from_privilege_endpoint(data: RolePrivilegeCreate, ):
+    try:
+        return await delete_role_privilege_association(data)
+    except RolePrivilegeNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/role/{role_id}/privileges", response_model=List[str])
+async def list_privileges_for_role_endpoint(role_id: UUID, ):
+    try:
+        return await list_privileges_for_role(role_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/privilege/{privilege}/roles", response_model=List[UUID])
+async def list_roles_with_privilege_endpoint(privilege: str, ):
+    try:
+        return await list_roles_with_privilege(privilege)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

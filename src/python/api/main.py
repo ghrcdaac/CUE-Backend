@@ -1,20 +1,33 @@
 import logging
 import os
 import json
+import uuid
+import time
+import structlog 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from dotenv import load_dotenv
-from lambda_utils.database_util.db_util import get_connection_pool, setup_connection
-from apis.api import router as api_router
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO)
-logger = logging.getLogger(__name__)
+# --- Import and set up structured logging at the very top ---
+# This ensures all subsequent logs are structured correctly.
+# The import path assumes main.py is in 'src/python/api/'.
+from core.logging_config import setup_logging
+setup_logging()
+
+# --- Use absolute imports for clarity and reliability ---
+# These imports are now more explicit based on the new project structure.
+from lambda_utils.database_util.db_util import get_connection_pool, setup_connection
+from v1.api import router as api_router_v1
+from v2.api import router as api_router_v2
+
+# Get a structlog logger instance instead of a standard logger.
+logger = structlog.get_logger(__name__)
 
 
 class ManualJSONBodyParsingMiddleware:
+    """This middleware correctly handles double-serialized JSON from API Gateway."""
     def __init__(self, app: ASGIApp):
         self.app = app
 
@@ -23,27 +36,20 @@ class ManualJSONBodyParsingMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Create a new receive channel that will replace the original
         async def new_receive() -> dict:
             message = await receive()
-            # We are interested in the message that has the request body
             if message["type"] == "http.request" and message.get("body"):
                 body_bytes = message["body"]
                 try:
-                    # Attempt to decode the body as UTF-8
                     body_str = body_bytes.decode("utf-8")
-                    # The body from API Gateway is often a JSON string *within* a JSON payload.
-                    # We load it to get the raw string, then load it *again* if it's stringified JSON.
                     data = json.loads(body_str)
                     if isinstance(data, dict) and "body" in data and isinstance(data["body"], str):
-                        # This is the key part: we parse the stringified inner 'body'
-                        logger.debug("Middleware: Found stringified JSON in body. Parsing.")
+                        # Use the main app logger to log this event
+                        logger.debug("middleware.json_parser.body.found_stringified")
                         parsed_inner_body = json.loads(data["body"])
-                        # Replace the body with the correctly parsed dictionary
                         message["body"] = json.dumps(parsed_inner_body).encode("utf-8")
                 except (json.JSONDecodeError, UnicodeDecodeError):
-                    # If it's not valid JSON or can't be decoded, pass it through as-is.
-                    logger.debug("Middleware: Body is not a stringified JSON. Passing through.")
+                    logger.debug("middleware.json_parser.body.not_stringified")
                     pass
             return message
 
@@ -57,8 +63,46 @@ app = FastAPI(
     debug=os.getenv("DEBUG", "false").lower() == "true"
 )
 
-# Apply middlewares
-# The JSON parsing middleware must be added BEFORE the CORS middleware.
+
+# --- Add the request logging middleware ---
+# This middleware adds a unique request_id to every log message for easy tracing.
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    # Clear context for each new request
+    structlog.contextvars.clear_contextvars()
+
+    # Generate a unique ID for the request
+    request_id = str(uuid.uuid4())
+    
+    # Bind context variables that will be included in all logs for this request
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        http_method=request.method,
+        path=request.url.path,
+        client_host=request.client.host
+    )
+
+    start_time = time.time()
+    logger.info("request_started")
+
+    try:
+        response = await call_next(request)
+        # Add status code to the context for the final log message
+        structlog.contextvars.bind_contextvars(status_code=response.status_code)
+        return response
+    except Exception as e:
+        # Log unhandled exceptions before they propagate
+        logger.error("unhandled_exception", exc_info=True)
+        # Add a 500 status code to the context for the final log message
+        structlog.contextvars.bind_contextvars(status_code=500)
+        raise e
+    finally:
+        end_time = time.time()
+        duration = (end_time - start_time) * 1000
+        logger.info("request_finished", duration_ms=round(duration, 2))
+
+
+# Apply other middlewares. The order matters.
 app.add_middleware(ManualJSONBodyParsingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -68,29 +112,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include the API router
-api_version = os.getenv("API_VERSION", "v1")
-app.include_router(api_router, prefix=f"/{api_version}")
+# Include the versioned API routers
+app.include_router(api_router_v1, prefix="/v1", tags=["v1"])
+app.include_router(api_router_v2, prefix="/v2", tags=["v2"])
 
-if os.getenv("ENV") == "production":
-    logger.info("Running in production mode")
-else:
-    logger.info("Running in development mode")
-
+# --- This section is preserved for v1 backward compatibility, remove this when removing v1 ---
 @app.on_event("startup")
 async def startup_event():
+    """Creates the legacy connection pool required by v1 code."""
+    logger.info("event.startup.creating_legacy_pool_for_v1")
     app.state.pool = await get_connection_pool(setup=setup_connection)
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await app.state.pool.close()
+    """Closes the legacy connection pool on shutdown."""
+    if hasattr(app.state, 'pool') and app.state.pool:
+        logger.info("event.shutdown.closing_legacy_pool")
+        await app.state.pool.close()
+# -- v1  till here --
 
-# The Mangum handler remains the same
+# The Mangum handler for running in AWS Lambda
 handler = Mangum(app)
 
-# The uvicorn block for local execution remains the same
+# The uvicorn block for local execution
 if __name__ == "__main__":
     import uvicorn
+    # Use the main app logger to announce the mode
+    if os.getenv("ENV") == "production":
+        logger.info("main.startup.mode.production")
+    else:
+        logger.info("main.startup.mode.development")
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

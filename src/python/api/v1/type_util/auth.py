@@ -35,6 +35,8 @@ class ConfirmForgotPasswordRequest(BaseModel):
             raise ValueError("Password must contain at least one uppercase letter")
         if not re.search("[0-9]", value):
             raise ValueError("Password must contain at least one number")
+        # if not re.search("[^a-zA-Z0-9\s]", value): # Check for special characters (excluding spaces)
+        #     raise ValueError("Password must contain at least one special character")
         return value
 
 
