@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS role_privilege CASCADE;
 DROP TABLE IF EXISTS privilege CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
+DROP TABLE IF EXISTS api_key CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE;
 DROP TABLE IF EXISTS cueuser CASCADE;
 
@@ -39,6 +40,26 @@ CREATE TABLE IF NOT EXISTS cueuser_auth (
     PRIMARY KEY (id),
     FOREIGN KEY (id) REFERENCES cueuser(id)
 );
+
+-- Create the api_key table to store long-lived, revocable keys for the CLI
+CREATE TABLE IF NOT EXISTS api_key (
+    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    key_hash VARCHAR NOT NULL,                      -- The SHA-256 hash of the secret key for secure storage
+    prefix VARCHAR(10) NOT NULL,                    -- A non-secret part of the key for easy identification (e.g., 'cue_sk_')
+    user_id UUID NOT NULL,                          -- Foreign key linking to the user who owns the key
+    name VARCHAR(255) NOT NULL,                     -- A user-provided, descriptive name for the key (e.g., "My Laptop CLI")
+    scopes VARCHAR[] NOT NULL,                      -- An array of permissions, e.g., ARRAY['file:upload']
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMPTZ,                        -- To track when the key was last used, useful for auditing
+    expires_at TIMESTAMPTZ,                         -- Optional: for keys that should expire automatically
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,        -- A flag to enable or disable the key without deleting it
+    PRIMARY KEY (id),
+    UNIQUE (key_hash),                              -- Ensures no two keys are the same
+    FOREIGN KEY (user_id) REFERENCES cueuser(id) ON DELETE CASCADE -- If the user is deleted, their keys are also deleted
+);
+
+-- Add an index on the user_id for faster lookups of a user's keys
+CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
 
 CREATE TABLE IF NOT EXISTS ngroup (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
