@@ -11,3 +11,5 @@ pytest ~= 8.0.2
 pytest-asyncio ~= 0.23.5
 python-jose[cryptography]>=3.3,<4.0
 warrant>=0.6.1,<0.7.0
+structlog~=25.4.0
+httpx~=0.28.1
