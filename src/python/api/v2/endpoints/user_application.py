@@ -1,20 +1,21 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/user_applications.py (New)
+# File: src/python/api/v2/endpoints/user_application.py (Fixed)
 # Purpose: Provides the REST API endpoints for the user application process.
+# Fixes: Corrected all import paths to be absolute from the project root.
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from uuid import UUID
 from typing import List, Optional
 
 from core.security import get_current_user, require_privilege, User
-from ..utils import user_application as app_utils
-from ..utils.keycloak_admin import get_keycloak_admin_client, KeycloakAdminClient
-from ..type_util.user_application import (
+from v2.utils import user_application as app_utils
+from v2.utils.auth import get_keycloak_client, KeycloakClient
+from v2.type_util.user_application import (
     UserApplicationCreate, UserApplicationResponse, ApplicationStatus
 )
-from ..type_util.cueuser import UserResponse as CueUserResponse # To return the created user
+from v2.type_util.cueuser import UserResponse as CueUserResponse
 
-router = APIRouter(prefix="/applications", tags=["V2 - User Applications"])
+router = APIRouter(prefix="/user_application", tags=["V2 - User Applications"])
 
 @router.post("/", response_model=UserApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def submit_user_application(application_data: UserApplicationCreate):
@@ -33,10 +34,9 @@ async def list_all_applications(
     status: Optional[ApplicationStatus] = Query(None, description="Filter applications by status.")
 ):
     """
-    Lists user applications. Admins/Managers see all, others see applications
+    Lists user applications. Admins see all, others see applications
     for their own ngroup. Requires 'approve_user' privilege.
     """
-    # If user is not an admin, they can only see applications for their active ngroup
     ngroup_filter = None
     if "admin" not in user.roles:
         if not user.active_ngroup_id:
@@ -59,7 +59,7 @@ async def get_single_application(application_id: UUID):
 async def approve_application_endpoint(
     application_id: UUID,
     role_id: UUID = Query(..., description="The ID of the role to assign to the new user."),
-    keycloak_client: KeycloakAdminClient = Depends(get_keycloak_admin_client)
+    keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
     """
     Approves a user application, creating the user in Keycloak and the local DB.

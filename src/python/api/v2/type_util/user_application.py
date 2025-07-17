@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/type_util/user_applications.py (New)
+# File: src/python/api/v2/type_util/user_applications.py
 # Purpose: Defines Pydantic models for the v2 user application process.
 # ==============================================================================
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
