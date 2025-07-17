@@ -1,47 +1,37 @@
-from typing import Optional, List
-from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr
+# ==============================================================================
+# File: src/python/api/v2/type_util/auth.py (Corrected)
+# Purpose: Defines Pydantic models specifically for the authentication process endpoints.
+# ==============================================================================
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 
-# --- User & Token Models ---
-# The main User model is now in core/security.py
+class TokenIntrospectionRequest(BaseModel):
+    """Request body for the token introspection endpoint."""
+    token: str
+    token_type_hint: Optional[str] = "access_token"
 
-class UserProfileResponse(BaseModel):
-    """Data returned from the /users/me endpoint."""
-    id: UUID
-    email: Optional[EmailStr]
-    username: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    roles: List[str]
-    privileges: List[str]
-    ngroups: List[str]
+class TokenIntrospectionResponse(BaseModel):
+    """
+    Response from the token introspection endpoint.
+    The 'active' field is the most important.
+    """
+    active: bool
+    exp: Optional[int] = None
+    iat: Optional[int] = None
+    aud: Optional[Any] = None
+    iss: Optional[str] = None
+    sub: Optional[str] = None
+    typ: Optional[str] = None
+    azp: Optional[str] = None
+    
+    class Config:
+        extra = "allow"
 
-# --- User Registration Models ---
-class UserRegistrationRequest(BaseModel):
-    email: EmailStr
-    username: str
-    first_name: str
-    last_name: str
-    # Password is not included; it will be set temporarily by the backend.
 
-class UserRegistrationResponse(BaseModel):
-    id: UUID
-    username: str
-    email: EmailStr
-    message: str = "User registered successfully. A temporary password has been set."
+class LogoutUrlRequest(BaseModel):
+    """Request body to get a logout URL."""
+    id_token_hint: str = Field(..., description="The ID token of the user session to be logged out.")
 
-# --- API Key Models ---
-class ApiKeyCreateRequest(BaseModel):
-    name: str = Field(..., description="A descriptive name for the API key.")
-
-class ApiKeyCreateResponse(BaseModel):
-    name: str
-    key: str = Field(..., description="The secret API key. This is only shown once.")
-    message: str = "Please save this key securely. You will not be ableto see it again."
-
-class ApiKeyInfo(BaseModel):
-    id: UUID
-    name: str
-    prefix: str
-    created_at: str
-    last_used_at: Optional[str] = None
+class LogoutUrlResponse(BaseModel):
+    """Response body containing the fully formed logout URL."""
+    logout_url: str

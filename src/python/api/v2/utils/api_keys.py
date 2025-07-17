@@ -1,6 +1,7 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/api_keys.py (New)
+# File: src/python/api/v2/utils/api_keys.py (Fixed)
 # Purpose: Contains the business logic for generating and managing API keys.
+# Fix: Explicitly convert asyncpg.Record to dict before Pydantic validation.
 # ==============================================================================
 import secrets
 import hashlib
@@ -10,8 +11,8 @@ from typing import Dict, Any, List
 import structlog
 
 from core.db import get_db_connection
-from ..database_util import api_keys as api_key_db
-from ..type_util.api_keys import ApiKeyInfo
+from v2.database_util import api_keys as api_key_db
+from v2.type_util.api_keys import ApiKeyInfo
 
 logger = structlog.get_logger(__name__)
 
@@ -53,7 +54,9 @@ async def list_user_api_keys(user_id: UUID) -> List[ApiKeyInfo]:
     """Retrieves a list of all API keys for a user."""
     async with get_db_connection() as conn:
         keys_data = await api_key_db.list_api_keys_for_user(conn, user_id)
-    return [ApiKeyInfo.model_validate(key) for key in keys_data]
+    
+    # --- CHANGE: Convert each database Record to a dict before validation ---
+    return [ApiKeyInfo.model_validate(dict(key)) for key in keys_data]
 
 async def revoke_user_api_key(key_id: UUID, user_id: UUID):
     """Revokes an API key, ensuring the user is the owner."""

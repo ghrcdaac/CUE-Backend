@@ -1,58 +1,70 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/auth.py (Fixed)
-# Purpose: Provides public endpoints for user registration and password management.
-# Fix: Corrected the imported model name from UserRegistrationRequest to UserCreateRequest.
+# File: src/python/api/v2/endpoints/auth.py (New & Consolidated)
+# Purpose: Provides all necessary OIDC authentication and user management endpoints.
 # ==============================================================================
-from fastapi import APIRouter, Body, Depends, HTTPException, status
-from pydantic import EmailStr
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
+from urllib.parse import urlencode
+import httpx
+import os
+from typing import Dict, Any
 
-from ..utils.keycloak_admin import get_keycloak_admin_client, KeycloakAdminClient
-# --- CHANGE: Corrected the imported model name ---
-from ..type_util.cueuser import UserCreateRequest, UserResponse
+from core.security import get_current_user, User
+from v2.utils.auth import get_keycloak_client, KeycloakClient
+from v2.type_util.auth import TokenIntrospectionRequest, LogoutUrlRequest, LogoutUrlResponse
+from v2.type_util.cueuser import UserCreateRequest, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(
-    # --- CHANGE: Use the correct Pydantic model ---
-    reg_request: UserCreateRequest,
-    keycloak_client: KeycloakAdminClient = Depends(get_keycloak_admin_client)
-):
-    """
-    Registers a new user in Keycloak and the local CUE database.
-    This endpoint is a placeholder and should be secured or have business logic
-    to prevent misuse in a real application.
-    """
-    # This endpoint now correctly uses the business logic from cueuser_utils
-    # which is not directly imported here but is called by the approval process.
-    # For direct admin creation, the endpoint in cueuser.py should be used.
-    # This endpoint is more for a public-facing registration form.
-    
-    # Placeholder logic for direct registration:
-    # 1. Call a function to create the user in Keycloak via Admin API
-    # keycloak_user_id = await keycloak_client.create_user(reg_request)
-    
-    # 2. If successful, create the user in your local RDS database
-    # await user_db.create_local_user(id=keycloak_user_id, email=reg_request.email, ...)
-
-    # 3. For now, returning a placeholder response
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Direct user registration endpoint not fully implemented. Please use the application approval flow."
-    )
-
-
 @router.post("/initiate-password-reset", status_code=status.HTTP_202_ACCEPTED)
 async def initiate_password_reset(
-    email: EmailStr = Body(..., embed=True),
-    keycloak_client: KeycloakAdminClient = Depends(get_keycloak_admin_client)
+    user: User = Depends(get_current_user), # Requires user to be logged in
+    keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
     """
-    Initiates Keycloak's built-in forgot password flow for a user.
-    This is a fire-and-forget endpoint. Keycloak handles sending the email.
+    Initiates Keycloak's 'forgot password' flow for the currently logged-in user.
     """
-    # This function is a placeholder. In a real implementation, you would
-    # add a call to a method in your keycloak_client to trigger the password reset.
-    # For example: await keycloak_client.trigger_forgot_password_flow(email)
+    try:
+        await keycloak_client.initiate_password_reset(str(user.id))
+        return {"message": "Password reset process initiated. Please check your email."}
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail="Failed to initiate password reset.")
+
+@router.post("/introspect", response_model=Dict[str, Any])
+async def introspect_token(
+    request: TokenIntrospectionRequest,
+    keycloak_client: KeycloakClient = Depends(get_keycloak_client)
+):
+    """
+    Proxies a token introspection request to Keycloak. Useful for debugging.
+    This endpoint itself is not protected to allow introspection of any token.
+    """
+    introspection_endpoint = f"{keycloak_client.base_url}/protocol/openid-connect/token/introspect"
+    payload = {
+        "token": request.token,
+        "client_id": keycloak_client.admin_client_id,
+        "client_secret": keycloak_client.admin_client_secret,
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(introspection_endpoint, data=payload)
+        return response.json()
+
+@router.get("/userinfo", response_model=User)
+async def get_user_info(user: User = Depends(get_current_user)):
+    """
+    Returns the user information object that was parsed and enriched from the
+    validated JWT access token. This is a secure way to get user details.
+    """
+    return user
+
+@router.post("/logout-url", response_model=LogoutUrlResponse)
+def get_logout_url(request: LogoutUrlRequest):
+    """Constructs the full logout URL for Keycloak."""
+    logout_endpoint = f"{os.getenv('KEYCLOAK_ISSUER')}/protocol/openid-connect/logout"
+    # The frontend URL must be a "Valid Post Logout Redirect URI" in Keycloak
+    post_logout_redirect_uri = os.getenv("FRONTEND_URL", "http://localhost:8080")
     
-    return {"message": "If a user with that email exists, a password reset link has been sent."}
+    params = {
+        "id_token_hint": request.id_token_hint,
+        "post_logout_redirect_uri": post_logout_redirect_uri
+    }
+    return LogoutUrlResponse(logout_url=f"{logout_endpoint}?{urlencode(params)}")

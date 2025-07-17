@@ -10,8 +10,6 @@ from pydantic import BaseModel, Field
 class ApiKeyCreateRequest(BaseModel):
     """Request body for creating a new API key."""
     name: str = Field(..., min_length=3, max_length=100, description="A descriptive name for the API key.")
-    # Scopes could be an optional parameter if you want to allow different key types
-    scopes: List[str] = Field(default=["file:upload"])
 
 class ApiKeyCreateResponse(BaseModel):
     """Response body after creating a new API key."""
