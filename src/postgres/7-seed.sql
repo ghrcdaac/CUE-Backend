@@ -92,14 +92,14 @@ INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0
 
 -- SIT - NVD0831b3b0-b071-70ca-9c91-7c0994e79aaf
 -- UAT -NVD981113a0-10a1-7074-c03e-101f675adb46
+--SIT-key -NVD225b4a2a-2367-447b-b2e1-3e5b537fa962
 INSERT INTO cueuser (id, email, name, cueusername)
-    VALUES ('981113a0-10a1-7074-c03e-101f675adb46', 'ns0066@uah.edu', 'Navaneeth Selvaraj', 'nselvaraj');
-INSERT INTO cueuser_auth (id,refresh_token)
-    VALUES ('981113a0-10a1-7074-c03e-101f675adb46', '123');
+    VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'ns0066@uah.edu', 'Navaneeth Selvaraj', 'nselvaraj');
 
 INSERT INTO cueuser_role (cueuser_id, role_id)
-    VALUES ('981113a0-10a1-7074-c03e-101f675adb46', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
-
+    VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
 
 INSERT INTO cueuser (id, email, name, cueusername)
@@ -122,7 +122,7 @@ INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of
         'demo_provider',
         'Demo Provider',
         TRUE,
-        '981113a0-10a1-7074-c03e-101f675adb46'
+        '225b4a2a-2367-447b-b2e1-3e5b537fa962'
     );
 
 -- Egress
