@@ -16,8 +16,8 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(json_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::json) AS roles,
-            COALESCE(json_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::json) AS ngroups
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
+            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
         FROM cueuser u
         LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
         LEFT JOIN role r ON ur.role_id = r.id
@@ -33,8 +33,8 @@ async def get_user_by_username(conn: Connection, username: str) -> Optional[Dict
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(json_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::json) AS roles,
-            COALESCE(json_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::json) AS ngroups
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
+            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
         FROM cueuser u
         LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
         LEFT JOIN role r ON ur.role_id = r.id
@@ -70,7 +70,7 @@ async def find_user(conn: Connection, email: Optional[str], username: Optional[s
     query = f"""
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(json_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::json) AS ngroups
+            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
         FROM cueuser u
         LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
         LEFT JOIN ngroup g ON ug.ngroup_id = g.id
@@ -78,6 +78,7 @@ async def find_user(conn: Connection, email: Optional[str], username: Optional[s
         GROUP BY u.id;
     """
     return await conn.fetch(query, *params)
+
 
 async def list_users_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Lists all users associated with a specific ngroup, including their roles."""
@@ -105,12 +106,16 @@ async def list_users_by_role(conn: Connection, role_id: UUID) -> List[Dict[str, 
     return await conn.fetch(query, role_id)
 
 async def get_user_auth_details(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
-    """Fetches roles, ngroups, and all associated privileges for an authenticated user."""
+    """
+    Fetches roles, ngroups (as objects with id and name), and all associated 
+    privileges for an authenticated user.
+    """
+    # --- CHANGE: Use jsonb_agg and jsonb_build_object to allow DISTINCT on JSON objects ---
     query = """
         SELECT
-            COALESCE(json_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::json) AS roles,
-            COALESCE(json_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::json) AS ngroups,
-            COALESCE(json_agg(DISTINCT p.privilege) FILTER (WHERE p.privilege IS NOT NULL), '[]'::json) AS privileges
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
+            COALESCE(jsonb_agg(DISTINCT jsonb_build_object('id', g.id, 'short_name', g.short_name)) FILTER (WHERE g.id IS NOT NULL), '[]'::jsonb) AS ngroups,
+            COALESCE(jsonb_agg(DISTINCT p.privilege) FILTER (WHERE p.privilege IS NOT NULL), '[]'::jsonb) AS privileges
         FROM cueuser u
         LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
         LEFT JOIN role r ON ur.role_id = r.id
@@ -118,7 +123,8 @@ async def get_user_auth_details(conn: Connection, user_id: UUID) -> Optional[Dic
         LEFT JOIN privilege p ON rp.privilege = p.privilege
         LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
         LEFT JOIN ngroup g ON ug.ngroup_id = g.id
-        WHERE u.id = $1;
+        WHERE u.id = $1
+        GROUP BY u.id;
     """
     return await conn.fetchrow(query, user_id)
 
