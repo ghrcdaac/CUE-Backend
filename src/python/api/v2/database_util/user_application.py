@@ -52,3 +52,13 @@ async def delete_user_application(conn: Connection, application_id: UUID) -> boo
     """Deletes a user application by its ID."""
     result = await conn.execute("DELETE FROM user_application WHERE id = $1", application_id)
     return result.strip() == "DELETE 1"
+
+async def get_pending_application_by_user_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
+    """
+    Checks for a user application with a 'pending' status for a given user ID.
+    The user ID here corresponds to the Keycloak 'sub' ID.
+    """
+    # Note: This assumes you will add a 'user_id' column to the user_application table.
+    # If you are matching by email, the query would be different. Matching by ID is more reliable.
+    query = "SELECT id FROM user_application WHERE user_id = $1 AND status = 'pending';"
+    return await conn.fetchrow(query, user_id)

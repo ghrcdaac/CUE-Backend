@@ -9,9 +9,11 @@ import os
 from typing import Dict, Any
 
 from core.security import get_current_user, User
-from v2.utils.auth import get_keycloak_client, KeycloakClient
-from v2.type_util.auth import TokenIntrospectionRequest, LogoutUrlRequest, LogoutUrlResponse
-from v2.type_util.cueuser import UserCreateRequest, UserResponse
+from v2.utils.auth import get_keycloak_client, KeycloakClient, get_user_login_status
+from v2.type_util.auth import (
+    TokenIntrospectionRequest, TokenIntrospectionResponse, 
+    LogoutUrlRequest, LogoutUrlResponse, UserStatusResponse
+)
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
 
@@ -68,3 +70,12 @@ def get_logout_url(request: LogoutUrlRequest):
         "post_logout_redirect_uri": post_logout_redirect_uri
     }
     return LogoutUrlResponse(logout_url=f"{logout_endpoint}?{urlencode(params)}")
+
+@router.get("/status", response_model=UserStatusResponse)
+async def get_user_status(user: User = Depends(get_current_user)):
+    """
+    Checks if the authenticated user is registered, pending approval, or new.
+    This is the first endpoint the frontend should call after a user logs in.
+    """
+    status = await get_user_login_status(user.id)
+    return UserStatusResponse(status=status)

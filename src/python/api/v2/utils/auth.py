@@ -10,6 +10,10 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from jose import jwt # Import the JWT library
 
+from core.db import get_db_connection
+from v2.database_util import cueuser as user_db
+from v2.database_util import user_application as app_db
+
 logger = structlog.get_logger(__name__)
 
 class KeycloakClient:
@@ -108,3 +112,21 @@ keycloak_client = KeycloakClient()
 
 def get_keycloak_client() -> KeycloakClient:
     return keycloak_client
+
+async def get_user_login_status(user_id: UUID) -> str:
+    """
+    Checks the database to determine a user's status for the login workflow.
+    """
+    async with get_db_connection() as conn:
+        # 1. Check if the user is fully registered in the cueuser table.
+        is_registered = await user_db.user_exists_by_id(conn, user_id)
+        if is_registered:
+            return "registered"
+
+        # 2. If not registered, check if they have a pending application.
+        pending_app = await app_db.get_pending_application_by_user_id(conn, user_id)
+        if pending_app:
+            return "pending_approval"
+
+    # 3. If neither of the above, the user is new to the system.
+    return "unregistered"

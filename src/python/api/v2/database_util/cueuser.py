@@ -105,12 +105,16 @@ async def list_users_by_role(conn: Connection, role_id: UUID) -> List[Dict[str, 
     """
     return await conn.fetch(query, role_id)
 
+async def user_exists_by_id(conn: Connection, user_id: UUID) -> bool:
+    """Checks if a user exists in the cueuser table by their ID."""
+    query = "SELECT EXISTS(SELECT 1 FROM cueuser WHERE id = $1);"
+    return await conn.fetchval(query, user_id)
+
 async def get_user_auth_details(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
     """
     Fetches roles, ngroups (as objects with id and name), and all associated 
     privileges for an authenticated user.
     """
-    # --- CHANGE: Use jsonb_agg and jsonb_build_object to allow DISTINCT on JSON objects ---
     query = """
         SELECT
             COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,

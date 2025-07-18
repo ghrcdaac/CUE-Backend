@@ -1,9 +1,10 @@
 # ==============================================================================
-# File: src/python/api/v2/type_util/auth.py (Corrected)
-# Purpose: Defines Pydantic models specifically for the authentication process endpoints.
+# File: src/python/api/v2/type_util/auth.py (Updated)
+# Purpose: Defines Pydantic models for the v2 authentication endpoints.
+# New: Added UserStatusResponse model for the login status check.
 # ==============================================================================
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 
 class TokenIntrospectionRequest(BaseModel):
     """Request body for the token introspection endpoint."""
@@ -11,10 +12,7 @@ class TokenIntrospectionRequest(BaseModel):
     token_type_hint: Optional[str] = "access_token"
 
 class TokenIntrospectionResponse(BaseModel):
-    """
-    Response from the token introspection endpoint.
-    The 'active' field is the most important.
-    """
+    """Response from the token introspection endpoint."""
     active: bool
     exp: Optional[int] = None
     iat: Optional[int] = None
@@ -35,3 +33,10 @@ class LogoutUrlRequest(BaseModel):
 class LogoutUrlResponse(BaseModel):
     """Response body containing the fully formed logout URL."""
     logout_url: str
+
+class UserStatusResponse(BaseModel):
+    """
+    Response model for the GET /auth/status endpoint.
+    Tells the frontend how to proceed after a user logs in.
+    """
+    status: Literal["registered", "pending_approval", "unregistered"]
