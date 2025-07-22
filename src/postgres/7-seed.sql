@@ -101,6 +101,18 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
+-- a8a133f0-b0c1-7056-650e-1898599bf60a
+-- Payton's User
+INSERT INTO cueuser (id, email, name, cueusername)
+    VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'pi0003@uah.edu', 'Payton Ireland', 'pireland');
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+INSERT INTO cueuser_auth (id, refresh_token)
+   VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', '123');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+
+
 
 INSERT INTO cueuser (id, email, name, cueusername)
     VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'fake2@email.com', 'Jerrold Williams', 'jwilliams');
