@@ -133,3 +133,9 @@ variable "email_sender_role_arn" {
   description = "IAM Role ARN for the Email Sender Lambda."
   type        = string
 }
+
+variable "frontend_url" {
+  description = "The root URL of the CUE dashboard frontend, used for email links."
+  type        = string
+  default     = "http://localhost:3000" 
+}

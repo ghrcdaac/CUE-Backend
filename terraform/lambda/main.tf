@@ -1,4 +1,7 @@
-# ./terraform/lambda/main.tf
+# ==============================================================================
+# File: terraform/lambda/main.tf (Updated)
+# Purpose: Adds new EventBridge resources and Lambda environment variables.
+# ==============================================================================
 
 # --- SNS Subscription ---
 # This subscribes the SQS queue (defined in sqs.tf) to the SNS topic.
@@ -64,10 +67,10 @@ resource "aws_lambda_function" "notification_manager" {
       PG_DB            = var.db_database
       PG_PASS          = var.db_password
       PG_PORT          = var.db_port
-      POOL_MIN_SIZE    = "1"
-      POOL_MAX_SIZE    = "20"
       LOG_LEVEL        = "INFO"
       EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
+      # --- CHANGE: Added FRONTEND_URL for welcome emails ---
+      FRONTEND_URL     = var.frontend_url
     }
   }
 
@@ -87,17 +90,17 @@ resource "aws_lambda_function" "cue_api" {
 
   environment {
     variables = {
-      PG_USER          = var.db_user
-      PG_HOST          = var.db_host
-      PG_DB            = var.db_database
-      PG_PASS          = var.db_password
-      PG_PORT          = var.db_port
-      POOL_ID          = var.pool_id
-      CLIENT_ID        = var.client_id
-      CLIENT_SECRET    = var.client_secret
-      POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
-      POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
-      S3_UPLOAD_BUCKET = var.s3_upload_bucket
+      PG_USER                 = var.db_user
+      PG_HOST                 = var.db_host
+      PG_DB                   = var.db_database
+      PG_PASS                 = var.db_password
+      PG_PORT                 = var.db_port
+      POOL_ID                 = var.pool_id
+      CLIENT_ID               = var.client_id
+      CLIENT_SECRET           = var.client_secret
+      S3_UPLOAD_BUCKET        = var.s3_upload_bucket
+      # --- CHANGE: Added EVENT_BUS_NAME so the API knows where to publish events ---
+      EVENT_BUS_NAME          = aws_cloudwatch_event_bus.cue_app_bus.name
     }
   }
 
@@ -109,7 +112,6 @@ resource "aws_lambda_function" "cue_api" {
 
 # --- Triggers, Events, and other resources ---
 
-# RESTORED: This trigger now correctly points from SQS directly to the cue_scan_event Lambda.
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   event_source_arn = aws_sqs_queue.scan_results_queue.arn
   function_name    = aws_lambda_function.cue_scan_event.arn
@@ -128,7 +130,7 @@ resource "aws_cloudwatch_event_rule" "infected_file_rule" {
 
 resource "aws_cloudwatch_event_target" "infected_file_target" {
   rule           = aws_cloudwatch_event_rule.infected_file_rule.name
-  target_id      = "TriggerNotificationManager"
+  target_id      = "TriggerNotificationManagerForInfection"
   arn            = aws_lambda_function.notification_manager.arn
   event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
 }
@@ -140,6 +142,38 @@ resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.infected_file_rule.arn
 }
+
+# --- NEW: Rule for User Application Events ---
+resource "aws_cloudwatch_event_rule" "user_application_rule" {
+  name           = "cue-user-application-events-rule"
+  description    = "Triggers notification manager for user application events"
+  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
+  event_pattern = jsonencode({
+    source      = ["com.cue.api"],
+    "detail-type" = [
+      "UserApplicationSubmitted",
+      "UserApplicationApproved"
+    ]
+  })
+}
+
+# --- NEW: Target for User Application Events ---
+resource "aws_cloudwatch_event_target" "user_application_target" {
+  rule           = aws_cloudwatch_event_rule.user_application_rule.name
+  target_id      = "TriggerNotificationManagerForUserApps"
+  arn            = aws_lambda_function.notification_manager.arn
+  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
+}
+
+# --- NEW: Permission for the new rule to invoke the Lambda ---
+resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager_user_app" {
+  statement_id  = "AllowExecutionFromEventBridgeUserApp"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notification_manager.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.user_application_rule.arn
+}
+
 
 resource "aws_lambda_permission" "cue_api_apigw_permission" {
   statement_id  = "AllowExecutionFromAPIGateway"
