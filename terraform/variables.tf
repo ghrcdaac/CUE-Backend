@@ -104,3 +104,13 @@ variable "cue_archive_results_bucket" {
     type = string
 } 
 
+variable "cue_staging_bucket" {
+    type = string
+}
+variable "cue_manifest_report_bucket" {
+    type = string
+}
+
+variable "cue_replication_dest_test_bucket" {
+    type = string
+}

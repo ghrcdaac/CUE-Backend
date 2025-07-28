@@ -31,3 +31,7 @@ output "cue_crawler_role_arn"{
   value = aws_iam_role.cue_crawler_role.arn
 
 }
+
+output "cue_staging_bucket_replication_role_arn"{
+  value = aws_iam_role.cue_staging_bucket_replication_role.arn
+}

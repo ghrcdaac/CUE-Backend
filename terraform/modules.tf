@@ -8,6 +8,8 @@ module "iam_role" {
   account_id                  = var.account_id
   lambda_execution_policy_arn = var.lambda_execution_policy_arn
   cue_css_scan_sns_arn        = var.cue_css_scan_sns_arn
+  cue_staging_bucket          = var.cue_staging_bucket
+  cue_manifest_report_bucket  = var.cue_manifest_report_bucket
 
   sqs_queue_arn             = module.lambda_functions.sqs_queue_arn
   scan_event_lambda_arn     = module.lambda_functions.scan_event_lambda_arn
@@ -96,3 +98,12 @@ module "archive_api"{
 
 }
 
+module "s3_replication"{
+  source = "./s3_replication"
+  region = var.region
+  account_id = var.account_id
+  cue_staging_bucket = var.cue_staging_bucket
+  cue_manifest_report_bucket = var.cue_manifest_report_bucket
+  cue_replication_dest_test_bucket = var.cue_replication_dest_test_bucket
+  cue_replication_role_arn = module.iam_role.cue_staging_bucket_replication_role_arn
+}

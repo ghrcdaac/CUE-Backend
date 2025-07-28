@@ -148,3 +148,32 @@ resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
 
 }
 
+resource "aws_iam_role" "cue_staging_bucket_replication_role" {
+  name               = "CUEStagingBucketReplicationRole"
+  assume_role_policy = local.cue_staging_bucket_replication_assume_role 
+}
+
+resource "aws_iam_policy" "cue_staging_bucket_replication_policy" {
+  name        = "CUEStagingBucketReplicationPolicy"
+  policy      = local.cue_staging_bucket_replication_policy_rendered
+}
+
+resource "aws_iam_role_policy_attachment" "cue_staging_bucket_replication_role_attach" {
+  role = aws_iam_role.cue_staging_bucket_replication_role.name 
+  policy_arn = aws_iam_policy.cue_staging_bucket_replication_policy.arn
+}
+
+resource "aws_iam_role" "cue_destination_bucket_replication_role" {
+  name               = "CUEDestinationBucketReplicationRole"
+  assume_role_policy = local.cue_destination_bucket_replication_assume_role 
+}
+
+resource "aws_iam_policy" "cue_destination_bucket_replication_policy" {
+  name        = "CUEDestinationBucketReplicationPolicy"
+  policy      = local.cue_destination_bucket_replication_policy_rendered
+}
+
+resource "aws_iam_role_policy_attachment" "cue_destination_bucket_replication_role_attach" {
+  role = aws_iam_role.cue_destination_bucket_replication_role.name 
+  policy_arn = aws_iam_policy.cue_destination_bucket_replication_policy.arn
+}

@@ -51,4 +51,26 @@ locals {
     account_id = var.account_id
   })
 
+  cue_staging_bucket_replication_assume_role = templatefile("${path.module}/cue_staging_bucket_batch_replication_assume_role.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
+  cue_staging_bucket_replication_policy_rendered = templatefile("${path.module}/cue_staging_bucket_batch_replication_policy.json", {
+    region                     = var.region
+    account_id                 = var.account_id
+    cue_staging_bucket         = var.cue_staging_bucket
+    cue_manifest_report_bucket = var.cue_manifest_report_bucket
+  })
+  
+  cue_destination_bucket_replication_assume_role = templatefile("${path.module}/cue_destination_bucket_replication_assume_role.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
+  cue_destination_bucket_replication_policy_rendered = templatefile("${path.module}/cue_destination_bucket_replication_policy.json", {
+    region     = var.region
+    account_id = var.account_id
+  })
+
 }

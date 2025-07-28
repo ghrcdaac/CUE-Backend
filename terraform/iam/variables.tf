@@ -36,3 +36,13 @@ variable "scan_event_lambda_arn" {
   description = "The ARN of the cue_scan_event Lambda function."
   type        = string
 }
+
+variable "cue_staging_bucket" {
+  description = "The name of the cue staging bucket"
+  type        = string
+}
+
+variable "cue_manifest_report_bucket" {
+  description = "The name of the cue batch replication manifest and report bucket"
+  type        = string
+}

@@ -1,0 +1,40 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObjectVersionForReplication",
+                "s3:GetObjectVersionAcl",
+                "s3:GetObjectVersionTagging",
+                "s3:InitiateReplication"
+            ],
+            "Resource": 
+                "arn:aws:s3:::${cue_staging_bucket}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": "arn:aws:s3:::${cue_manifest_report_bucket}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Resource": "arn:aws:s3:::${cue_manifest_report_bucket}/*" 
+        },
+        {
+         "Effect":"Allow",
+         "Action":[
+            "s3:ReplicateObject",
+            "s3:ReplicateDelete",
+            "s3:ReplicateTags"
+         ],
+         "Resource":"arn:aws:s3:::*/*"
+      }
+    ]
+}
