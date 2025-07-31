@@ -138,6 +138,8 @@ async def list_collections_from_db(conn: Connection, params: Tuple) -> List:
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
         WHERE ngroup_id = $1  -- Filter by ngroup_id
+        ORDER BY short_name asc
+        LIMIT $2 OFFSET $3
     """
     try:
         return await conn.fetch(select_query, *params)

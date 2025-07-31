@@ -164,10 +164,11 @@ async def delete_collection(collection_id: UUID, ngroup_id: UUID) -> bool:
     finally:
         await pool.close()
 
-async def list_collections(ngroup_id: UUID) -> List[CollectionReturn]:
+async def list_collections(ngroup_id: UUID, page:int, page_size:int) -> List[CollectionReturn]:
     """Retrieves all collection records, filtered by ngroup_id."""
     pool: Pool = await get_connection_pool()
-    params = (ngroup_id,)  # Pass ngroup_id as a tuple
+    offset = (page - 1) * page_size
+    params = (ngroup_id, page_size, offset)
     try:
         results = await query(pool, collection_db.list_collections_from_db, params, row_mapper=CollectionReturn.from_db_row)
         return results

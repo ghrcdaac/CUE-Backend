@@ -117,13 +117,15 @@ async def delete_collection_endpoint(
 @router.get("/", response_model=List[CollectionReturn])
 async def list_collections_endpoint(
     ngroup_id: UUID = Query(..., description="ngroup ID for filtering"),  # Add ngroup_id
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
+    page: int = Query(1, ge=1, description="Page number starting from 1."),
+    page_size: int = Query(20, ge=1, le=100, description="Number of items per page.")   # Add authentication
 ):
     """Lists collections, filtered by ngroup_id (requires authentication)."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return await list_collections(ngroup_id) # Pass ngroup
+        return await list_collections(ngroup_id,page,page_size) # Pass ngroup
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
