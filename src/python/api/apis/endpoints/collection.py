@@ -5,9 +5,9 @@ from typing import List, Optional
 from utils.collection import (create_collection, get_collection,
                               list_files_for_collection, update_collection,
                               delete_collection, list_collections,
-                              CollectionNotFoundError, get_collection_by_lookup)
+                              CollectionNotFoundError, get_collection_by_lookup, get_collection_files_count, get_collection_files_total_count)
 from lambda_utils.type_util.collection import (CollectionCreate, CollectionReturn,
-                                              CollectionUpdate, PaginatedFiles)
+                                              CollectionUpdate, PaginatedFiles, CollectionFileResponse)
 from lambda_utils.type_util.file import FileReturn
 
 # Authentication Imports
@@ -46,7 +46,22 @@ async def lookup_collection_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
+@router.get("/files/overview", response_model=CollectionFileResponse)
+async def get_collection_files_count_endpoint(
+    ngroup_id: UUID = Query(..., description="ngroup ID for filtering"),  # Add ngroup_id
+    current_user: dict = Depends(get_cognito_auth().get_current_user),
+    page: int = Query(1, ge=1, description="Page number starting from 1."),
+    page_size: int = Query(20, ge=1, le=100, description="Number of items per page.") 
+):
+    """Finds a collection files count, filtered by ngroup_id (requires authentication)."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        collection = await get_collection_files_count(ngroup_id, page_size,page) # Pass ngroup
+        return collection
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
 @router.get("/{collection_id}", response_model=CollectionReturn)
 async def get_collection_endpoint(
     collection_id: UUID,

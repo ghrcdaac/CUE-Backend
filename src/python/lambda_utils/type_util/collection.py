@@ -31,3 +31,15 @@ class CollectionReturn(CollectionBase):
     def from_db_row(cls, row: Tuple) -> "CollectionReturn":
         id, ngroup_id, egress_id, short_name, provider_id, active = row
         return cls(id=id, ngroup_id=ngroup_id, egress_id=egress_id, short_name=short_name, provider_id=provider_id, active=active)
+    
+class CollectionFileCount(BaseModel):
+    id: UUID
+    name: str
+    file_count: int
+
+class CollectionFileResponse(BaseModel):
+    ngroup_id: UUID
+    page: int
+    total_count: int
+    files_by_count:List[CollectionFileCount]
+

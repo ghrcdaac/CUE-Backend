@@ -3,7 +3,7 @@ from asyncpg.pool import Pool
 from lambda_utils.database_util.db_util import query, get_connection_pool
 from lambda_utils.database_util import collection as collection_db
 from lambda_utils.type_util.collection import (CollectionCreate, CollectionReturn,
-                                              CollectionUpdate)
+                                              CollectionUpdate,CollectionFileResponse,CollectionFileCount)
 from lambda_utils.type_util.file import FileReturn
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -71,6 +71,63 @@ async def get_collection_by_lookup(short_name: str, ngroup_id: UUID) -> Collecti
     finally:
         await pool.close()
 
+async def get_collection_files_count(ngroup_id: UUID, page_size: int, page: int) -> CollectionFileResponse | None:
+    """Retrieves a collection by file_count, filtered by ngroup_id."""
+    pool: Pool = await get_connection_pool()
+    offset = (page - 1) * page_size
+    params = (ngroup_id, page_size, offset) # Pass ngroup_id
+    try:
+        total_count = await get_collection_files_total_count(ngroup_id)
+        if total_count > 0:
+            result = await query(pool, collection_db.get_collection_files_count, params)
+            if result:
+                file_counts = [
+                        CollectionFileCount(
+                            id=row["collection_id"],
+                            name=row["short_name"],
+                            file_count=row["file_count"]
+                        )
+                        for row in result
+                ]
+
+                return CollectionFileResponse(
+                    ngroup_id=result[0]["ngroup_id"],
+                    page=page,
+                    total_count=total_count,
+                    files_by_count=file_counts
+                )
+            else:
+                raise Exception
+        else:
+            return CollectionFileResponse(
+                ngroup_id=ngroup_id,
+                page=page,
+                total_count=0,
+                files_by_count=[]
+        )
+    except Exception as e:
+        logger.error(f"Error during collection lookup: {e}", exc_info=True)
+        raise
+    finally:
+        await pool.close()
+
+async def get_collection_files_total_count(ngroup_id: UUID):
+    pool: Pool = await get_connection_pool()
+    params = (ngroup_id)
+    try:
+        result = await query(pool, collection_db.get_collection_total_count_by_files, params)
+        if result:
+            return result
+        else:
+            raise Exception
+    except Exception as e:
+        logger.error(f"Error during collection lookup: {e}", exc_info=True)
+        raise
+    finally:
+        await pool.close()
+
+    
+
 async def update_collection(collection_id: UUID, collection_update: CollectionUpdate) -> CollectionReturn | None:
     """Updates an existing collection record."""
     # No changes needed here, as updates don't depend on ngroup_id for uniqueness
@@ -133,7 +190,7 @@ async def list_files_for_collection(collection_id: UUID, ngroup_id: UUID, page: 
 
         # Fetch total count of files for the collection (without pagination)
         total_count_result = await query(pool, collection_db.count_files_for_collection_from_db, (collection_id,ngroup_id))
-        total_count = total_count_result[0]['count'] if total_count_result else 0
+        total_count = total_count_result if total_count_result else 0
 
         return files, total_count
     except Exception as e:
