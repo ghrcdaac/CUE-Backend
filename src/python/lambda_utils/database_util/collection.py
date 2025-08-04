@@ -54,41 +54,6 @@ async def get_collection_by_lookup_from_db(conn: Connection, params: Tuple) -> L
         logger.error(f"Error during collection lookup: {e}", exc_info=True)
         raise
 
-async def get_collection_files_count(conn: Connection, params: Tuple) -> List:
-    """Retrieves a collection files count with pagination."""
-    select_query = """
-        SELECT count(f.id) AS file_count, 
-               f.collection_id, 
-               c.ngroup_id, 
-               c.short_name
-        FROM file f 
-        JOIN collection c ON f.collection_id = c.id
-        WHERE c.ngroup_id = $1
-        GROUP BY f.collection_id, c.ngroup_id, c.short_name
-        ORDER BY c.short_name asc
-        LIMIT $2 OFFSET $3
-    """
-    try:
-        return await conn.fetch(select_query, *params)
-    except Exception as e:
-        logger.error(f"Error during collection lookup: {e}", exc_info=True)
-        raise
-
-async def get_collection_total_count_by_files(conn: Connection, params: Tuple):
-    total_query = """
-        SELECT COUNT(DISTINCT f.collection_id) AS total_count
-        FROM file f 
-        JOIN collection c ON f.collection_id = c.id
-        WHERE c.ngroup_id = $1
-    """
-    try:
-        total_row = await conn.fetchrow(total_query, params)
-        total_count = total_row["total_count"] if total_row else 0
-        return total_count
-    except Exception as e:
-        logger.error(f"Error during collection lookup: {e}", exc_info=True)
-        raise
-
 
 async def update_collection_in_db(conn: Connection, params: Tuple) -> List:
     """Updates an existing collection record in the database."""
@@ -137,7 +102,7 @@ async def list_collections_from_db(conn: Connection, params: Tuple) -> List:
     select_query = """
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
-        WHERE ngroup_id = $1  -- Filter by ngroup_id
+        WHERE ngroup_id = $1
         ORDER BY short_name asc
         LIMIT $2 OFFSET $3
     """
@@ -177,4 +142,54 @@ async def count_files_for_collection_from_db(conn: Connection, params: Tuple) ->
         return result['count'] if result else 0
     except Exception as e:
         logger.error(f"An unexpected error occurred while counting files for collection: {e}", exc_info=True)
+        raise
+
+async def get_collection_files_count(conn: Connection, params: Tuple) -> List:
+    """Retrieves a collection files count with pagination."""
+    select_query = """
+        SELECT count(f.id) AS file_count, 
+               f.collection_id, 
+               c.ngroup_id, 
+               c.short_name
+        FROM file f 
+        JOIN collection c ON f.collection_id = c.id
+        WHERE c.ngroup_id = $1
+        GROUP BY f.collection_id, c.ngroup_id, c.short_name
+        ORDER BY c.short_name asc
+        LIMIT $2 OFFSET $3
+    """
+    try:
+        return await conn.fetch(select_query, *params)
+    except Exception as e:
+        logger.error(f"Error during collection lookup: {e}", exc_info=True)
+        raise
+
+async def get_collection_total_count_by_files(conn: Connection, params: Tuple):
+    total_query = """
+        SELECT COUNT(DISTINCT f.collection_id) AS total_count
+        FROM file f 
+        JOIN collection c ON f.collection_id = c.id
+        WHERE c.ngroup_id = $1
+    """
+    try:
+        total_row = await conn.fetchrow(total_query, params)
+        total_count = total_row["total_count"] if total_row else 0
+        return total_count
+    except Exception as e:
+        logger.error(f"Error during collection lookup: {e}", exc_info=True)
+        raise
+
+async def get_collection_count(conn: Connection, params: Tuple) -> int:
+    "Retrives the total Count of the collections, filtered by ngroup_id"
+    total_query = """
+        SELECT count(id) as total_count
+        FROM collection
+        WHERE ngroup_id = $1
+    """
+    try:
+        total_row = await conn.fetchrow(total_query, params)
+        total_count = total_row["total_count"] if total_row else 0
+        return total_count
+    except Exception as e:
+        logger.error(f"Error fetching count: {e}", exc_info=True)
         raise

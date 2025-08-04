@@ -31,6 +31,10 @@ class CollectionReturn(CollectionBase):
     def from_db_row(cls, row: Tuple) -> "CollectionReturn":
         id, ngroup_id, egress_id, short_name, provider_id, active = row
         return cls(id=id, ngroup_id=ngroup_id, egress_id=egress_id, short_name=short_name, provider_id=provider_id, active=active)
+
+class PaginatedCollectionReturn(BaseModel):
+    total_count: int
+    collections: List[CollectionReturn]
     
 class CollectionFileCount(BaseModel):
     id: UUID

@@ -3,7 +3,7 @@ from asyncpg.pool import Pool
 from lambda_utils.database_util.db_util import query, get_connection_pool
 from lambda_utils.database_util import collection as collection_db
 from lambda_utils.type_util.collection import (CollectionCreate, CollectionReturn,
-                                              CollectionUpdate,CollectionFileResponse,CollectionFileCount)
+                                              CollectionUpdate,CollectionFileResponse,CollectionFileCount, PaginatedCollectionReturn)
 from lambda_utils.type_util.file import FileReturn
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -164,14 +164,17 @@ async def delete_collection(collection_id: UUID, ngroup_id: UUID) -> bool:
     finally:
         await pool.close()
 
-async def list_collections(ngroup_id: UUID, page:int, page_size:int) -> List[CollectionReturn]:
+async def list_collections(ngroup_id: UUID, page:int, page_size:int) -> Tuple[List[CollectionReturn],int]:
     """Retrieves all collection records, filtered by ngroup_id."""
     pool: Pool = await get_connection_pool()
     offset = (page - 1) * page_size
     params = (ngroup_id, page_size, offset)
     try:
-        results = await query(pool, collection_db.list_collections_from_db, params, row_mapper=CollectionReturn.from_db_row)
-        return results
+        total_count = await query(pool, collection_db.get_collection_count, (ngroup_id));
+        results = []
+        if total_count > 0:
+            results = await query(pool, collection_db.list_collections_from_db, params, row_mapper=CollectionReturn.from_db_row)
+        return results,total_count
     except Exception as e:
         logger.error(f"Error listing collections: {e}", exc_info=True)
         raise
@@ -186,12 +189,13 @@ async def list_files_for_collection(collection_id: UUID, ngroup_id: UUID, page: 
     params = (collection_id, ngroup_id, page_size, offset)  # Pass ngroup_id
 
     try:
-        # Fetch files for the current page
-        files = await query(pool, collection_db.list_files_for_collection_from_db, params, row_mapper=FileReturn.from_db_row)
-
         # Fetch total count of files for the collection (without pagination)
         total_count_result = await query(pool, collection_db.count_files_for_collection_from_db, (collection_id,ngroup_id))
         total_count = total_count_result if total_count_result else 0
+        files = []
+        if total_count > 0:
+            # Fetch files for the current page
+            files = await query(pool, collection_db.list_files_for_collection_from_db, params, row_mapper=FileReturn.from_db_row)
 
         return files, total_count
     except Exception as e:

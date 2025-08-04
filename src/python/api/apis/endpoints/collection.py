@@ -7,7 +7,7 @@ from utils.collection import (create_collection, get_collection,
                               delete_collection, list_collections,
                               CollectionNotFoundError, get_collection_by_lookup, get_collection_files_count, get_collection_files_total_count)
 from lambda_utils.type_util.collection import (CollectionCreate, CollectionReturn,
-                                              CollectionUpdate, PaginatedFiles, CollectionFileResponse)
+                                              CollectionUpdate, PaginatedFiles, CollectionFileResponse, PaginatedCollectionReturn)
 from lambda_utils.type_util.file import FileReturn
 
 # Authentication Imports
@@ -114,7 +114,7 @@ async def delete_collection_endpoint(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/", response_model=List[CollectionReturn])
+@router.get("/", response_model=PaginatedCollectionReturn)
 async def list_collections_endpoint(
     ngroup_id: UUID = Query(..., description="ngroup ID for filtering"),  # Add ngroup_id
     current_user: dict = Depends(get_cognito_auth().get_current_user),
@@ -125,7 +125,11 @@ async def list_collections_endpoint(
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return await list_collections(ngroup_id,page,page_size) # Pass ngroup
+        collections, total_count = await list_collections(ngroup_id,page,page_size) # Pass ngroup
+        return {
+            "total_count": total_count,
+            "collections": collections
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
