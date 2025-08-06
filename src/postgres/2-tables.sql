@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE;
 DROP TABLE IF EXISTS cueuser CASCADE;
+DROP TABLE IF EXISTS notification CASCADE;
 
 
 CREATE TABLE IF NOT EXISTS cueuser (
@@ -192,3 +193,28 @@ CREATE TABLE IF NOT EXISTS file_status (
     PRIMARY KEY (id),
     FOREIGN KEY (id) REFERENCES file(id)
 );
+
+CREATE TYPE report_frequency AS ENUM (
+    'daily',       
+    'weekly',           
+    'bi_weekly',        
+    'monthly',    
+    'none'    
+);
+
+Create TYPE report_type as ENUM (
+    'infected_file'
+);
+
+CREATE TABLE IF NOT EXISTS notification (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cueuser_id UUID NOT NULL,
+    report_type report_type NOT NULL,  -- infected, clean, failed, etc.
+    frequency report_frequency NOT NULL,   -- daily, weekly, biweekly, monthly, none 
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now(),
+    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
+    UNIQUE (cueuser_id, report_type)
+);
+
+CREATE UNIQUE INDEX user_id ON notification (cueuser_id, id);
