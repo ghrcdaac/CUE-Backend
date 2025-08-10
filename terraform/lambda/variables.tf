@@ -133,3 +133,18 @@ variable "email_sender_role_arn" {
   description = "IAM Role ARN for the Email Sender Lambda."
   type        = string
 }
+
+variable cue_archive_database_name {
+  description = "name of Athena archive database"
+  type = string
+}
+
+variable cue_archive_bucket {
+  description = "name of archive bucket"
+  type = string
+}
+
+variable cue_archive_results_bucket {
+  description = "name of archive bucket"
+  type = string
+}

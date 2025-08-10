@@ -56,6 +56,11 @@ module "lambda_functions" {
   ses_source_arn              = var.ses_source_arn
   ses_configuration_set_name  = var.ses_configuration_set_name
   ses_region                  = var.ses_region
+
+  # ---- Archive variables ---
+  cue_archive_database_name   = var.cue_archive_database_name
+  cue_archive_bucket          = var.cue_archive_bucket
+  cue_archive_results_bucket  = var.cue_archive_results_bucket
 }
 
 module "rds" {

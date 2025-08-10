@@ -98,6 +98,9 @@ resource "aws_lambda_function" "cue_api" {
       POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
       POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
       S3_UPLOAD_BUCKET = var.s3_upload_bucket
+      ARCHIVE_DB       = var.cue_archive_database_name
+      ARCHIVE_BUCKET   = var.cue_archive_bucket
+      ARCHIVE_RESULTS_BUCKET = var.cue_archive_results_bucket
     }
   }
 
