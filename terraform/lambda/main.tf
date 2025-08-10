@@ -98,6 +98,9 @@ resource "aws_lambda_function" "cue_api" {
       POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
       POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
       S3_UPLOAD_BUCKET = var.s3_upload_bucket
+      ARCHIVE_DB       = var.cue_archive_database_name
+      ARCHIVE_BUCKET   = var.cue_archive_bucket
+      ARCHIVE_RESULTS_BUCKET = var.cue_archive_results_bucket
     }
   }
 
@@ -147,6 +150,33 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   function_name = aws_lambda_function.cue_api.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
+}
+
+resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
+  name = "cue_infected_file_notification_scheduler"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 * * * ? *)"
+  target {
+    role_arn = var.cue_infected_file_notification_scheduler_role_arn 
+    arn = aws_lambda_function.notification_manager.arn
+    input = jsonencode({
+          "detail-type": "ScheduledInfectedFileNotification"
+        })
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts = 3
+    }
+  }
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
+  statement_id  = "AllowExecutionFromEventBridgeScheduler"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notification_manager.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
 }
 
 # --- Logging ---

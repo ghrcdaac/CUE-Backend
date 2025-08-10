@@ -24,3 +24,10 @@ data "aws_iam_policy_document" "email_sender_policy" {
   }
 }
 
+data "aws_iam_policy_document" "infected_notification_scheduler_policy" {
+  statement {
+    effect = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = [var.notification_manager_lambda_arn]
+  }
+}

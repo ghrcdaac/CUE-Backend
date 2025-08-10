@@ -13,6 +13,7 @@ module "iam_role" {
   scan_event_lambda_arn     = module.lambda_functions.scan_event_lambda_arn
   event_bus_arn             = module.lambda_functions.event_bus_arn
   email_sender_lambda_arn   = module.lambda_functions.email_sender_lambda_arn
+  notification_manager_lambda_arn = module.lambda_functions.notification_manager_lambda_arn
 }
 
 module "lambda_functions" {
@@ -29,6 +30,7 @@ module "lambda_functions" {
   cue_api_lambda_role_arn     = module.iam_role.cue_api_lambda_role_arn
   notification_manager_role_arn = module.iam_role.notification_manager_role_arn
   email_sender_role_arn       = module.iam_role.email_sender_role_arn
+  cue_infected_file_notification_scheduler_role_arn = module.iam_role.cue_infected_file_notification_scheduler_role_arn
 
   # --- Database variables ---
   db_host                     = module.rds.db_host
@@ -54,6 +56,11 @@ module "lambda_functions" {
   ses_source_arn              = var.ses_source_arn
   ses_configuration_set_name  = var.ses_configuration_set_name
   ses_region                  = var.ses_region
+  
+  # ---- Archive variables ---
+  cue_archive_database_name   = var.cue_archive_database_name
+  cue_archive_bucket          = var.cue_archive_bucket
+  cue_archive_results_bucket  = var.cue_archive_results_bucket
 }
 
 module "rds" {

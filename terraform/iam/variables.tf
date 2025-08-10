@@ -36,3 +36,8 @@ variable "scan_event_lambda_arn" {
   description = "The ARN of the cue_scan_event Lambda function."
   type        = string
 }
+
+variable "notification_manager_lambda_arn" {
+  description = "The ARN of the notification_manger Lambda function"
+  type        = string
+}

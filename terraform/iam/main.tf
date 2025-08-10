@@ -148,3 +148,14 @@ resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
 
 }
 
+# Eventbridge scheduler Role
+resource "aws_iam_role" "infected_file_notification_scheduler_role" {
+  name = "CUEInfectedFileSchedulerRole" 
+  assume_role_policy = file("${path.module}/cue_infected_notification_scheduler_assume_role.json")
+}
+
+resource "aws_iam_role_policy" "infected_file_notification_scheduler_role" {
+  name       = "CUEInfectedFileSchedulerPolicy"
+  role       = aws_iam_role.infected_file_notification_scheduler_role.id
+  policy     = data.aws_iam_policy_document.infected_notification_scheduler_policy.json
+}

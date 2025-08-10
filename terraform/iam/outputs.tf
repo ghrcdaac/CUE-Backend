@@ -29,5 +29,8 @@ output "cue_archive_api_lambda_role_arn"{
 
 output "cue_crawler_role_arn"{
   value = aws_iam_role.cue_crawler_role.arn
+}
 
+output "cue_infected_file_notification_scheduler_role_arn"{
+  value = aws_iam_role.infected_file_notification_scheduler_role.arn
 }

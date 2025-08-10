@@ -17,3 +17,9 @@ output "email_sender_lambda_arn" {
   description = "The ARN of the email_sender Lambda function."
   value       = aws_lambda_function.email_sender.arn
 }
+
+output "notification_manager_lambda_arn"{
+  description = "The ARN of the notification_manager Lambda function"
+  value = aws_lambda_function.notification_manager.arn
+}
+
