@@ -10,7 +10,7 @@ from utils.auth import get_cognito_auth
 router = APIRouter(prefix="/notification", tags=["notification"])
 
 @router.get("/user", response_model=List[NotificationReturn])
-async def lookup_collection_endpoint(
+async def lookup_notification_by_user(
     current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
     """Finds a notification based on user_id (requires authentication)."""
@@ -26,12 +26,12 @@ async def lookup_collection_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.patch("/{notification_id}", response_model=NotificationReturn)
-async def update_collection_endpoint(
+async def update_notification(
     notification_id: UUID,
     data: Notification = Body(...),
     current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
-    """Updates a collection (requires authentication)."""
+    """Updates a notification (requires authentication)."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -43,7 +43,7 @@ async def update_collection_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     
 @router.get("/{notification_id}", response_model=NotificationReturn)
-async def get_collection_endpoint(
+async def get_notification_by_id(
     notification_id: UUID,
     current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
