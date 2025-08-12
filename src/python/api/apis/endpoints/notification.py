@@ -1,17 +1,17 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, Body, Response
+from fastapi import APIRouter, HTTPException, Depends, Body
 from uuid import UUID
 from typing import List
-from lambda_utils.type_util.notification import (NotificationReturn, NotificationCreate, Notification)
+from lambda_utils.type_util.notification import (NotificationReturn, Notification)
 from utils.notification import create_notifications,NotificationNotFoundError, get_notification, get_notification_by_user_id,update_notification
 
 # Authentication Imports
-from utils.auth import get_cognito_auth, CognitoAuth
+from utils.auth import get_cognito_auth
 
 router = APIRouter(prefix="/notification", tags=["notification"])
 
 @router.get("/user", response_model=List[NotificationReturn])
 async def lookup_collection_endpoint(
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+    current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
     """Finds a notification based on user_id (requires authentication)."""
     if not current_user:
@@ -29,7 +29,7 @@ async def lookup_collection_endpoint(
 async def update_collection_endpoint(
     notification_id: UUID,
     data: Notification = Body(...),
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+    current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
     """Updates a collection (requires authentication)."""
     if not current_user:
@@ -45,7 +45,7 @@ async def update_collection_endpoint(
 @router.get("/{notification_id}", response_model=NotificationReturn)
 async def get_collection_endpoint(
     notification_id: UUID,
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+    current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
     """Retrieves a notification by ID, filtered by ngroup_id (requires authentication)."""
     if not current_user:
@@ -60,7 +60,7 @@ async def get_collection_endpoint(
 @router.post("/", response_model=List[NotificationReturn])
 async def add_notification_preference(
     notification: List[Notification],
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+    current_user: dict = Depends(get_cognito_auth().get_current_user)
 ):
     """Creates a new notification (requires authentication)."""
     if not current_user:

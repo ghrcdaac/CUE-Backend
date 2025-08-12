@@ -18,14 +18,6 @@ class NotificationNotFoundError(Exception):
 async def create_notifications(notifications: List[Notification], user_id: UUID) -> List[NotificationReturn]:
     """Creates a new notification record."""
     pool: Pool = await get_connection_pool()
-    # params = [
-    #     NotificationCreate(
-    #         cueuser_id=str(user_id),
-    #         report_type=n.report_type,
-    #         frequency=n.frequency
-    #     )
-    #     for n in notifications
-    # ]
     params = (notifications, user_id)
     try:
         result = await query(pool, notification_db.create_notifications, params, row_mapper=NotificationReturn.from_db_row)
@@ -57,17 +49,8 @@ async def get_notification_by_user_id(user_id: UUID) -> List[NotificationReturn]
     params = (user_id,)
     try:
         result = await query(pool, notification_db.get_notification_by_user_id, params, row_mapper=NotificationReturn.from_db_row)
-        # if result:
         return result
         
-        # else:
-        #     notif = NotificationCreate(
-        #             report_type="infected_file",
-        #             frequency="none",
-        #             user_id=user_id
-        #         )
-        #     notif =  await create_notification(notif)
-        #     return [notif]
     except Exception as e:
         logger.error(f"Error getting notification: {e}", exc_info=True)
         raise
