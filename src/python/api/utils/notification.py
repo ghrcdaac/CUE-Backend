@@ -15,13 +15,21 @@ class NotificationNotFoundError(Exception):
         super().__init__(f"Notification not found: {privilege}")
         self.privilege = privilege
 
-async def create_notification(notification: NotificationCreate) -> NotificationReturn:
+async def create_notifications(notifications: List[Notification], user_id: UUID) -> List[NotificationReturn]:
     """Creates a new notification record."""
     pool: Pool = await get_connection_pool()
-    params = (notification.notification)
+    # params = [
+    #     NotificationCreate(
+    #         cueuser_id=str(user_id),
+    #         report_type=n.report_type,
+    #         frequency=n.frequency
+    #     )
+    #     for n in notifications
+    # ]
+    params = (notifications, user_id)
     try:
-        result = await query(pool, notification_db.create_notification, params, row_mapper=NotificationReturn.from_db_row)
-        return result[0]
+        result = await query(pool, notification_db.create_notifications, params, row_mapper=NotificationReturn.from_db_row)
+        return result
     except Exception as e:
         logger.error(f"Error creating notification: {e}", exc_info=True)
         raise
@@ -31,7 +39,7 @@ async def create_notification(notification: NotificationCreate) -> NotificationR
 async def get_notification(notification_id: UUID) -> NotificationReturn:
     """get a notification record."""
     pool: Pool = await get_connection_pool()
-    params = (notification_id)
+    params = (notification_id,)
     try:
         result = await query(pool, notification_db.get_notification_from_db, params, row_mapper=NotificationReturn.from_db_row)
         if result:
@@ -44,15 +52,22 @@ async def get_notification(notification_id: UUID) -> NotificationReturn:
     finally:
         await pool.close()
 
-async def get_notification_by_user_id(user_id: UUID) -> NotificationReturn:
+async def get_notification_by_user_id(user_id: UUID) -> List[NotificationReturn]:
     pool: Pool = await get_connection_pool()
-    params = (user_id)
+    params = (user_id,)
     try:
         result = await query(pool, notification_db.get_notification_by_user_id, params, row_mapper=NotificationReturn.from_db_row)
-        if result:
-            return result[0]
-        else:
-            return create_notification(tuple('infected_file', 'none', user_id))
+        # if result:
+        return result
+        
+        # else:
+        #     notif = NotificationCreate(
+        #             report_type="infected_file",
+        #             frequency="none",
+        #             user_id=user_id
+        #         )
+        #     notif =  await create_notification(notif)
+        #     return [notif]
     except Exception as e:
         logger.error(f"Error getting notification: {e}", exc_info=True)
         raise
@@ -61,7 +76,7 @@ async def get_notification_by_user_id(user_id: UUID) -> NotificationReturn:
 
 async def update_notification(notification_id: UUID, data: Notification) -> NotificationReturn:
     pool: Pool = await get_connection_pool()
-    params = (notification_id, data)
+    params = (notification_id, data.report_type, data.frequency)
     try:
         result = await query(pool, notification_db.update_notification, params, row_mapper=NotificationReturn.from_db_row)
         if result:

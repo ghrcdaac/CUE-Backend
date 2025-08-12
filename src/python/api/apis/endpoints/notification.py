@@ -1,27 +1,47 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, status, Response
+from fastapi import APIRouter, HTTPException, Query, Depends, Body, Response
 from uuid import UUID
+from typing import List
 from lambda_utils.type_util.notification import (NotificationReturn, NotificationCreate, Notification)
-from api.utils.notification import create_notification,NotificationNotFoundError, get_notification, get_notification_by_user_id,update_notification
+from utils.notification import create_notifications,NotificationNotFoundError, get_notification, get_notification_by_user_id,update_notification
 
 # Authentication Imports
 from utils.auth import get_cognito_auth, CognitoAuth
 
-router = APIRouter(prefix="/notification", tags=["cueuser"])
+router = APIRouter(prefix="/notification", tags=["notification"])
 
-
-@router.post("/", response_model=NotificationReturn)
-async def add_notification_preference(
-    notification: NotificationCreate,
+@router.get("/user", response_model=List[NotificationReturn])
+async def lookup_collection_endpoint(
     current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
 ):
-    """Creates a new notification (requires authentication)."""
+    """Finds a notification based on user_id (requires authentication)."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return await create_notification(notification)
+        user_id = current_user['id']
+        notification = await get_notification_by_user_id(user_id) # Pass user_id
+        return notification
+    except NotificationNotFoundError:
+        raise HTTPException(status_code=404, detail=f"notification not found for user_id: {user_id}")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.patch("/{notification_id}", response_model=NotificationReturn)
+async def update_collection_endpoint(
+    notification_id: UUID,
+    data: Notification = Body(...),
+    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
+):
+    """Updates a collection (requires authentication)."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        updated_notification = await update_notification(notification_id, data)
+        return updated_notification
+    except NotificationNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
 @router.get("/{notification_id}", response_model=NotificationReturn)
 async def get_collection_endpoint(
     notification_id: UUID,
@@ -36,36 +56,17 @@ async def get_collection_endpoint(
         return notification
     except NotificationNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-@router.get("/user/{user_id}", response_model=NotificationReturn)
-async def lookup_collection_endpoint(
-    user_id: UUID,
-    current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
-):
-    """Finds a notification based on user_id (requires authentication)."""
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        notification = await get_notification_by_user_id(user_id) # Pass user_id
-        return notification
-    except NotificationNotFoundError:
-        raise HTTPException(status_code=404, detail=f"notification not found for user_id: {user_id}")
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     
-@router.patch("/{notification_id}", response_model=NotificationReturn)
-async def update_collection_endpoint(
-    notification_id: UUID,
-    data: Notification,
+@router.post("/", response_model=List[NotificationReturn])
+async def add_notification_preference(
+    notification: List[Notification],
     current_user: dict = Depends(get_cognito_auth().get_current_user)  # Add authentication
 ):
-    """Updates a collection (requires authentication)."""
+    """Creates a new notification (requires authentication)."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        updated_notification = await update_notification(notificaiton_id, data)
-        return updated_notification
-    except NotificationNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        user_id = current_user['id']
+        return await create_notifications(notification, user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -197,7 +197,7 @@ CREATE TABLE IF NOT EXISTS file_status (
 CREATE TYPE report_frequency AS ENUM (
     'daily',       
     'weekly',           
-    'bi_weekly',        
+    'biweekly',        
     'monthly',    
     'none'    
 );
@@ -211,8 +211,8 @@ CREATE TABLE IF NOT EXISTS notification (
     cueuser_id UUID NOT NULL,
     report_type report_type NOT NULL,  -- infected, clean, failed, etc.
     frequency report_frequency NOT NULL,   -- daily, weekly, biweekly, monthly, none 
-    created_at TIMESTAMP DEFAULT now(),
-    updated_at TIMESTAMP DEFAULT now(),
+    created_time TIMESTAMP DEFAULT now(),
+    updated_time TIMESTAMP DEFAULT now(),
     FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
     UNIQUE (cueuser_id, report_type)
 );
