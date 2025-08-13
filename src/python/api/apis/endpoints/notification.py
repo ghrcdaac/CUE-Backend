@@ -26,7 +26,7 @@ async def lookup_notification_by_user(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.patch("/{notification_id}", response_model=NotificationReturn)
-async def update_notification(
+async def update_notifications(
     notification_id: UUID,
     data: Notification = Body(...),
     current_user: dict = Depends(get_cognito_auth().get_current_user)
