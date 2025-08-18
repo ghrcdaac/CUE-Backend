@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 async def create_provider_in_db(conn: Connection, params: Tuple) -> List[ProviderReturn]:
     """Inserts a new provider record into the database."""
     insert_query = """
-        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact, reason)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
     """
     try:
         return await conn.fetch(insert_query, *params)
@@ -30,7 +30,7 @@ async def create_provider_in_db(conn: Connection, params: Tuple) -> List[Provide
 async def get_provider_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves a provider record from the database by its ID."""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
         FROM provider
         WHERE id = $1
     """
@@ -43,7 +43,7 @@ async def get_provider_from_db(conn: Connection, params: Tuple) -> List:
 async def get_provider_from_db_ngroup(conn: Connection, params: Tuple) -> List:
     """Retrieves a provider record by its ID, filtered by ngroup ID"""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
         FROM provider
         WHERE id = $1 AND ngroup_id = $2
     """
@@ -56,7 +56,7 @@ async def get_provider_from_db_ngroup(conn: Connection, params: Tuple) -> List:
 async def get_provider_by_short_name_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves a provider record from the database by short_name."""
     select_query = """
-     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
         FROM provider
         WHERE short_name = $1
     """
@@ -69,7 +69,7 @@ async def get_provider_by_short_name_from_db(conn: Connection, params: Tuple) ->
 async def get_provider_by_long_name_from_db(conn: Connection, params: Tuple) -> List:
     """Retrieves a provider record from the database by long_name."""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
         FROM provider
         WHERE long_name = $1
     """
@@ -94,7 +94,7 @@ async def update_provider_in_db(conn: Connection, params: Tuple) -> List:
         UPDATE provider
         SET {set_clause}
         WHERE id = ${len(values)}
-        RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        RETURNING id, ngroup_id, short_name, long_name, can_upload, point_of_contact, reason
     """
 
     try:

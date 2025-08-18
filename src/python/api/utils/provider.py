@@ -52,6 +52,7 @@ async def create_provider(provider: ProviderCreate) -> ProviderReturn:
 
         provider.can_upload,
         provider.point_of_contact,  # Corrected attribute
+        provider.reason,
     )
     try:
         async with pool.acquire() as conn:  # Use a connection explicitly
