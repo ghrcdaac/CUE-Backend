@@ -134,6 +134,15 @@ INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
 
 
 
+-- Janani's account
+INSERT INTO cueuser (id, email, name, cueusername)
+    VALUES ('905dc83f-3edd-485f-9f09-ab916edf75f2', 'janani.rangaraj@nasa.gov', 'Janani Rangaraj', 'jrangara');
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('905dc83f-3edd-485f-9f09-ab916edf75f2', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('905dc83f-3edd-485f-9f09-ab916edf75f2', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+
+
 -- Jerrold's User
 INSERT INTO cueuser (id, email, name, cueusername)
     VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'fake2@email.com', 'Jerrold Williams', 'jwilliams');
