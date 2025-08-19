@@ -1,101 +1,56 @@
+# ==============================================================================
+# File: src/python/api/v2/database_util/ngroup.py (Final)
+# Purpose: Contains all raw SQL queries for ngroup management.
+# Change: Added specific exception handling for database errors.
+# ==============================================================================
 from asyncpg import Connection, DataError, UniqueViolationError
-from typing import Tuple, List, Optional
-from lambda_utils.type_util.ngroup import NgroupReturn
+from typing import List, Optional, Dict, Any
 from uuid import UUID
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
-async def create_ngroup_in_db(conn: Connection, params: Tuple) -> List[NgroupReturn]:
+async def create_ngroup(conn: Connection, short_name: str, long_name: str) -> Dict[str, Any]:
     """Inserts a new ngroup record into the database."""
-    insert_query = """
-        INSERT INTO ngroup (id, short_name, long_name)
-        VALUES ($1, $2, $3)
-        RETURNING id, short_name, long_name
+    query = """
+        INSERT INTO ngroup (short_name, long_name)
+        VALUES ($1, $2)
+        RETURNING id, short_name, long_name;
     """
     try:
-        return await conn.fetch(insert_query, *params)
+        return await conn.fetchrow(query, short_name, long_name)
     except UniqueViolationError as e:
-        logger.error(f"Failed to create ngroup due to unique constraint violation: {e}", exc_info=True)
-        raise ValueError("A ngroup with the same short_name or long_name already exists.")
+        logger.error("db.ngroup.create.failed_unique", error=str(e))
+        raise ValueError("A ngroup with the same short_name or long_name already exists.") from e
     except DataError as e:
-        logger.error(f"Failed to create ngroup due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for creating an ngroup.")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while creating an ngroup: {e}", exc_info=True)
-        raise
+        logger.error("db.ngroup.create.failed_data_error", error=str(e))
+        raise ValueError("Invalid data provided for creating an ngroup.") from e
 
-async def get_ngroup_id_from_db(conn: Connection, params: Tuple) -> Optional[UUID]:
-    """Retrieves the ngroup ID based on short_name or long_name."""
-    select_query = """
-        SELECT id
-        FROM ngroup
-        WHERE short_name = $1 OR long_name = $2
-    """
-    try:
-        result = await conn.fetchrow(select_query, *params)
-        if result:
-            return result['id']
-        else:
-            return None
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while getting ngroup ID: {e}", exc_info=True)
-        raise
-
-async def get_ngroup_from_db(conn: Connection, params: Tuple) -> List[NgroupReturn]:
+async def get_ngroup_by_id(conn: Connection, ngroup_id: UUID) -> Optional[Dict[str, Any]]:
     """Retrieves an ngroup record from the database by its ID."""
-    select_query = """
-        SELECT id, short_name, long_name
-        FROM ngroup
-        WHERE id = $1
-    """
-    try:
-        return await conn.fetch(select_query, *params)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while getting an ngroup: {e}", exc_info=True)
-        raise
+    return await conn.fetchrow("SELECT id, short_name, long_name FROM ngroup WHERE id = $1", ngroup_id)
 
-async def update_ngroup_in_db(conn: Connection, params: Tuple) -> List[NgroupReturn]:
+async def update_ngroup(conn: Connection, ngroup_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Updates an existing ngroup record in the database."""
-    update_query = """
-        UPDATE ngroup
-        SET short_name = $2, long_name = $3
-        WHERE id = $1
-        RETURNING id, short_name, long_name
-    """
+    fields, values = list(update_data.keys()), list(update_data.values())
+    set_clause = ", ".join(f"{field} = ${i+1}" for i, field in enumerate(fields))
+    query = f"UPDATE ngroup SET {set_clause} WHERE id = ${len(fields) + 1} RETURNING id, short_name, long_name;"
+    
     try:
-        return await conn.fetch(update_query, *params)
+        return await conn.fetchrow(query, *values, ngroup_id)
     except UniqueViolationError as e:
-        logger.error(f"Failed to update ngroup due to unique constraint violation: {e}", exc_info=True)
-        raise ValueError("A ngroup with the same short_name or long_name already exists.")
-    except DataError as e:
-        logger.error(f"Failed to update ngroup due to invalid data: {e}", exc_info=True)
-        raise ValueError("Invalid data provided for updating an ngroup.")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while updating an ngroup: {e}", exc_info=True)
-        raise
+        logger.error("db.ngroup.update.failed_unique", error=str(e))
+        raise ValueError("A ngroup with the same short_name or long_name already exists.") from e
 
-async def delete_ngroup_from_db(conn: Connection, params: Tuple) -> bool:
+async def delete_ngroup(conn: Connection, ngroup_id: UUID) -> bool:
     """Deletes an ngroup record from the database by its ID."""
-    delete_query = """
-        DELETE FROM ngroup
-        WHERE id = $1
-    """
-    try:
-        result = await conn.execute(delete_query, *params)
-        return result == "DELETE 1"
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while deleting an ngroup: {e}", exc_info=True)
-        raise
+    result = await conn.execute("DELETE FROM ngroup WHERE id = $1", ngroup_id)
+    return result.strip() == "DELETE 1"
 
-async def list_ngroups_from_db(conn: Connection) -> List[NgroupReturn]:
+async def list_ngroups(conn: Connection) -> List[Dict[str, Any]]:
     """Retrieves all ngroup records from the database."""
-    select_query = """
-        SELECT id, short_name, long_name
-        FROM ngroup
-    """
-    try:
-        return await conn.fetch(select_query)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while listing ngroups: {e}", exc_info=True)
-        raise
+    return await conn.fetch("SELECT id, short_name, long_name FROM ngroup ORDER BY short_name;")
+
+async def list_ngroups_for_form(conn: Connection) -> List[Dict[str, Any]]:
+    """Retrieves a simplified list of ngroups (id, short_name) for forms."""
+    return await conn.fetch("SELECT id, short_name FROM ngroup ORDER BY short_name;")

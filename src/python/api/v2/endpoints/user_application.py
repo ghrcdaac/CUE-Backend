@@ -1,13 +1,13 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/user_application.py (Fixed)
+# File: src/python/api/v2/endpoints/user_application.py (Final)
 # Purpose: Provides the REST API endpoints for the user application process.
-# Fixes: Corrected all import paths to be absolute from the project root.
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from uuid import UUID
 from typing import List, Optional
 
-from core.security import get_current_user, require_privilege, User
+from core.security import get_current_user, require_privilege, get_authenticated_user_claims
+from v2.type_util.auth import AuthUser as User, AuthenticatedUserClaims
 from v2.utils import user_application as app_utils
 from v2.utils.auth import get_keycloak_client, KeycloakClient
 from v2.type_util.user_application import (
@@ -18,12 +18,16 @@ from v2.type_util.cueuser import UserResponse as CueUserResponse
 router = APIRouter(prefix="/user_application", tags=["V2 - User Applications"])
 
 @router.post("/", response_model=UserApplicationResponse, status_code=status.HTTP_201_CREATED)
-async def submit_user_application(application_data: UserApplicationCreate):
+async def submit_user_application(
+    application_data: UserApplicationCreate,
+    claims: AuthenticatedUserClaims = Depends(get_authenticated_user_claims)
+):
     """
-    Public endpoint for a new user to submit an application for an account.
+    An authenticated user submits an application for an account. This endpoint
+    is protected to ensure we have the user's verified Keycloak ID.
     """
     try:
-        new_app = await app_utils.submit_application(application_data)
+        new_app = await app_utils.submit_application(application_data, claims.id)
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

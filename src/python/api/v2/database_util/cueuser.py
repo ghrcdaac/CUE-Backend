@@ -1,11 +1,12 @@
 # ==============================================================================
-# File: src/python/api/v2/database_util/cueuser.py (Refactored)
+# File: src/python/api/v2/database_util/cueuser.py (Final)
 # Purpose: Contains all raw SQL queries for user management.
 # ==============================================================================
 from asyncpg import Connection
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 import structlog
+import json
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +29,7 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
     """
     return await conn.fetchrow(query, user_id)
 
-async def get_user_by_username(conn: Connection, username: str) -> Optional[Dict[str, Any]]:
+async def get_user_by_username(conn: Connection, cueusername: str) -> Optional[Dict[str, Any]]:
     """Fetches a single user's core data by their unique username."""
     query = """
         SELECT
@@ -43,25 +44,25 @@ async def get_user_by_username(conn: Connection, username: str) -> Optional[Dict
         WHERE u.cueusername = $1
         GROUP BY u.id;
     """
-    return await conn.fetchrow(query, username)
+    return await conn.fetchrow(query, cueusername)
 
-async def find_user(conn: Connection, email: Optional[str], username: Optional[str], name: Optional[str], edpub_id: Optional[str]) -> List[Dict[str, Any]]:
+async def find_user(conn: Connection, email: Optional[str], cueusername: Optional[str], name: Optional[str], edpub_id: Optional[str]) -> List[Dict[str, Any]]:
     """Finds users based on a variety of optional criteria."""
     conditions = []
     params = []
     
     if email:
         params.append(f"%{email}%")
-        conditions.append(f"u.email ILIKE ${len(params)}")
-    if username:
-        params.append(f"%{username}%")
-        conditions.append(f"u.cueusername ILIKE ${len(params)}")
+        conditions.append(f"u.email ILIKE ${len(params) + 1}")
+    if cueusername:
+        params.append(f"%{cueusername}%")
+        conditions.append(f"u.cueusername ILIKE ${len(params) + 1}")
     if name:
         params.append(f"%{name}%")
-        conditions.append(f"u.name ILIKE ${len(params)}")
+        conditions.append(f"u.name ILIKE ${len(params) + 1}")
     if edpub_id:
         params.append(edpub_id)
-        conditions.append(f"u.edpub_id = ${len(params)}")
+        conditions.append(f"u.edpub_id = ${len(params) + 1}")
 
     if not conditions:
         return []
@@ -85,7 +86,7 @@ async def list_users_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[s
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(json_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::json) AS roles
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles
         FROM cueuser u
         INNER JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
         LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
@@ -134,11 +135,11 @@ async def get_user_auth_details(conn: Connection, user_id: UUID) -> Optional[Dic
 
 # --- User & Association Write Queries ---
 
-async def create_user(conn: Connection, user_id: UUID, email: str, name: str, username: str, edpub_id: Optional[str]):
+async def create_user(conn: Connection, user_id: UUID, email: str, name: str, cueusername: str, edpub_id: Optional[str]):
     """Creates a new user record in the cueuser table."""
     await conn.execute(
         "INSERT INTO cueuser (id, email, name, cueusername, edpub_id) VALUES ($1, $2, $3, $4, $5)",
-        user_id, email, name, username, edpub_id
+        user_id, email, name, cueusername, edpub_id
     )
 
 async def assign_role_to_user(conn: Connection, user_id: UUID, role_id: UUID):
@@ -183,14 +184,54 @@ async def remove_all_user_associations(conn: Connection, user_id: UUID):
     await conn.execute("DELETE FROM cueuser_role WHERE cueuser_id = $1", user_id)
     await conn.execute("DELETE FROM cueuser_ngroup WHERE cueuser_id = $1", user_id)
     await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
-    # Note: api_key table has ON DELETE CASCADE, so it will be handled automatically,
-    # but could be deleted here explicitly if preferred.
 
 async def delete_user(conn: Connection, user_id: UUID) -> bool:
     """
     Deletes a user from the cueuser table.
-    It's recommended to call remove_all_user_associations first for an explicit, clean delete.
     """
     result = await conn.execute("DELETE FROM cueuser WHERE id = $1", user_id)
-    # The result for DELETE is a string like 'DELETE 1'
     return result.strip() == "DELETE 1"
+
+
+async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
+    """
+    Fetches a single user's core data, including their associated roles,
+    ngroups (as objects), and a consolidated list of all their privileges.
+    """
+    # --- Updated jsonb_agg for ngroups to build objects ---
+    query = """
+        SELECT
+            u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
+            COALESCE(jsonb_agg(DISTINCT jsonb_build_object('id', g.id, 'short_name', g.short_name)) FILTER (WHERE g.id IS NOT NULL), '[]'::jsonb) AS ngroups,
+            COALESCE(jsonb_agg(DISTINCT p.privilege) FILTER (WHERE p.privilege IS NOT NULL), '[]'::jsonb) AS privileges
+        FROM cueuser u
+        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
+        LEFT JOIN role r ON ur.role_id = r.id
+        LEFT JOIN role_privilege rp ON r.id = rp.role_id
+        LEFT JOIN privilege p ON rp.privilege = p.privilege
+        LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
+        LEFT JOIN ngroup g ON ug.ngroup_id = g.id
+        WHERE u.id = $1
+        GROUP BY u.id;
+    """
+    return await conn.fetchrow(query, user_id)
+
+async def list_users(conn: Connection) -> List[Dict[str, Any]]:
+    """
+    Fetches a list of all users with their associated roles and ngroups.
+    """
+    query = """
+        SELECT
+            u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
+            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
+            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
+        FROM cueuser u
+        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
+        LEFT JOIN role r ON ur.role_id = r.id
+        LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
+        LEFT JOIN ngroup g ON ug.ngroup_id = g.id
+        GROUP BY u.id
+        ORDER BY u.name;
+    """
+    return await conn.fetch(query)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from v2.endpoints import (auth,
-     cueuser,
+     cueuser, ngroup, provider, role,
       user_application, api_keys, oidc_test_helpers
      )
 
@@ -13,12 +13,12 @@ async def root():
 router.include_router(auth.router)
 # router.include_router(upload.router)
 # router.include_router(egress.router)
-# router.include_router(ngroup.router)
+router.include_router(ngroup.router)
 # router.include_router(metrics.router)
 router.include_router(cueuser.router)
-# router.include_router(role.router)
+router.include_router(role.router)
 # router.include_router(privilege.router)
-# router.include_router(provider.router)
+router.include_router(provider.router)
 # router.include_router(cueuser_ngroup.router)
 # router.include_router(cueuser_role.router)
 # router.include_router(role_privilege.router)

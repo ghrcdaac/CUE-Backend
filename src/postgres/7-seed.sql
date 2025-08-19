@@ -25,7 +25,29 @@ INSERT INTO privilege (privilege) VALUES ('metrics');
 
 -- Admin
 INSERT INTO role (id, short_name, long_name) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'admin', 'Admin');
+
 INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'admin');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'create_user');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'approve_user');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'assign_role');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'assign_ngroup');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'create_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'manage_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'suspend_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'reinstat_provider');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'security_reinstate');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'manage_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_collection');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'manage_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_egress');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'upload');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_scan_results');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_all_files');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'view_all_scan');
+INSERT INTO role_privilege (role_id, privilege) VALUES ('c924d0d3-55af-49f3-bec1-d7fd4ed475e2', 'metrics');
+
 
 -- Security
 INSERT INTO role (id, short_name, long_name) VALUES ('39677929-ba9b-426d-8c18-f607d669fcce', 'security', 'Security');
@@ -82,7 +104,7 @@ INSERT INTO role_privilege (role_id, privilege) VALUES ('2068cc53-1232-4bc7-9647
 
 -- ngroup
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'GHRC', 'GHRC DAAC');
-
+INSERT INTO ngroup (id, short_name, long_name) VALUES ('f2c806ff-0362-41c8-b67e-1c589ef5b728', 'EDPub', 'Earthdata Pub');
 -- Provider
 INSERT INTO role (id, short_name, long_name) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'provider', 'Provider');
 INSERT INTO role_privilege (role_id, privilege) VALUES ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', 'upload');
@@ -102,27 +124,14 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
+
 INSERT INTO cueuser (id, email, name, cueusername)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'navaneeth.rangaswamyselvaraj@nasa.gov', 'Navaneeth Rangaswamy Selvaraj', 'nrangasw');
-
 INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
-
-
-
--- a8a133f0-b0c1-7056-650e-1898599bf60a
--- Payton's User
-INSERT INTO cueuser (id, email, name, cueusername)
-    VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'pi0003@uah.edu', 'Payton Ireland', 'pireland');
-INSERT INTO cueuser_role (cueuser_id, role_id)
-    VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
-INSERT INTO cueuser_auth (id, refresh_token)
-   VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', '123');
-INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-   VALUES ('a8a133f0-b0c1-7056-650e-1898599bf60a', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
 
 -- Jerrold's User

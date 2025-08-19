@@ -1,6 +1,6 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/auth.py (with Debugging)
-# Purpose: Adds detailed logging to inspect the service account token's claims.
+# File: src/python/api/v2/utils/auth.py (Final)
+# Purpose: Handles all server-to-server communication with Keycloak and auth logic.
 # ==============================================================================
 import os
 import time
@@ -8,7 +8,8 @@ import httpx
 import structlog
 from typing import Dict, Any, Optional
 from uuid import UUID
-from jose import jwt # Import the JWT library
+from jose import jwt
+from urllib.parse import urlencode
 
 from core.db import get_db_connection
 from v2.database_util import cueuser as user_db
@@ -29,9 +30,40 @@ class KeycloakClient:
             raise ValueError("Missing required Keycloak admin environment variables.")
 
         self.token_url = f"{self.base_url}/protocol/openid-connect/token"
+        self.auth_url = f"{self.base_url}/protocol/openid-connect/auth"
         self.admin_api_url = f"{self.base_url.replace('/realms/', '/admin/realms/')}"
         self._access_token: Optional[str] = None
         self._token_expires_at: int = 0
+
+    def get_login_url(self) -> (str, str):
+        """Generates the OIDC login URL and a state parameter for CSRF protection."""
+        state = os.urandom(16).hex()
+        redirect_uri = os.getenv("FRONTEND_CALLBACK_URL", "http://localhost:3000/callback")
+        
+        params = {
+            "client_id": self.admin_client_id,
+            "response_type": "code",
+            "scope": "openid profile email offline_access", # Request offline_access to get a refresh token
+            "redirect_uri": redirect_uri,
+            "state": state,
+        }
+        login_url = f"{self.auth_url}?{urlencode(params)}"
+        return login_url, state
+
+    async def exchange_code_for_tokens(self, code: str, redirect_uri: str) -> Dict[str, Any]:
+        """Exchanges an authorization code for a full set of tokens."""
+        logger.info("keycloak.token.exchanging_code")
+        payload = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": self.admin_client_id,
+            "client_secret": self.admin_client_secret,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.token_url, data=payload)
+            response.raise_for_status()
+            return response.json()
 
     async def _get_service_token(self) -> str:
         """Gets a service account access token using client_credentials grant."""
@@ -51,13 +83,11 @@ class KeycloakClient:
             self._access_token = token_data["access_token"]
             self._token_expires_at = time.time() + token_data.get("expires_in", 300) - 30
             
-            # --- CHANGE: Add detailed logging to inspect the service token ---
             try:
                 decoded_token = jwt.get_unverified_claims(self._access_token)
                 logger.info("keycloak.admin.token.received_and_decoded", claims=decoded_token)
             except Exception as e:
                 logger.error("keycloak.admin.token.decode_failed", error=str(e))
-            # --- END CHANGE ---
 
             return self._access_token
 
@@ -85,6 +115,20 @@ class KeycloakClient:
                 return response_get.json()[0]['id']
             return location_url.split("/")[-1]
 
+    async def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+        """Exchanges a refresh token for a new access token."""
+        logger.info("keycloak.token.refreshing")
+        payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": self.admin_client_id,
+            "client_secret": self.admin_client_secret,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.token_url, data=payload)
+            response.raise_for_status()
+            return response.json()
+
     async def delete_user(self, user_id: UUID):
         """Deletes a user from Keycloak via the Admin API."""
         token = await self._get_service_token()
@@ -103,7 +147,7 @@ class KeycloakClient:
         reset_url = f"{self.admin_api_url}/users/{user_id}/execute-actions-email"
         
         async with httpx.AsyncClient() as client:
-            params = {"redirect_uri": os.getenv("FRONTEND_URL", "http://localhost:8080")}
+            params = {"redirect_uri": os.getenv("FRONTEND_URL", "http://localhost:3000")}
             response = await client.put(reset_url, headers=headers, json=payload, params=params)
             response.raise_for_status()
 
@@ -118,15 +162,12 @@ async def get_user_login_status(user_id: UUID) -> str:
     Checks the database to determine a user's status for the login workflow.
     """
     async with get_db_connection() as conn:
-        # 1. Check if the user is fully registered in the cueuser table.
         is_registered = await user_db.user_exists_by_id(conn, user_id)
         if is_registered:
             return "registered"
 
-        # 2. If not registered, check if they have a pending application.
         pending_app = await app_db.get_pending_application_by_user_id(conn, user_id)
         if pending_app:
             return "pending_approval"
 
-    # 3. If neither of the above, the user is new to the system.
     return "unregistered"

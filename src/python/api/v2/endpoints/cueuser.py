@@ -1,15 +1,14 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/cueuser.py (Fixed)
+# File: src/python/api/v2/endpoints/cueuser.py (Final)
 # Purpose: Provides the v2 REST API endpoints for all user management.
-# Fix: Corrected the imported function name to 'get_keycloak_client'.
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from uuid import UUID
 from typing import List, Optional
 
-from core.security import get_current_user, require_privilege, User
+from core.security import get_current_user, require_privilege
+from v2.type_util.auth import AuthUser as User
 from v2.utils import cueuser as cueuser_utils
-# --- CHANGE: Corrected the imported function name ---
 from v2.utils.auth import get_keycloak_client, KeycloakClient
 from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse
 
@@ -24,13 +23,28 @@ async def get_my_profile(user: User = Depends(get_current_user)):
     except cueuser_utils.UserNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found in database.")
 
+@router.get("/", response_model=List[UserResponse], dependencies=[Depends(require_privilege("admin"))])
+async def list_users_endpoint():
+    """
+    Retrieves a list of all users in the system.
+    Requires 'admin' privilege.
+    """
+    try:
+        users = await cueuser_utils.list_users()
+        return [UserResponse.model_validate(u) for u in users]
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("create_user"))])
 async def create_user_endpoint(
     request: UserCreateRequest,
     keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
-    """Creates a new user in Keycloak and the local DB. Requires 'create_user' privilege."""
+    """
+    Allows an admin to create a new user directly in Keycloak and the local DB.
+    Requires 'create_user' privilege.
+    """
     try:
         new_user = await cueuser_utils.create_new_user(
             email=request.email, name=request.name, cueusername=request.cueusername,

@@ -1,38 +1,42 @@
+# ==============================================================================
+# File: src/python/api/v2/type_util/provider.py (Final)
+# Purpose: Defines Pydantic models for the v2 provider management endpoints.
+# ==============================================================================
 from pydantic import BaseModel
-from typing import Optional, Tuple
+from typing import Optional
 from uuid import UUID
 
 class ProviderBase(BaseModel):
+    """Base model for provider data."""
     short_name: str
     long_name: str
-    can_upload: Optional[bool] = False
+    can_upload: bool = False
 
 class ProviderCreate(ProviderBase):
+    """Model for creating a new provider."""
     ngroup_id: UUID
     point_of_contact: UUID
 
 class ProviderUpdate(BaseModel):
+    """Model for updating an existing provider. All fields are optional."""
     short_name: Optional[str] = None
     long_name: Optional[str] = None
     can_upload: Optional[bool] = None
     point_of_contact: Optional[UUID] = None
 
-class ProviderReturn(ProviderBase):
+class ProviderResponse(ProviderBase):
+    """Model for returning a full provider object from the API."""
     id: UUID
     ngroup_id: UUID
     point_of_contact: UUID
 
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "ProviderReturn":
-        id, ngroup_id, short_name, long_name, can_upload, point_of_contact = row
-        return cls(id=id, ngroup_id=ngroup_id, short_name=short_name, long_name=long_name, can_upload=can_upload, point_of_contact=point_of_contact)
-    
+    class Config:
+        from_attributes = True
 
-class ProviderListReturn(BaseModel):
+class ProviderListResponse(BaseModel):
+    """A simplified model for listing providers, used for forms."""
     id: UUID
     short_name: str
 
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "ProviderListReturn":
-        id, _, short_name, *_ = row  # Use _ for values we don't need
-        return cls(id=id, short_name=short_name)
+    class Config:
+        from_attributes = True

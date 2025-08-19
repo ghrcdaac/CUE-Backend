@@ -1,3 +1,10 @@
+-- ==============================================================================
+-- File: src/postgres/2-tables.sql (Updated Schema)
+-- Purpose: Defines the complete database schema for v2, including all tables,
+-- types, and performance-enhancing indexes.
+-- Fix: Corrected the syntax for the partial unique constraint on user_application.
+-- ==============================================================================
+
 -- Drop tables if they exist (in reverse order of creation due to dependencies)
 DROP TABLE IF EXISTS file_status CASCADE;
 DROP TYPE IF EXISTS file_status_type CASCADE;
@@ -5,6 +12,7 @@ DROP TYPE IF EXISTS application_status CASCADE;
 DROP TYPE IF EXISTS account_type CASCADE;
 DROP TABLE IF EXISTS user_application CASCADE;
 DROP TABLE IF EXISTS file CASCADE;
+DROP TABLE IF EXISTS cost_metric CASCADE;
 DROP TABLE IF EXISTS collection CASCADE;
 DROP TABLE IF EXISTS egress CASCADE;
 DROP TABLE IF EXISTS cueuser_provider CASCADE;
@@ -16,12 +24,16 @@ DROP TABLE IF EXISTS privilege CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS api_key CASCADE;
-DROP TABLE IF EXISTS cueuser_auth CASCADE;
+DROP TABLE IF EXISTS cueuser_auth CASCADE; 
 DROP TABLE IF EXISTS cueuser CASCADE;
 
 
+-- ==============================================================================
+-- Table Definitions
+-- ==============================================================================
+
 CREATE TABLE IF NOT EXISTS cueuser (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL,
     email VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     registered TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -33,6 +45,7 @@ CREATE TABLE IF NOT EXISTS cueuser (
     UNIQUE (edpub_id)
 );
 
+-- Delete later.
 CREATE TABLE IF NOT EXISTS cueuser_auth (
     id UUID NOT NULL,
     refresh_token VARCHAR,
@@ -41,25 +54,22 @@ CREATE TABLE IF NOT EXISTS cueuser_auth (
     FOREIGN KEY (id) REFERENCES cueuser(id)
 );
 
--- Create the api_key table to store long-lived, revocable keys for the CLI
+
 CREATE TABLE IF NOT EXISTS api_key (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
-    key_hash VARCHAR NOT NULL,                      -- The SHA-256 hash of the secret key for secure storage
-    prefix VARCHAR(10) NOT NULL,                    -- A non-secret part of the key for easy identification (e.g., 'cue_sk_')
-    user_id UUID NOT NULL,                          -- Foreign key linking to the user who owns the key
-    name VARCHAR(255) NOT NULL,                     -- A user-provided, descriptive name for the key (e.g., "My Laptop CLI")
-    scopes VARCHAR[] NOT NULL,                      -- An array of permissions, e.g., ARRAY['file:upload']
+    key_hash VARCHAR NOT NULL,
+    prefix VARCHAR(10) NOT NULL,
+    user_id UUID NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    scopes VARCHAR[] NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TIMESTAMPTZ,                        -- To track when the key was last used, useful for auditing
-    expires_at TIMESTAMPTZ,                         -- Optional: for keys that should expire automatically
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,        -- A flag to enable or disable the key without deleting it
+    last_used_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     PRIMARY KEY (id),
-    UNIQUE (key_hash),                              -- Ensures no two keys are the same
-    FOREIGN KEY (user_id) REFERENCES cueuser(id) ON DELETE CASCADE -- If the user is deleted, their keys are also deleted
+    UNIQUE (key_hash),
+    FOREIGN KEY (user_id) REFERENCES cueuser(id) ON DELETE CASCADE
 );
-
--- Add an index on the user_id for faster lookups of a user's keys
-CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
 
 CREATE TABLE IF NOT EXISTS ngroup (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
@@ -70,13 +80,12 @@ CREATE TABLE IF NOT EXISTS ngroup (
     UNIQUE (long_name)
 );
 
-
 CREATE TABLE IF NOT EXISTS cueuser_ngroup (
     cueuser_id UUID NOT NULL,
     ngroup_id UUID NOT NULL,
     PRIMARY KEY (cueuser_id, ngroup_id),
-    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
-    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id)
+    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id) ON DELETE CASCADE,
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS role (
@@ -92,8 +101,8 @@ CREATE TABLE IF NOT EXISTS cueuser_role (
     cueuser_id UUID NOT NULL,
     role_id UUID NOT NULL,
     PRIMARY KEY (cueuser_id, role_id),
-    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
-    FOREIGN KEY (role_id) REFERENCES role(id)
+    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS privilege (
@@ -106,8 +115,8 @@ CREATE TABLE IF NOT EXISTS role_privilege(
     privilege VARCHAR NOT NULL,
     role_id UUID NOT NULL,
     PRIMARY KEY (privilege, role_id),
-    FOREIGN KEY (privilege) REFERENCES privilege(privilege),
-    FOREIGN KEY (role_id) REFERENCES role(id)
+    FOREIGN KEY (privilege) REFERENCES privilege(privilege) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS provider (
@@ -128,8 +137,8 @@ CREATE TABLE IF NOT EXISTS cueuser_provider (
     cueuser_id UUID NOT NULL,
     provider_id UUID NOT NULL,
     PRIMARY KEY (cueuser_id, provider_id),
-    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
-    FOREIGN KEY (provider_id) REFERENCES provider(id)
+    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider_id) REFERENCES provider(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS egress (
@@ -161,7 +170,7 @@ CREATE TABLE IF NOT EXISTS file (
     name VARCHAR NOT NULL,
     type VARCHAR NOT NULL,
     cueuser_uploaded UUID NOT NULL,
-    size_bytes INT NOT NULL,
+    size_bytes BIGINT NOT NULL,
     collection_id UUID NOT NULL,
     collection_path VARCHAR,
     edpub BOOLEAN NOT NULL DEFAULT FALSE,
@@ -176,40 +185,70 @@ CREATE TYPE account_type AS ENUM ('daac', 'provider');
 
 CREATE TABLE IF NOT EXISTS user_application (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    user_id UUID,
     email VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     applied TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     username VARCHAR NOT NULL,
     status application_status NOT NULL DEFAULT 'pending',
     ngroup_id UUID NOT NULL,
-    provider_id UUID NULL,  -- Allow NULL
+    provider_id UUID NULL,
     justification TEXT NOT NULL,
-    account_type account_type, -- use the enum
+    account_type account_type,
     edpub_id VARCHAR,
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     FOREIGN KEY (provider_id) REFERENCES provider(id)
 );
 
-
-
--- Create type for file status
 CREATE TYPE file_status_type AS ENUM (
-    'unscanned',       -- File has been uploaded but not yet scanned
-    'clean',           -- File has been scanned and no issues were found
-    'infected',        -- File has been scanned and found to be infected
-    'scan_failed',     -- File could not be scanned (e.g., due to an error)
-    'distributed'    -- File has been distributed
+    'unscanned',
+    'clean',
+    'infected',
+    'scan_failed',
+    'distributed'
 );
 
 CREATE TABLE IF NOT EXISTS file_status (
     id UUID NOT NULL,
-    upload_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Use TIMESTAMPTZ
-    scan_start TIMESTAMPTZ,  -- Use TIMESTAMPTZ
-    scan_end TIMESTAMPTZ,    -- Use TIMESTAMPTZ
-    egress_start TIMESTAMPTZ, -- Use TIMESTAMPTZ
+    upload_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    scan_start TIMESTAMPTZ,
+    scan_end TIMESTAMPTZ,
+    egress_start TIMESTAMPTZ,
     status file_status_type NOT NULL,
     scan_results JSONB,
     PRIMARY KEY (id),
-    FOREIGN KEY (id) REFERENCES file(id)
+    FOREIGN KEY (id) REFERENCES file(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS cost_metric (
+    file_id UUID NOT NULL,
+    scanner_cost NUMERIC(10, 6),
+    aws_transfer_cost NUMERIC(10, 6),
+    metric_recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (file_id),
+    FOREIGN KEY (file_id) REFERENCES file(id) ON DELETE CASCADE
+);
+
+-- ==============================================================================
+-- Performance Indexes
+-- ==============================================================================
+
+-- Indexes for the cueuser table
+CREATE INDEX IF NOT EXISTS idx_cueuser_email ON cueuser(email);
+CREATE INDEX IF NOT EXISTS idx_cueuser_cueusername ON cueuser(cueusername);
+
+-- Index for quickly finding a user's keys
+CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
+
+-- --- CHANGE: Replaced partial constraint with a partial UNIQUE INDEX ---
+-- This enforces that a user can only have one application in the 'pending' state at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_pending_application ON user_application(user_id) WHERE (status = 'pending');
+
+-- Index for admins listing applications by group and status
+CREATE INDEX IF NOT EXISTS idx_user_application_ngroup_status ON user_application(ngroup_id, status);
+
+-- Indexes for common foreign key lookups to speed up JOINs
+CREATE INDEX IF NOT EXISTS idx_file_collection_id ON file(collection_id);
+CREATE INDEX IF NOT EXISTS idx_collection_provider_id ON collection(provider_id);
+CREATE INDEX IF NOT EXISTS idx_provider_ngroup_id ON provider(ngroup_id);

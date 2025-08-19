@@ -1,31 +1,36 @@
-from pydantic import BaseModel, UUID4
-from typing import Tuple, Optional
+# ==============================================================================
+# File: src/python/api/v2/type_util/ngroup.py (Final)
+# Purpose: Defines Pydantic models for the v2 ngroup management endpoints.
+# ==============================================================================
+from pydantic import BaseModel
+from typing import Optional
 from uuid import UUID
 
-class NgroupCreate(BaseModel):
-    id: Optional[UUID] = None
+class NgroupBase(BaseModel):
+    """Base model for ngroup data."""
     short_name: str
     long_name: str
 
-class NgroupReturn(NgroupCreate):
-    id: UUID
-
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "NgroupReturn":
-        """Factory function to create an NgroupReturn instance from a database row."""
-        id, short_name, long_name = row
-        return cls(id=id, short_name=short_name, long_name=long_name)
+class NgroupCreate(NgroupBase):
+    """Model for creating a new ngroup."""
+    pass
 
 class NgroupUpdate(BaseModel):
+    """Model for updating an existing ngroup. All fields are optional."""
     short_name: Optional[str] = None
     long_name: Optional[str] = None
 
+class NgroupResponse(NgroupBase):
+    """Model for returning a full ngroup object from the API."""
+    id: UUID
 
-class NgroupListReturn(BaseModel):
+    class Config:
+        from_attributes = True
+
+class NgroupListResponse(BaseModel):
+    """A simplified model for listing ngroups, used for forms."""
     id: UUID
     short_name: str
 
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "NgroupListReturn":
-        id, short_name, _ = row #We ignore long_name, we don't need it.
-        return cls(id=id, short_name=short_name)
+    class Config:
+        from_attributes = True

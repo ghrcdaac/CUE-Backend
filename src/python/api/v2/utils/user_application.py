@@ -1,8 +1,6 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/user_application.py (Fixed)
+# File: src/python/api/v2/utils/user_application.py (Final)
 # Purpose: Contains the business logic for the user application workflow.
-# Fix: Ensure all functions that return database records convert them to dicts
-#      before returning, to prevent Pydantic validation errors.
 # ==============================================================================
 from uuid import UUID
 from typing import List, Dict, Any, Optional
@@ -13,6 +11,7 @@ from v2.database_util import user_application as app_db
 from v2.type_util.user_application import UserApplicationCreate, ApplicationStatus, AccountType
 from v2.utils.cueuser import create_new_user
 from v2.utils.auth import KeycloakClient
+# from v2.utils.notification_publisher import publish_event
 
 logger = structlog.get_logger(__name__)
 
@@ -22,29 +21,32 @@ class ApplicationNotFoundError(Exception):
 class ApplicationInvalidStateError(Exception):
     pass
 
-async def submit_application(app_data: UserApplicationCreate) -> Dict[str, Any]:
-    """Submits a new user application."""
+async def submit_application(app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
+    """Submits a new user application and publishes an event."""
     async with get_db_connection() as conn:
-        new_app_record = await app_db.create_user_application(conn, app_data)
-    logger.info("application.submitted", application_id=str(new_app_record['id']))
-    # --- CHANGE: Convert record to dict ---
-    return dict(new_app_record)
+        new_app = await app_db.create_user_application(conn, app_data, user_id)
+    
+    # await publish_event(
+    #     source="com.cue.api",
+    #     detail_type="UserApplicationSubmitted",
+    #     detail={"application_id": str(new_app['id'])}
+    # )
+    
+    logger.info("application.submitted", application_id=str(new_app['id']))
+    return new_app
 
 async def get_application(application_id: UUID) -> Dict[str, Any]:
     """Retrieves a single application."""
     async with get_db_connection() as conn:
-        app_record = await app_db.get_user_application_by_id(conn, application_id)
-    if not app_record:
+        app = await app_db.get_user_application_by_id(conn, application_id)
+    if not app:
         raise ApplicationNotFoundError()
-    # --- CHANGE: Convert record to dict ---
-    return dict(app_record)
+    return app
 
 async def list_applications(ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
     """Lists all applications based on optional filters."""
     async with get_db_connection() as conn:
-        app_records = await app_db.list_user_applications(conn, ngroup_id, status)
-    # --- CHANGE: Convert list of records to list of dicts ---
-    return [dict(record) for record in app_records]
+        return await app_db.list_user_applications(conn, ngroup_id, status)
 
 async def approve_application(application_id: UUID, role_id: UUID, keycloak_client: KeycloakClient) -> Dict[str, Any]:
     """
@@ -71,7 +73,7 @@ async def approve_application(application_id: UUID, role_id: UUID, keycloak_clie
         new_user = await create_new_user(
             email=app_data['email'],
             name=app_data['name'],
-            username=app_data['username'],
+            cueusername=app_data['username'],
             role_id=role_id,
             ngroup_ids=ngroup_ids_to_assign,
             provider_ids=provider_ids_to_assign,
@@ -80,6 +82,13 @@ async def approve_application(application_id: UUID, role_id: UUID, keycloak_clie
         )
         
         await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
+        
+        # await publish_event(
+        #     source="com.cue.api",
+        #     detail_type="UserApplicationApproved",
+        #     detail={"user_id": str(new_user['id'])}
+        # )
+
         logger.info("application.approval.completed", application_id=str(application_id), new_user_id=str(new_user['id']))
         return new_user
 
@@ -93,7 +102,6 @@ async def reject_application(application_id: UUID) -> Dict[str, Any]:
         if app_data['status'] != 'pending':
             raise ApplicationInvalidStateError(f"Application is not in 'pending' state. Current status: {app_data['status']}")
             
-        updated_app_record = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
+        updated_app = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
     logger.info("application.rejection.completed", application_id=str(application_id))
-    # --- CHANGE: Convert record to dict ---
-    return dict(updated_app_record)
+    return updated_app

@@ -1,14 +1,17 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/api_keys.py (New)
+# File: src/python/api/v2/endpoints/api_keys.py (Fixed)
 # Purpose: Provides the REST API endpoints for managing API keys.
+# Fix: Corrected the import path for the User model.
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status
 from uuid import UUID
 from typing import List
 
-from core.security import get_current_user, User
-from ..utils import api_keys as api_key_utils
-from ..type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyInfo
+# --- CHANGE: Corrected imports ---
+from core.security import get_current_user
+from v2.type_util.auth import AuthUser as User # Correctly import the user model
+from v2.utils import api_keys as api_key_utils
+from v2.type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyInfo
 
 router = APIRouter(prefix="/api-keys", tags=["V2 - API Keys"])
 

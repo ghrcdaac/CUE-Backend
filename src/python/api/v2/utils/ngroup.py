@@ -1,110 +1,70 @@
-import uuid
-from asyncpg.pool import Pool
-from lambda_utils.database_util.db_util import query, get_connection_pool
-from lambda_utils.database_util import ngroup as ngroup_db
-from lambda_utils.type_util.ngroup import NgroupCreate, NgroupReturn, NgroupUpdate
-from typing import Optional, List
+# ==============================================================================
+# File: src/python/api/v2/utils/ngroup.py (Final)
+# Purpose: Contains the business logic for ngroup management.
+# Change: Re-introduced the custom NgroupNotFoundError for clear error handling.
+# ==============================================================================
 from uuid import UUID
-import logging
+from typing import List, Optional, Dict, Any
+import structlog
 
-logger = logging.getLogger(__name__)
+from core.db import get_db_connection
+from v2.database_util import ngroup as ngroup_db
+from v2.type_util.ngroup import NgroupCreate, NgroupUpdate
+
+logger = structlog.get_logger(__name__)
 
 class NgroupNotFoundError(Exception):
-    def __init__(self, ngroup_id: Optional[UUID] = None, short_name: str = None, long_name: str = None):
-        super().__init__(f"Ngroup not found with ID: {ngroup_id}, short_name: {short_name}, or long_name: {long_name}")
+    """Custom exception raised when an ngroup is not found."""
+    def __init__(self, ngroup_id: UUID):
         self.ngroup_id = ngroup_id
-        self.short_name = short_name
-        self.long_name = long_name
+        super().__init__(f"Ngroup not found with ID: {ngroup_id}")
 
-async def create_ngroup(ngroup: NgroupCreate) -> NgroupReturn:
+async def create_ngroup(ngroup: NgroupCreate) -> Dict[str, Any]:
     """Creates a new ngroup record."""
-    pool: Pool = await get_connection_pool()
-    try:
-        if ngroup.id is None:
-            ngroup.id = uuid.uuid4()
-        params = (ngroup.id, ngroup.short_name, ngroup.long_name)
-        result = await query(pool, ngroup_db.create_ngroup_in_db, params, row_mapper=NgroupReturn.from_db_row)
-        return result[0]
-    except Exception as e:
-        logger.error(f"Error creating ngroup: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
+    async with get_db_connection() as conn:
+        new_ngroup = await ngroup_db.create_ngroup(conn, ngroup.short_name, ngroup.long_name)
+    logger.info("ngroup.created", ngroup_id=str(new_ngroup['id']))
+    return dict(new_ngroup)
 
-async def get_ngroup_id_by_name(short_name: str = None, long_name: str = None) -> Optional[UUID]:
-    """Retrieves the ngroup ID based on short_name or long_name."""
-    if not short_name and not long_name:
-        raise ValueError("Either short_name or long_name must be provided")
-
-    pool: Pool = await get_connection_pool()
-    params = (short_name, long_name)
-    try:
-        result = await query(pool, ngroup_db.get_ngroup_id_from_db, params)
-        if result:
-            return result
-        else:
-            raise NgroupNotFoundError(short_name=short_name, long_name=long_name)
-    except Exception as e:
-        logger.error(f"Error getting ngroup ID by name: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
-
-async def get_ngroup(ngroup_id: UUID) -> NgroupReturn | None:
+async def get_ngroup(ngroup_id: UUID) -> Dict[str, Any]:
     """Retrieves an ngroup record by its ID."""
-    pool: Pool = await get_connection_pool()
-    params = (ngroup_id,)
-    try:
-        result = await query(pool, ngroup_db.get_ngroup_from_db, params, row_mapper=NgroupReturn.from_db_row)
-        if result:
-            return result[0]
-        else:
-            raise NgroupNotFoundError(ngroup_id=ngroup_id)
-    except Exception as e:
-        logger.error(f"Error getting ngroup: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
+    async with get_db_connection() as conn:
+        ngroup = await ngroup_db.get_ngroup_by_id(conn, ngroup_id)
+    if not ngroup:
+        raise NgroupNotFoundError(ngroup_id=ngroup_id)
+    return dict(ngroup)
 
-async def update_ngroup(ngroup_id: UUID, ngroup_update: NgroupUpdate) -> NgroupReturn | None:
+async def update_ngroup(ngroup_id: UUID, ngroup_update: NgroupUpdate) -> Dict[str, Any]:
     """Updates an existing ngroup record."""
-    pool: Pool = await get_connection_pool()
-    params = (ngroup_id, ngroup_update.short_name, ngroup_update.long_name)
-    try:
-        result = await query(pool, ngroup_db.update_ngroup_in_db, params, row_mapper=NgroupReturn.from_db_row)
-        if result:
-            return result[0]
-        else:
-            raise NgroupNotFoundError(ngroup_id=ngroup_id)
-    except Exception as e:
-        logger.error(f"Error updating ngroup: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
+    update_data = ngroup_update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise ValueError("No update data provided.")
+    
+    async with get_db_connection() as conn:
+        updated_ngroup = await ngroup_db.update_ngroup(conn, ngroup_id, update_data)
+    
+    if not updated_ngroup:
+        raise NgroupNotFoundError(ngroup_id=ngroup_id)
+    
+    logger.info("ngroup.updated", ngroup_id=str(ngroup_id))
+    return dict(updated_ngroup)
 
-async def delete_ngroup(ngroup_id: UUID) -> bool:
+async def delete_ngroup(ngroup_id: UUID):
     """Deletes an ngroup record by its ID."""
-    pool: Pool = await get_connection_pool()
-    params = (ngroup_id,)
-    try:
-        result = await query(pool, ngroup_db.delete_ngroup_from_db, params)
-        if not result:
-            raise NgroupNotFoundError(ngroup_id=ngroup_id)
-        return result
-    except Exception as e:
-        logger.error(f"Error deleting ngroup: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
+    async with get_db_connection() as conn:
+        success = await ngroup_db.delete_ngroup(conn, ngroup_id)
+    if not success:
+        raise NgroupNotFoundError(ngroup_id=ngroup_id)
+    logger.info("ngroup.deleted", ngroup_id=str(ngroup_id))
 
-async def list_ngroups() -> List[NgroupReturn]:
+async def list_ngroups() -> List[Dict[str, Any]]:
     """Retrieves all ngroup records."""
-    pool: Pool = await get_connection_pool()
-    try:
-        results = await query(pool, ngroup_db.list_ngroups_from_db, None, row_mapper=NgroupReturn.from_db_row)
-        return results
-    except Exception as e:
-        logger.error(f"Error listing ngroups: {e}", exc_info=True)
-        raise
-    finally:
-        await pool.close()
+    async with get_db_connection() as conn:
+        records = await ngroup_db.list_ngroups(conn)
+    return [dict(r) for r in records]
+
+async def list_ngroups_for_form() -> List[Dict[str, Any]]:
+    """Retrieves a simplified list of ngroups for forms."""
+    async with get_db_connection() as conn:
+        records = await ngroup_db.list_ngroups_for_form(conn)
+    return [dict(r) for r in records]
