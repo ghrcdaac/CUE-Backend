@@ -68,19 +68,20 @@ async def get_single_application(application_id: UUID):
 @router.post("/{application_id}/approve", response_model=CueUserResponse, dependencies=[Depends(require_privilege("approve_user"))])
 async def approve_application_endpoint(
     application_id: UUID,
-    role_id: UUID = Query(..., description="The ID of the role to assign to the new user."),
-    keycloak_client: KeycloakClient = Depends(get_keycloak_client)
+    role_id: UUID = Query(..., description="The ID of the role to assign to the new user.")
+    # --- CHANGE: Removed the KeycloakClient dependency ---
 ):
     """
-    Approves a user application, creating the user in Keycloak and the local DB.
+    Approves a user application, creating the user in the local CUE database.
     """
     try:
-        created_user = await app_utils.approve_application(application_id, role_id, keycloak_client)
+        created_user = await app_utils.approve_application(application_id, role_id)
         return CueUserResponse.model_validate(created_user)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 @router.post("/{application_id}/reject", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("approve_user"))])
 async def reject_application_endpoint(application_id: UUID):
