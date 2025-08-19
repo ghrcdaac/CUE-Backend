@@ -219,16 +219,20 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
 
 async def list_users(conn: Connection) -> List[Dict[str, Any]]:
     """
-    Fetches a list of all users with their associated roles and ngroups.
+    Fetches a list of all users with their associated roles and ngroups (as objects).
     """
+    # --- CHANGE: Updated jsonb_agg for ngroups to build objects ---
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
             COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
-            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
+            COALESCE(jsonb_agg(DISTINCT jsonb_build_object('id', g.id, 'short_name', g.short_name)) FILTER (WHERE g.id IS NOT NULL), '[]'::jsonb) AS ngroups,
+            COALESCE(jsonb_agg(DISTINCT p.privilege) FILTER (WHERE p.privilege IS NOT NULL), '[]'::jsonb) AS privileges
         FROM cueuser u
         LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
         LEFT JOIN role r ON ur.role_id = r.id
+        LEFT JOIN role_privilege rp ON r.id = rp.role_id
+        LEFT JOIN privilege p ON rp.privilege = p.privilege
         LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
         LEFT JOIN ngroup g ON ug.ngroup_id = g.id
         GROUP BY u.id
