@@ -161,13 +161,20 @@ async def get_user_login_status(user_id: UUID) -> str:
     """
     Checks the database to determine a user's status for the login workflow.
     """
+    logger.info("auth.status.checking", user_id=str(user_id))
     async with get_db_connection() as conn:
+        # 1. Check if the user is fully registered in the cueuser table.
         is_registered = await user_db.user_exists_by_id(conn, user_id)
+        logger.info("auth.status.check.is_registered", result=is_registered)
         if is_registered:
             return "registered"
 
+        # 2. If not registered, check if they have a pending application.
         pending_app = await app_db.get_pending_application_by_user_id(conn, user_id)
+        logger.info("auth.status.check.is_pending", result=(pending_app is not None))
         if pending_app:
             return "pending_approval"
 
+    # 3. If neither of the above, the user is new to the system.
+    logger.info("auth.status.check.is_unregistered", result=True)
     return "unregistered"

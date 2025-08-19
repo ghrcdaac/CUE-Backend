@@ -67,12 +67,36 @@ class OIDCValidator:
             rsa_key = next((key for key in jwks_keys if key["kid"] == kid), None)
             if not rsa_key: raise JOSEError("Public key not found for token")
 
+            # --- CHANGE: Added detailed logging for debugging clock skew ---
+            unverified_claims = jwt.get_unverified_claims(token)
+            token_exp = unverified_claims.get("exp")
+            token_iat = unverified_claims.get("iat")
+            server_time = time.time()
+            leeway = 6000
+
+            logger.info(
+                "token.validation.timestamps",
+                token_expiration_claim=token_exp,
+                token_issued_at_claim=token_iat,
+                server_current_time=int(server_time),
+                leeway_seconds=leeway,
+                token_exp_utc=datetime.fromtimestamp(token_exp, tz=timezone.utc).isoformat() if token_exp else "N/A",
+                server_time_utc=datetime.fromtimestamp(server_time, tz=timezone.utc).isoformat(),
+                time_difference_seconds=int(server_time - token_exp) if token_exp else "N/A"
+            )
+            # --- END CHANGE ---
+
             payload = jwt.decode(
-                token, rsa_key, algorithms=["RS256"], 
-                audience=KEYCLOAK_AUDIENCE, issuer=KEYCLOAK_ISSUER
+                token, 
+                rsa_key, 
+                algorithms=["RS256"], 
+                audience=KEYCLOAK_AUDIENCE, 
+                issuer=KEYCLOAK_ISSUER,
+                options={"leeway": leeway}
             )
             return payload
         except jwt.ExpiredSignatureError:
+            logger.error("token.validation.failed", reason="expired_signature_error", detail="The token has expired according to the validation library.")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is expired")
         except jwt.JWTClaimsError as e:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token claims: {e}")

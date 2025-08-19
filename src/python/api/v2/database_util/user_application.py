@@ -1,11 +1,16 @@
 # ==============================================================================
 # File: src/python/api/v2/database_util/user_application.py (Final)
 # Purpose: Contains all raw SQL queries for managing user applications.
+# Fix: Added explicit type casting in the list_user_applications query to
+#      resolve the IndeterminateDatatypeError.
 # ==============================================================================
 from asyncpg import Connection
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from v2.type_util.user_application import UserApplicationCreate, ApplicationStatus
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 async def create_user_application(conn: Connection, app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
     """Inserts a new user_application record into the database, including the user's Keycloak ID."""
@@ -32,6 +37,7 @@ async def get_pending_application_by_user_id(conn: Connection, user_id: UUID) ->
     """
     query = "SELECT id FROM user_application WHERE user_id = $1 AND status = 'pending';"
     row = await conn.fetchrow(query, user_id)
+    logger.info("db.user_application.check_pending", user_id=str(user_id), application_found=(row is not None))
     return dict(row) if row else None
 
 async def list_user_applications(conn: Connection, ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
@@ -40,12 +46,13 @@ async def list_user_applications(conn: Connection, ngroup_id: Optional[UUID] = N
     conditions = []
     params = []
     
+    # --- CHANGE: Add explicit type casting for parameters ---
     if ngroup_id:
         params.append(ngroup_id)
-        conditions.append(f"ngroup_id = ${len(params) + 1}")
+        conditions.append(f"ngroup_id = ${len(params)}::uuid")
     if status:
         params.append(status.value)
-        conditions.append(f"status = ${len(params) + 1}")
+        conditions.append(f"status = ${len(params)}::application_status")
         
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)

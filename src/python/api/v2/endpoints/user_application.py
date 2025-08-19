@@ -30,7 +30,13 @@ async def submit_user_application(
         new_app = await app_utils.submit_application(application_data, claims.id)
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
+        # ---  Catch the specific error for duplicate applications ---
+        # This is triggered by the UNIQUE index on (user_id, status) WHERE status = 'pending'
+        if "already exists" in str(e):
+             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A pending application for this user already exists.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/", response_model=List[UserApplicationResponse], dependencies=[Depends(require_privilege("approve_user"))])
 async def list_all_applications(
