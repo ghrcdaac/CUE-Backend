@@ -69,6 +69,7 @@ export TF_VAR_client_id="${bamboo_CLIENT_ID}"
 export TF_VAR_client_secret="${bamboo_CLIENT_SECRET}"
 export TF_VAR_lambda_env_vars="${bamboo_LAMBDA_ADDITIONAL_ENV_VARS}"
 export TF_VAR_s3_upload_bucket="${bamboo_S3_UPLOAD_BUCKET}"
+export TF_VAR_cue_staging_bucket="${bamboo_CUE_STAGING_BUCKET}"
 
 # --- Export SES variables for Terraform ---
 export TF_VAR_sender_email="${bamboo_SENDER_EMAIL}"
