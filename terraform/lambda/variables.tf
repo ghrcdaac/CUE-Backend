@@ -135,21 +135,31 @@ variable "email_sender_role_arn" {
 }
 
 variable cue_archive_database_name {
-  description = "name of Athena archive database"
+  description = "Name of Athena archive database"
   type = string
 }
 
 variable cue_archive_bucket {
-  description = "name of archive bucket"
+  description = "Name of archive bucket"
   type = string
 }
 
 variable cue_archive_results_bucket {
-  description = "name of archive bucket"
+  description = "Name of archive bucket"
   type = string
 }
 
 variable cue_infected_file_notification_scheduler_role_arn {
   description = "ARN of the infected file notification scheduler"
-  type = string
+  type        = string
+}
+
+variable "file_transfer_role_arn" {
+  description = "IAM Role ARN for the Notification Manager Lambda."
+  type        = string
+}
+
+variable cue_staging_bucket {
+  description = "Name of the staging bucket" 
+  type        = string
 }

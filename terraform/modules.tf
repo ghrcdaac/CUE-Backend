@@ -8,12 +8,15 @@ module "iam_role" {
   account_id                  = var.account_id
   lambda_execution_policy_arn = var.lambda_execution_policy_arn
   cue_css_scan_sns_arn        = var.cue_css_scan_sns_arn
+  cue_staging_bucket          = var.cue_staging_bucket
 
   sqs_queue_arn             = module.lambda_functions.sqs_queue_arn
   scan_event_lambda_arn     = module.lambda_functions.scan_event_lambda_arn
   event_bus_arn             = module.lambda_functions.event_bus_arn
   email_sender_lambda_arn   = module.lambda_functions.email_sender_lambda_arn
   notification_manager_lambda_arn = module.lambda_functions.notification_manager_lambda_arn
+  file_transfer_lambda_arn  = module.lambda_functions.file_transfer_lambda_arn
+  cue_clean_sqs_queue_arn   = module.lambda_functions.cue_clean_sqs_queue_arn
 }
 
 module "lambda_functions" {
@@ -24,6 +27,7 @@ module "lambda_functions" {
   account_id                  = var.account_id
   lambda_execution_policy_arn = var.lambda_execution_policy_arn
   cue_css_scan_sns_arn        = var.cue_css_scan_sns_arn
+  cue_staging_bucket          = var.cue_staging_bucket
 
   # --- Role ARNs from the iam module ---
   cue_scan_event_role_arn     = module.iam_role.cue_scan_event_role_arn
@@ -31,6 +35,7 @@ module "lambda_functions" {
   notification_manager_role_arn = module.iam_role.notification_manager_role_arn
   email_sender_role_arn       = module.iam_role.email_sender_role_arn
   cue_infected_file_notification_scheduler_role_arn = module.iam_role.cue_infected_file_notification_scheduler_role_arn
+  file_transfer_role_arn      = module.iam_role.file_transfer_role_arn
 
   # --- Database variables ---
   db_host                     = module.rds.db_host

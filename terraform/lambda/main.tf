@@ -32,6 +32,7 @@ resource "aws_lambda_function" "cue_scan_event" {
       POOL_MIN_SIZE = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
       POOL_MAX_SIZE = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "20")
       LOG_LEVEL     = lookup(var.lambda_env_vars, "LOG_LEVEL", "INFO")
+      QUEUE_URL     = aws_sqs_queue.cue_clean_scan_queue.url
     }
   }
 
@@ -110,6 +111,39 @@ resource "aws_lambda_function" "cue_api" {
   }
 }
 
+resource  "aws_lambda_function" "cue_file_transfer"{
+  filename         = "../artifacts/file-transfer-lambda.zip"
+  function_name    = "cue_file_transfer"
+  role             = var.file_transfer_role_arn
+  handler          = "file_transfer.handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  source_code_hash = filesha256("../artifacts/file-transfer-lambda.zip")
+  timeout       = 180
+  environment {
+    variables = {
+      PG_USER           = var.db_user
+      PG_HOST           = var.db_host
+      PG_DB             = var.db_database
+      PG_PASS           = var.db_password
+      PG_PORT           = var.db_port
+      POOL_ID           = var.pool_id
+      CLIENT_ID         = var.client_id
+      CLIENT_SECRET     = var.client_secret
+      POOL_MIN_SIZE     = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
+      POOL_MAX_SIZE     = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
+      STAGING_BUCKET    = var.cue_staging_bucket
+      #REDIS_HOST        = aws_elasticache_serverless_cache.cue_egress_cache.endpoint[0].address
+      #REDIS_PORT        = aws_elasticache_serverless_cache.cue_egress_cache.endpoint[0].port
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
+
 # --- Triggers, Events, and other resources ---
 
 # RESTORED: This trigger now correctly points from SQS directly to the cue_scan_event Lambda.
@@ -177,6 +211,15 @@ resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_ma
   function_name = aws_lambda_function.notification_manager.function_name
   principal     = "scheduler.amazonaws.com"
   source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
+}
+
+resource "aws_lambda_event_source_mapping" "clean_scan_queue_to_transfer_lambda" {
+  event_source_arn = aws_sqs_queue.cue_clean_scan_queue.arn
+  function_name = aws_lambda_function.cue_file_transfer.function_name
+  batch_size = 100
+  # Set maximum matching window to maximum to target larger batches
+  maximum_batching_window_in_seconds = 300
+  function_response_types  = ["ReportBatchItemFailures"] 
 }
 
 # --- Logging ---

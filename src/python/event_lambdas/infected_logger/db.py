@@ -59,3 +59,12 @@ async def upsert_scan_status_in_database(conn: Connection, file_id: UUID, update
     except Exception as e:
         logger.error(f"An unexpected error occurred during database operation for {file_id}: {e}", exc_info=True)
         raise
+
+async def get_collection_id(conn: Connection, file_id: UUID) -> UUID:
+    query = "SELECT f.collection_id FROM file f where id = $1"
+    try:
+        result = await conn.fetchval(query, file_id)
+        return UUID(str(result))
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while retrieving the collection for {file_id}: {e}", exc_info=True)
+        raise

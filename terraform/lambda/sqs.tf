@@ -47,3 +47,33 @@ resource "aws_sqs_queue_policy" "scan_results_queue_policy" {
     ]
   })
 }
+
+resource "aws_sqs_queue" "cue_clean_scan_queue" {
+  name = "cue-clean-scan-queue"
+  # Recommended to set visibility to 6 times lambda timeout to give extra time to retry
+  # if function is throttled while processing previous batch
+  visibility_timeout_seconds = 181 
+}
+
+resource "aws_sqs_queue" "cue_clean_scan_dlq" {
+  name = "cue-clean-scan-dlq"
+  # Retain message for 14 days for inspection
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue_redrive_policy" "cue_clean_scan_queue_redrive_policy" {
+  queue_url = aws_sqs_queue.cue_clean_scan_queue.id
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.cue_clean_scan_dlq.arn
+    # Retry message 5 times before moving to dlq
+    maxReceiveCount     = 5 
+  })
+}
+
+resource "aws_sqs_queue_redrive_allow_policy" "clean_scan_redrive_allow_policy"{
+  queue_url = aws_sqs_queue.cue_clean_scan_dlq.id
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue",
+    sourceQueueArns   = [aws_sqs_queue.cue_clean_scan_queue.arn]
+  })
+}

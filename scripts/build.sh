@@ -16,6 +16,7 @@ create_dependency_zip
 install_lambda infected-logger
 install_lambda notification-manager
 install_lambda email-sender
+install_lambda file-transfer
 
 # Cleanup
 remove_temp

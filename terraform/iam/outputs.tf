@@ -18,9 +18,13 @@ output "email_sender_role_arn" {
   value       = aws_iam_role.email_sender_role.arn
 }
 
+output "file_transfer_role_arn" {
+  description = "ARN for the File Transfer Lambda Role"
+  value = aws_iam_role.file_transfer_role.arn
+}
+
 output "cue_glue_job_role_arn" {
   value = aws_iam_role.cue_glue_job_role.arn
-
 }
 
 output "cue_archive_api_lambda_role_arn"{

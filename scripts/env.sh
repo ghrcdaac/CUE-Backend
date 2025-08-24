@@ -30,4 +30,5 @@ export bamboo_GLUE_AVAILABILITY_ZONE="availabilityZoneForVPC"
 export bamboo_GLUE_SUBNET_ID="SubnetIDForVPC"
 export bamboo_CUE_ARCHIVE_DATABASE_NAME="your-archive-database-name"
 export bamboo_S3_ARCHIVE_RESULTS_BUCKET="your-archive-results-bucket"
+export bamboo_CUE_STAGING_BUCKET="your-staging-bucket"
 

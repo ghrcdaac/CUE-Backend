@@ -145,12 +145,11 @@ resource "aws_iam_policy" "cue_crawler_policy" {
 resource "aws_iam_role_policy_attachment" "cue_crawler_role_attach" {
   role = aws_iam_role.cue_crawler_role.name 
   policy_arn = aws_iam_policy.cue_crawler_policy.arn
-
 }
 
 # Eventbridge scheduler Role
 resource "aws_iam_role" "infected_file_notification_scheduler_role" {
-  name = "CUEInfectedFileSchedulerRole" 
+  name               = "CUEInfectedFileSchedulerRole" 
   assume_role_policy = file("${path.module}/cue_infected_notification_scheduler_assume_role.json")
 }
 
@@ -158,4 +157,22 @@ resource "aws_iam_role_policy" "infected_file_notification_scheduler_role" {
   name       = "CUEInfectedFileSchedulerPolicy"
   role       = aws_iam_role.infected_file_notification_scheduler_role.id
   policy     = data.aws_iam_policy_document.infected_notification_scheduler_policy.json
+}
+
+# File Transfer Role
+
+resource "aws_iam_role" "file_transfer_role"{
+  name               = "CUEFileTransferRole"
+  assume_role_policy =  file("${path.module}/cue_scan_event_assume_role.json")
+}
+
+resource "aws_iam_role_policy_attachment" "file_transfer_vpc" {
+  role       = aws_iam_role.file_transfer_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "file_transfer_policy" {
+  name       = "CUEFileTransferPolicy"
+  role       = aws_iam_role.file_transfer_role.id
+  policy     = data.aws_iam_policy_document.file_transfer_policy.json
 }

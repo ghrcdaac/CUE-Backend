@@ -88,7 +88,6 @@ variable "metric_retention_period_name" {
 }
 
 variable "glue_availability_zone" {
-
     type = string
 }
 
@@ -104,3 +103,6 @@ variable "cue_archive_results_bucket" {
     type = string
 } 
 
+variable "cue_staging_bucket" {
+    type = string
+}

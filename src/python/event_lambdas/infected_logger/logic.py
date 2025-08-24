@@ -4,19 +4,23 @@ import logging
 import boto3
 import asyncio
 import socket # Import the socket library for network testing
+import os
 
+from uuid import UUID
 from asyncpg.pool import Pool
-from .db import upsert_scan_status_in_database
+from .db import upsert_scan_status_in_database, get_collection_id
 from .model import ScanResultMessage
 
 logger = logging.getLogger(__name__)
 eventbridge_client = boto3.client('events')
+sqs_client = boto3.client('sqs')
 
 STATUS_MAP = {
     "Clean": "clean",
     "Infected": "infected"
 }
 DEFAULT_STATUS = "scan_failed"
+QUEUE_URL = os.environ.get("QUEUE_URL")
 
 
 async def perform_network_diagnostics():
@@ -71,6 +75,19 @@ async def publish_infected_file_event(scan_details: ScanResultMessage):
     except Exception as e:
         logger.error(f"Failed to publish event to EventBridge for key {scan_details.key}: {e}", exc_info=True)
 
+async def send_clean_file_message(file_id:UUID, collection_id:UUID) -> None:
+    """Send a message to the clean file SQS queue for a file"""
+    try:
+        response = sqs_client.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=f'{{"file_id":"{file_id}", "collection_id":"{collection_id}"}}'
+        )
+        message_id = response.get("MessageId")
+        logger.info(f"MessageId {message_id} for file {file_id}")
+    except Exception as e:
+        logger.error(f"Failed to publish event to SQS queue for {file_id}: {e}")
+        raise
+
 
 async def process_scan_result(message: ScanResultMessage, db_pool: Pool) -> None:
     """
@@ -95,6 +112,10 @@ async def process_scan_result(message: ScanResultMessage, db_pool: Pool) -> None
         async with db_pool.acquire() as conn:
             async with conn.transaction():
                 await upsert_scan_status_in_database(conn, file_id, update_data)
+            if status == 'clean':
+                collection_id = await get_collection_id(conn, file_id)
+                if collection_id:
+                    await send_clean_file_message(file_id, collection_id)
         
         # Only attempt to publish the event if the file was infected
         if status == 'infected':

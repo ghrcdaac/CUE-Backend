@@ -41,3 +41,17 @@ variable "notification_manager_lambda_arn" {
   description = "The ARN of the notification_manger Lambda function"
   type        = string
 }
+
+variable "cue_staging_bucket" {
+  description = "The CUE Staging bucket"
+  type        = string
+}
+
+variable "file_transfer_lambda_arn" {
+  description = "The ARN of the file transfer Lambda function"
+  type        = string
+}
+variable "cue_clean_sqs_queue_arn" {
+  description = "The ARN of the clean file sqs queue arn"
+  type        = string
+}
