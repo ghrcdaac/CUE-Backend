@@ -1,33 +1,33 @@
-from pydantic import BaseModel
-from typing import Optional, Tuple, List
-from uuid import UUID
-from .file import FileReturn
+# File: src/python/api/v2/type_util/collection.py
 
+from pydantic import BaseModel, Field
+from typing import Optional
+from uuid import UUID
 
 class CollectionBase(BaseModel):
+    """Base model for collection data."""
     short_name: str
-    active: Optional[bool] = False
+    active: bool = False
 
 class CollectionCreate(CollectionBase):
-    ngroup_id: UUID
-    egress_id: UUID
+    """Model for creating a new collection."""
     provider_id: UUID
+    egress_id: UUID
+    # Ngroup_id is not included here as it will be inferred from the user's session.
 
-class PaginatedFiles(BaseModel):
-    files: List[FileReturn]
-    total_count: int
-
-class CollectionUpdate(CollectionBase):
+class CollectionUpdate(BaseModel):
+    """Model for updating a collection. All fields are optional."""
     short_name: Optional[str] = None
     active: Optional[bool] = None
+    provider_id: Optional[UUID] = None
+    egress_id: Optional[UUID] = None
 
-class CollectionReturn(CollectionBase):
+class CollectionResponse(CollectionBase):
+    """Model for returning a full collection object from the API."""
     id: UUID
     ngroup_id: UUID
-    egress_id: UUID
     provider_id: UUID
+    egress_id: UUID
 
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "CollectionReturn":
-        id, ngroup_id, egress_id, short_name, provider_id, active = row
-        return cls(id=id, ngroup_id=ngroup_id, egress_id=egress_id, short_name=short_name, provider_id=provider_id, active=active)
+    class Config:
+        from_attributes = True
