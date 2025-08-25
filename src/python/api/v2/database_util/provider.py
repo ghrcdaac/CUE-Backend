@@ -1,7 +1,5 @@
-# ==============================================================================
-# File: src/python/api/v2/database_util/provider.py (Final)
-# Purpose: Contains all raw SQL queries for provider management.
-# ==============================================================================
+# File: src/python/api/v2/database_util/provider.py (Updated)
+
 from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -52,7 +50,12 @@ async def update_provider(conn: Connection, provider_id: UUID, update_data: Dict
         logger.error("db.provider.update.failed_fk", error=str(e))
         raise ValueError("The specified point_of_contact does not exist.") from e
 
+
 async def delete_provider(conn: Connection, provider_id: UUID) -> bool:
     """Deletes a provider record from the database by its ID."""
-    result = await conn.execute("DELETE FROM provider WHERE id = $1", provider_id)
-    return result.strip() == "DELETE 1"
+    try:
+        result = await conn.execute("DELETE FROM provider WHERE id = $1", provider_id)
+        return result.strip() == "DELETE 1"
+    except ForeignKeyViolationError as e:
+        logger.warning("db.provider.delete.failed_fk", provider_id=str(provider_id), error=str(e))
+        raise ValueError("Cannot delete this provider because it is still linked to one or more collections.") from e
