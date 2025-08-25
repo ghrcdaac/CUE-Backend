@@ -106,16 +106,17 @@ CREATE TABLE IF NOT EXISTS cueuser_role (
 );
 
 CREATE TABLE IF NOT EXISTS privilege (
+    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
     privilege VARCHAR NOT NULL,
-    PRIMARY KEY (privilege),
+    PRIMARY KEY (id),
     UNIQUE (privilege)
 );
 
-CREATE TABLE IF NOT EXISTS role_privilege(
-    privilege VARCHAR NOT NULL,
+CREATE TABLE IF NOT EXISTS role_privilege(   
+    privilege_id UUID NOT NULL,
     role_id UUID NOT NULL,
-    PRIMARY KEY (privilege, role_id),
-    FOREIGN KEY (privilege) REFERENCES privilege(privilege) ON DELETE CASCADE,
+    PRIMARY KEY (privilege_id, role_id),
+    FOREIGN KEY (privilege_id) REFERENCES privilege(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
 );
 

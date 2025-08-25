@@ -106,12 +106,13 @@ async def update_user_endpoint(user_id: UUID, update_request: UserUpdateRequest)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("admin"))])
-async def delete_user_endpoint(
-    user_id: UUID,
-    keycloak_client: KeycloakClient = Depends(get_keycloak_client)
-):
-    """Deletes a user from Keycloak and the local database."""
+async def delete_user_endpoint(user_id: UUID):
+    """
+    Deletes a user from the local CUE database. Requires 'admin' privilege.
+    This operation does NOT delete the user from Keycloak.
+    """
     try:
-        await cueuser_utils.delete_user_fully(user_id, keycloak_client)
-    except cueuser_utils.UserNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        # --- The KeycloakClient dependency is no longer needed here ---
+        await cueuser_utils.delete_user_fully(user_id)
+    except cueuser_utils.UserNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

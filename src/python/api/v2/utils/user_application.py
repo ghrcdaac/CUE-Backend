@@ -11,7 +11,7 @@ from v2.database_util import user_application as app_db
 from v2.database_util import cueuser as user_db # Needed for direct DB operations
 from v2.type_util.user_application import UserApplicationCreate, ApplicationStatus, AccountType
 from v2.utils.cueuser import get_user_profile # We still need this to return the full user
-
+from asyncpg.exceptions import UniqueViolationError, ForeignKeyViolationError
 # from v2.utils.notification_publisher import publish_event
 
 logger = structlog.get_logger(__name__)
@@ -55,48 +55,50 @@ async def approve_application(application_id: UUID, role_id: UUID) -> Dict[str, 
     and publishes an approval event.
     """
     logger.info("application.approval.started", application_id=str(application_id))
-    async with get_db_connection() as conn:
-        app_data = await app_db.get_user_application_by_id(conn, application_id)
-        if not app_data:
-            raise ApplicationNotFoundError()
-        if app_data['status'] != 'pending':
-            raise ApplicationInvalidStateError(f"Application is not in 'pending' state.")
+    try:
+        async with get_db_connection() as conn:
+            app_data = await app_db.get_user_application_by_id(conn, application_id)
+            if not app_data:
+                raise ApplicationNotFoundError()
+            if app_data['status'] != 'pending':
+                raise ApplicationInvalidStateError(f"Application is not in 'pending' state.")
 
-        user_id = app_data['user_id']
-        if not user_id:
-            raise ValueError("Application is missing the required user_id from Keycloak.")
+            user_id = app_data['user_id']
+            if not user_id:
+                raise ValueError("Application is missing the required user_id from Keycloak.")
 
-        # --- CHANGE: Perform user creation directly in the database ---
-        async with conn.transaction():
-            # 1. Create the user in the cueuser table
-            await user_db.create_user(
-                conn, user_id, app_data['email'], app_data['name'], 
-                app_data['username'], app_data['edpub_id']
-            )
-            # 2. Assign the selected role
-            await user_db.assign_role_to_user(conn, user_id, role_id)
-            
-            # 3. Assign ngroup and/or provider
-            if app_data['account_type'] == AccountType.DAAC.value:
-                await user_db.assign_ngroups_to_user(conn, user_id, [app_data['ngroup_id']])
-            elif app_data['account_type'] == AccountType.PROVIDER.value:
-                await user_db.assign_ngroups_to_user(conn, user_id, [app_data['ngroup_id']])
-                await user_db.assign_providers_to_user(conn, user_id, [app_data['provider_id']])
-            
-            # 4. Update the application status
-            await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
+            async with conn.transaction():
+                await user_db.create_user(
+                    conn, user_id, app_data['email'], app_data['name'], 
+                    app_data['username'], app_data['edpub_id']
+                )
+                await user_db.assign_role_to_user(conn, user_id, role_id)
+                
+                if app_data['account_type'] == AccountType.DAAC.value:
+                    await user_db.assign_ngroups_to_user(conn, user_id, [app_data['ngroup_id']])
+                elif app_data['account_type'] == AccountType.PROVIDER.value:
+                    await user_db.assign_ngroups_to_user(conn, user_id, [app_data['ngroup_id']])
+                    await user_db.assign_providers_to_user(conn, user_id, [app_data['provider_id']])
+                
+                await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
 
-    # Fetch the full profile of the newly created user to return to the frontend
-    new_user_profile = await get_user_profile(user_id)
+        new_user_profile = await get_user_profile(user_id)
 
-    # await publish_event(
-    #     source="com.cue.api",
-    #     detail_type="UserApplicationApproved",
-    #     detail={"user_id": str(user_id)}
-    # )
+        # await publish_event(
+        #     source="com.cue.api",
+        #     detail_type="UserApplicationApproved",
+        #     detail={"user_id": str(user_id)}
+        # )
 
-    logger.info("application.approval.completed", application_id=str(application_id), new_user_id=str(user_id))
-    return new_user_profile
+        logger.info("application.approval.completed", application_id=str(application_id), new_user_id=str(user_id))
+        return new_user_profile
+        
+    except (UniqueViolationError, ForeignKeyViolationError) as e:
+        logger.error("application.approval.db_error", application_id=str(application_id), error=str(e))
+        raise ValueError("Failed to approve application. The user may already exist, or an invalid role/group was provided.")
+    except Exception as e:
+        logger.error("application.approval.failed", application_id=str(application_id), exc_info=True)
+        raise e
 
 async def reject_application(application_id: UUID) -> Dict[str, Any]:
     """Rejects a pending user application."""

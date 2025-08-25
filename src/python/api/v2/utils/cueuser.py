@@ -125,15 +125,20 @@ async def get_users_by_role(role_id: UUID) -> List[Dict[str, Any]]:
         users_data = await user_db.list_users_by_role(conn, role_id)
     return [dict(user) for user in users_data]
 
-async def delete_user_fully(user_id: UUID, keycloak_client: KeycloakClient):
-    """Deletes a user from the local DB (with associations) and Keycloak."""
+async def delete_user_fully(user_id: UUID):
+    """
+    Deletes a user and all their associations from the local CUE database.
+    This no longer interacts with Keycloak.
+    """
     async with get_db_connection() as conn:
-        await user_db.remove_all_user_associations(conn, user_id)
-        deleted_in_db = await user_db.delete_user(conn, user_id)
-        if not deleted_in_db:
-            raise UserNotFoundError()
+        # The transaction ensures that if any deletion fails, all are rolled back.
+        async with conn.transaction():
+            await user_db.remove_all_user_associations(conn, user_id)
+            deleted_in_db = await user_db.delete_user(conn, user_id)
+            if not deleted_in_db:
+                raise UserNotFoundError(f"User with ID {user_id} not found.")
     
-    await keycloak_client.delete_user(user_id)
+    logger.info("user.deleted_locally", user_id=str(user_id))
 
 async def update_user_details(user_id: UUID, update_request: UserUpdateRequest) -> Dict[str, Any]:
     """Updates a user's core details."""
