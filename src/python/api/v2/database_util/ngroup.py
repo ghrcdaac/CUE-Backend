@@ -54,3 +54,11 @@ async def list_ngroups(conn: Connection) -> List[Dict[str, Any]]:
 async def list_ngroups_for_form(conn: Connection) -> List[Dict[str, Any]]:
     """Retrieves a simplified list of ngroups (id, short_name) for forms."""
     return await conn.fetch("SELECT id, short_name FROM ngroup ORDER BY short_name;")
+
+async def list_all_ngroup_ids(conn: Connection) -> List[UUID]:
+    """
+    Fetches a list of all ngroup IDs from the database.
+    This is used when creating a security user to grant them access to all groups.
+    """
+    records = await conn.fetch("SELECT id FROM ngroup;")
+    return [record['id'] for record in records]
