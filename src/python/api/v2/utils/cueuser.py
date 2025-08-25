@@ -1,7 +1,5 @@
-# ==============================================================================
-# File: src/python/api/v2/utils/cueuser.py (Final)
-# Purpose: Contains the business logic for user management.
-# ==============================================================================
+# File: src/python/api/v2/utils/cueuser.py (Updated)
+
 from uuid import UUID
 from typing import Dict, Any, List, Optional
 import structlog
@@ -10,7 +8,7 @@ import json
 from core.db import get_db_connection
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db 
-from v2.utils.auth import KeycloakClient
+# --- REMOVED: from v2.utils.auth import KeycloakClient ---
 from v2.type_util.cueuser import UserUpdateRequest
 
 logger = structlog.get_logger(__name__)
@@ -19,63 +17,50 @@ class UserNotFoundError(Exception):
     pass
 
 def _parse_user_data(user_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Helper function to parse JSON string fields from the DB into Python lists.
-    The asyncpg driver can return json/jsonb columns as strings.
-    """
+    """Helper function to parse JSON string fields from the DB into Python lists."""
     if not user_data:
         return None
     
     parsed_data = dict(user_data)
     
-    # --- Restore JSON parsing for fields returned as strings from the DB ---
     for key in ["roles", "ngroups", "privileges"]:
         if isinstance(parsed_data.get(key), str):
             try:
                 parsed_data[key] = json.loads(parsed_data[key])
             except json.JSONDecodeError:
                 logger.warning("db.json.parse_error", field=key, value=parsed_data[key])
-                # Default to an empty list if parsing fails
                 parsed_data[key] = []
-        
     return parsed_data
 
+# --- CHANGE: Rewritten to remove Keycloak interaction ---
 async def create_new_user(
-    email: str, name: str, cueusername: str, role_id: UUID,
-    keycloak_client: KeycloakClient,
+    user_id: UUID, email: str, name: str, cueusername: str, role_id: UUID,
     edpub_id: Optional[str] = None,
     ngroup_ids: Optional[List[UUID]] = None,
     provider_ids: Optional[List[UUID]] = None
 ) -> Dict[str, Any]:
-    """Orchestrates creating a user in Keycloak and the local database."""
+    """Orchestrates creating a user in the local database."""
     if not ngroup_ids and not provider_ids:
         raise ValueError("User must be associated with at least one ngroup or provider.")
 
-    keycloak_user_id_str: Optional[str] = None
-    try:
-        name_parts = name.strip().split()
-        first_name = name_parts[0] if name_parts else ""
-        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-        
-        keycloak_user_id_str = await keycloak_client.create_user(email, cueusername, first_name, last_name)
-        keycloak_user_id = UUID(keycloak_user_id_str)
+    async with get_db_connection() as conn:
+        async with conn.transaction():
+            # First, check if a user with this ID already exists in our database
+            exists = await user_db.user_exists_by_id(conn, user_id)
+            if exists:
+                raise ValueError(f"User with ID {user_id} already exists in the CUE database.")
 
-        async with get_db_connection() as conn:
-            async with conn.transaction():
-                await user_db.create_user(conn, keycloak_user_id, email, name, cueusername, edpub_id)
-                await user_db.assign_role_to_user(conn, keycloak_user_id, role_id)
-                if ngroup_ids:
-                    await user_db.assign_ngroups_to_user(conn, keycloak_user_id, ngroup_ids)
-                if provider_ids:
-                    await user_db.assign_providers_to_user(conn, keycloak_user_id, provider_ids)
-        
-        return await get_user_profile(keycloak_user_id)
-
-    except Exception as e:
-        if keycloak_user_id_str:
-            logger.error("db_create.failed.rolling_back_keycloak", error=str(e), keycloak_id=keycloak_user_id_str)
-            await keycloak_client.delete_user(UUID(keycloak_user_id_str))
-        raise e
+            # Create the user and their associations
+            await user_db.create_user(conn, user_id, email, name, cueusername, edpub_id)
+            await user_db.assign_role_to_user(conn, user_id, role_id)
+            if ngroup_ids:
+                await user_db.assign_ngroups_to_user(conn, user_id, ngroup_ids)
+            if provider_ids:
+                await user_db.assign_providers_to_user(conn, user_id, provider_ids)
+    
+    logger.info("user.created_locally", user_id=str(user_id))
+    # Fetch the full profile to return
+    return await get_user_profile(user_id)
 
 async def get_user_profile(user_id: UUID) -> Dict[str, Any]:
     """
@@ -100,7 +85,6 @@ async def list_users() -> List[Dict[str, Any]]:
     """Retrieves a list of all users."""
     async with get_db_connection() as conn:
         users_data = await user_db.list_users(conn)
-        print(users_data)
     return [_parse_user_data(user) for user in users_data]
 
 async def get_user_profile_by_username(cueusername: str) -> Dict[str, Any]:
@@ -126,12 +110,8 @@ async def get_users_by_role(role_id: UUID) -> List[Dict[str, Any]]:
     return [dict(user) for user in users_data]
 
 async def delete_user_fully(user_id: UUID):
-    """
-    Deletes a user and all their associations from the local CUE database.
-    This no longer interacts with Keycloak.
-    """
+    """Deletes a user and all their associations from the local CUE database."""
     async with get_db_connection() as conn:
-        # The transaction ensures that if any deletion fails, all are rolled back.
         async with conn.transaction():
             await user_db.remove_all_user_associations(conn, user_id)
             deleted_in_db = await user_db.delete_user(conn, user_id)
