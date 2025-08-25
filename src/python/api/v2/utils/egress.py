@@ -1,94 +1,61 @@
+# File: src/python/api/v2/utils/egress.py
+
 from uuid import UUID
-from typing import List, Optional
-from asyncpg.pool import Pool
+from typing import List, Dict, Any
+import structlog
 
-from lambda_utils.database_util.db_util import query, get_connection_pool
-from lambda_utils.database_util import egress as egress_db
-from v2.utils.ngroup import get_ngroup, NgroupNotFoundError 
-from lambda_utils.type_util.egress import EgressCreate, EgressReturn, EgressUpdate
+from core.db import get_db_connection
+from v2.database_util import egress as egress_db
+from v2.type_util.egress import EgressCreate, EgressUpdate
 
-# Custom exception for consistent error handling
+logger = structlog.get_logger(__name__)
+
 class EgressNotFoundError(Exception):
-    def __init__(self, egress_id: UUID = None, ngroup_id: UUID = None):
-        if egress_id and ngroup_id:
-            message = f"Egress not found with ID: {egress_id} and ngroup_id: {ngroup_id}"
-        elif egress_id:
-            message = f"Egress not found with ID: {egress_id}"
-        else:
-            message = "Egress not found"
-        super().__init__(message)
-        self.egress_id = egress_id
-        self.ngroup_id = ngroup_id
+    """Custom exception raised when an egress target is not found."""
+    pass
 
-async def create_egress(egress: EgressCreate) -> EgressReturn:
+async def create_egress(egress: EgressCreate, ngroup_id: UUID) -> Dict[str, Any]:
     """Creates a new egress record."""
-    try:
-        # Validate ngroup existence (still needed for creation)
-        await get_ngroup(egress.ngroup_id)  # Raises NgroupNotFoundError if not found
-    except NgroupNotFoundError:
-        raise ValueError(f"Ngroup with ID '{egress.ngroup_id}' not found")
+    async with get_db_connection() as conn:
+        new_egress = await egress_db.create_egress(
+            conn, egress.type, egress.path, egress.config, ngroup_id
+        )
+    logger.info("egress.created", egress_id=str(new_egress['id']))
+    return dict(new_egress)
 
-    pool: Pool = await get_connection_pool()
-    params = (egress.type, egress.path, egress.config, egress.ngroup_id)
-    try:
-        result = await query(pool, egress_db.create_egress_in_db, params, row_mapper=EgressReturn.from_db_row)
-        return result[0]
-    except Exception as e:
-        raise ValueError(f"Failed to create egress: {e}")
-    finally:
-        await pool.close()
+async def get_egress(egress_id: UUID) -> Dict[str, Any]:
+    """Retrieves an egress record by its ID."""
+    async with get_db_connection() as conn:
+        egress = await egress_db.get_egress_by_id(conn, egress_id)
+    if not egress:
+        raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
+    return dict(egress)
 
-async def get_egress(egress_id: UUID, ngroup_id: UUID) -> EgressReturn | None:
-    """Retrieves an egress record by its ID, filtered by ngroup_id."""
-    pool: Pool = await get_connection_pool()
-    params = (egress_id, ngroup_id)  # Include ngroup_id
-    try:
-        result = await query(pool, egress_db.get_egress_from_db, params, row_mapper=EgressReturn.from_db_row)
-        return result[0] if result else None  # Return None if not found
-    except Exception as e:
-        raise ValueError(f"Failed to get egress: {e}")
-    finally:
-        await pool.close()
+async def list_egresses(ngroup_id: UUID) -> List[Dict[str, Any]]:
+    """Retrieves all egress records for a specific ngroup."""
+    async with get_db_connection() as conn:
+        records = await egress_db.list_egresses_by_ngroup(conn, ngroup_id)
+    return [dict(r) for r in records]
 
-async def update_egress(egress_id: UUID, egress_update: EgressUpdate) -> EgressReturn | None:
+async def update_egress(egress_id: UUID, egress_update: EgressUpdate) -> Dict[str, Any]:
     """Updates an existing egress record."""
-    pool: Pool = await get_connection_pool()
-    update_fields = {
-        k: v for k, v in egress_update.model_dump().items() if v is not None
-    }
-    if not update_fields:  # No update fields provided
-        return await get_egress(egress_id) #No need to check for ngroup for just checking the update
+    update_data = egress_update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise ValueError("No update data provided.")
+    
+    async with get_db_connection() as conn:
+        updated_egress = await egress_db.update_egress(conn, egress_id, update_data)
+    
+    if not updated_egress:
+        raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
+    
+    logger.info("egress.updated", egress_id=str(egress_id))
+    return dict(updated_egress)
 
-    params = (update_fields, egress_id)
-    try:
-        result = await query(pool, egress_db.update_egress_in_db, params, row_mapper=EgressReturn.from_db_row)
-        return result[0] if result else None # Return None if not found
-    except Exception as e:
-        raise ValueError(f"Failed to update egress: {e}")
-    finally:
-        await pool.close()
-
-async def list_egresses(ngroup_id: UUID) -> List[EgressReturn]:
-    """Retrieves all egress records, filtered by ngroup_id."""
-    pool: Pool = await get_connection_pool()
-    params = (ngroup_id,)  # Pass ngroup_id as a tuple
-    try:
-        results = await query(pool, egress_db.list_egresses_from_db, params, row_mapper=EgressReturn.from_db_row)
-        return results
-    except Exception as e:
-        raise ValueError(f"Failed to list egresses: {e}")
-    finally:
-        await pool.close()
-
-async def delete_egress(egress_id: UUID, ngroup_id: UUID) -> bool:
-    """Deletes an egress record by its ID, filtered by ngroup_id."""
-    pool: Pool = await get_connection_pool()
-    params = (egress_id, ngroup_id)  # Include ngroup_id
-    try:
-        result = await query(pool, egress_db.delete_egress_from_db, params)
-        return result  # Return True if deleted, False otherwise
-    except Exception as e:
-        print(f"Error deleting egress: {e}")
-        return False  # Consistent return type
-    finally:
-        await pool.close()
+async def delete_egress(egress_id: UUID):
+    """Deletes an egress record by its ID."""
+    async with get_db_connection() as conn:
+        success = await egress_db.delete_egress(conn, egress_id)
+    if not success:
+        raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
+    logger.info("egress.deleted", egress_id=str(egress_id))

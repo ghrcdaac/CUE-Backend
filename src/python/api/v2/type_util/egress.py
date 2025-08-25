@@ -1,27 +1,29 @@
-from pydantic import BaseModel, UUID4, field_validator
-from typing import Dict, Any, Tuple
-from uuid import UUID
-import json
+# File: src/python/api/v2/type_util/egress.py
 
-class EgressCreate(BaseModel):
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+from uuid import UUID
+
+class EgressBase(BaseModel):
+    """Base model for egress data."""
     type: str
     path: str
-    config: Dict[str, Any]
-    ngroup_id: UUID
+    config: Dict[str, Any] = Field(default_factory=dict)
 
-class EgressReturn(EgressCreate):
-    id: UUID4
-
-    @classmethod
-    def from_db_row(cls, row: Tuple) -> "EgressReturn":
-        """Factory function to create an EgressReturn instance from a database row."""
-        id, type, path, config_str, ngroup_id = row
-        # Parse the JSON string back into a dictionary
-        config = json.loads(config_str)
-        return cls(id=id, type=type, path=path, config=config, ngroup_id=ngroup_id)
+class EgressCreate(EgressBase):
+    """Model for creating a new egress target. Ngroup is handled by the endpoint."""
+    pass
 
 class EgressUpdate(BaseModel):
-    type: str | None = None
-    path: str | None = None
-    config: Dict[str, Any] | None = None
-    ngroup_id: UUID | None = None
+    """Model for updating an egress target. All fields are optional."""
+    type: Optional[str] = None
+    path: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+
+class EgressResponse(EgressBase):
+    """Model for returning a full egress object from the API."""
+    id: UUID
+    ngroup_id: UUID
+
+    class Config:
+        from_attributes = True

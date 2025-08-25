@@ -1,108 +1,51 @@
-from asyncpg import Connection, ForeignKeyViolationError, UniqueViolationError, DataError
-from typing import Tuple, List, Optional, Dict, Any
-from lambda_utils.type_util.egress import EgressReturn
+# File: src/python/api/v2/database_util/egress.py
+
+from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError
+from typing import List, Optional, Dict, Any
 from uuid import UUID
+import structlog
 import json
-import logging
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
-async def create_egress_in_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def create_egress(conn: Connection, type: str, path: str, config: Dict[str, Any], ngroup_id: UUID) -> Dict[str, Any]:
     """Inserts a new egress record into the database."""
-    insert_query = """
+    query = """
         INSERT INTO egress (type, path, config, ngroup_id)
         VALUES ($1, $2, $3::jsonb, $4)
-        RETURNING id, type, path, config, ngroup_id
+        RETURNING *;
     """
     try:
-        config_json = json.dumps(params[2])  # Ensure config is JSON string
-        return await conn.fetch(insert_query, params[0], params[1], config_json, params[3])
-    except ForeignKeyViolationError:
-        logger.error(f"Failed to create egress: Foreign key violation (ngroup_id)", exc_info=True)
-        raise ValueError(f"Ngroup with ID '{params[3]}' not found")
-    except UniqueViolationError as e:
-        logger.error(f"Failed to create egress: Unique constraint violation: {e}", exc_info=True)
-        raise ValueError("Unique constraint violation.")
-    except DataError as e:
-        logger.error(f"Failed to create egress: Data error: {e}", exc_info=True)
-        raise ValueError("Invalid data.")
-    except Exception as e:
-        logger.error(f"Failed to create egress: {e}", exc_info=True)
-        raise
+        config_json = json.dumps(config)
+        return await conn.fetchrow(query, type, path, config_json, ngroup_id)
+    except ForeignKeyViolationError as e:
+        logger.error("db.egress.create.failed_fk", error=str(e))
+        raise ValueError(f"Ngroup with ID '{ngroup_id}' not found.") from e
 
-async def get_egress_from_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
-    """Retrieves an egress record by its ID, filtered by ngroup_id."""
-    select_query = """
-        SELECT id, type, path, config, ngroup_id
-        FROM egress
-        WHERE id = $1 AND ngroup_id = $2  -- Filter by ID and ngroup_id
-    """
-    try:
-        return await conn.fetch(select_query, *params)  # Use *params
-    except Exception as e:
-        logger.error(f"Error getting egress: {e}", exc_info=True)
-        raise
+async def get_egress_by_id(conn: Connection, egress_id: UUID) -> Optional[Dict[str, Any]]:
+    """Retrieves an egress record from the database by its ID."""
+    return await conn.fetchrow("SELECT * FROM egress WHERE id = $1", egress_id)
 
-async def update_egress_in_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
+async def list_egresses_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
+    """Retrieves all egress records for a specific ngroup."""
+    return await conn.fetch("SELECT * FROM egress WHERE ngroup_id = $1 ORDER BY type, path", ngroup_id)
+
+async def update_egress(conn: Connection, egress_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Updates an existing egress record in the database."""
-    update_fields: Dict = params[0]
-    egress_id: UUID = params[1]
+    if 'config' in update_data:
+        update_data['config'] = json.dumps(update_data['config'])
 
-    set_clause_parts = []
-    values = []
-    for i, (field, value) in enumerate(update_fields.items()):
-        if field == "config":
-            values.append(json.dumps(value)) # Convert config to JSON
-        else:
-            values.append(value)
-        set_clause_parts.append(f"{field} = ${len(values)}")
+    fields, values = list(update_data.keys()), list(update_data.values())
+    set_clause = ", ".join(f"{field} = ${i+1}" for i, field in enumerate(fields))
+    query = f"UPDATE egress SET {set_clause} WHERE id = ${len(fields) + 1} RETURNING *;"
+    
+    return await conn.fetchrow(query, *values, egress_id)
 
-    values.append(egress_id)
-    set_clause = ", ".join(set_clause_parts)
-
-    update_query = f"""
-        UPDATE egress
-        SET {set_clause}
-        WHERE id = ${len(values)}
-        RETURNING id, type, path, config, ngroup_id
-    """
+async def delete_egress(conn: Connection, egress_id: UUID) -> bool:
+    """Deletes an egress record from the database by its ID."""
     try:
-        return await conn.fetch(update_query, *values)  # Use *values for parameters
-    except ForeignKeyViolationError:
-        logger.error(f"Failed to update egress: Foreign key violation (ngroup_id)", exc_info=True)
-        raise ValueError(f"Ngroup ID not found")
-    except UniqueViolationError as e:
-        logger.error(f"Failed to update egress: Unique constraint violation: {e}", exc_info=True)
-        raise ValueError("Unique constraint violation.")
-    except DataError as e:
-        logger.error(f"Failed to update egress: Data error: {e}", exc_info=True)
-        raise ValueError("Invalid data.")
-    except Exception as e:
-        logger.error(f"Failed to update egress: {e}", exc_info=True)
-        raise
-
-async def list_egresses_from_db(conn: Connection, params: Tuple) -> List[EgressReturn]:
-    """Retrieves all egress records, filtered by ngroup_id."""
-    select_query = """
-        SELECT id, type, path, config, ngroup_id
-        FROM egress
-        WHERE ngroup_id = $1  -- Filter by ngroup_id
-    """
-    try:
-        return await conn.fetch(select_query, *params) # Use *params
-    except Exception as e:
-        logger.error(f"Error listing egresses: {e}", exc_info=True)
-        raise
-
-async def delete_egress_from_db(conn: Connection, params: Tuple) -> bool:
-    """Deletes an egress record by its ID, filtered by ngroup_id."""
-    delete_query = """
-        DELETE FROM egress
-        WHERE id = $1 AND ngroup_id = $2  -- Filter by ID and ngroup_id
-    """
-    try:
-        result = await conn.execute(delete_query, *params)  # Use *params
-        return result == "DELETE 1"
-    except Exception as e:
-        logger.error(f"Error deleting egress: {e}", exc_info=True)
-        raise
+        result = await conn.execute("DELETE FROM egress WHERE id = $1", egress_id)
+        return result.strip() == "DELETE 1"
+    except ForeignKeyViolationError as e:
+        logger.warning("db.egress.delete.failed_fk", egress_id=str(egress_id), error=str(e))
+        raise ValueError("Cannot delete this egress target because it is still linked to one or more collections.") from e
