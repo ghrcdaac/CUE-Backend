@@ -1,128 +1,86 @@
+# File: src/python/api/v2/database_util/file_metrics.py
+
 from asyncpg import Connection
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Any, Tuple
 from uuid import UUID
-import logging
 
-logger = logging.getLogger(__name__)
-
-async def _build_metrics_query_parts(
-    ngroup_id: UUID,
-    optional_filters: Dict[str, Any],
-    mandatory_conditions: Optional[Dict[str, Any]] = None
+def _build_metrics_query_parts(
+    ngroup_id: UUID, filters: Dict[str, Any], mandatory_conditions: Dict[str, Any] = None
 ) -> Tuple[str, List[Any]]:
-    """
-    Helper to build WHERE clauses and parameters for metric/listing queries.
-    Requires ngroup_id, handles optional filters and conditions.
-    End date is treated as inclusive.
-    """
-    where_clauses = []
-    params: List[Any] = []
-    param_index = 1
+    """Helper to build WHERE clauses and parameters for metric queries."""
+    where_clauses = ["c.ngroup_id = $1"]
+    params = [ngroup_id]
+    
+    filter_map = {
+        "start_date": "fs.upload_time >= ${index}",
+        "end_date": "fs.upload_time < (${index}::date + interval '1 day')",
+        "user_id": "f.cueuser_uploaded = ${index}",
+        "collection_id": "f.collection_id = ${index}",
+        "provider_id": "c.provider_id = ${index}"
+    }
 
-    base_query = """
+    if mandatory_conditions:
+        for key, value in mandatory_conditions.items():
+            params.append(value)
+            where_clauses.append(f"{key} = ${len(params)}")
+
+    for key, value in filters.items():
+        if key in filter_map:
+            params.append(value)
+            where_clauses.append(filter_map[key].format(index=len(params)))
+
+    from_clause = """
         FROM file f
         JOIN file_status fs ON f.id = fs.id
         JOIN collection c ON f.collection_id = c.id
     """
-    joins = ""
+    where_clause = "WHERE " + " AND ".join(where_clauses)
+    
+    return f"{from_clause} {where_clause}", params
 
-    where_clauses.append(f"c.ngroup_id = ${param_index}")
-    params.append(ngroup_id)
-    param_index += 1
+async def get_metrics_summary_data(conn: Connection, ngroup_id: UUID, filters: Dict[str, Any]) -> Dict[str, Any]:
+    query_suffix, params = _build_metrics_query_parts(ngroup_id, filters)
+    # Queries remain largely the same, but are now consolidated here
+    daily_volume_q = f"SELECT DATE_TRUNC('day', fs.upload_time) AS day, SUM(f.size_bytes) AS value {query_suffix} GROUP BY day ORDER BY day;"
+    daily_count_q = f"SELECT DATE_TRUNC('day', fs.upload_time) AS day, COUNT(f.id) AS value {query_suffix} GROUP BY day ORDER BY day;"
+    overall_volume_q = f"SELECT SUM(f.size_bytes) AS value {query_suffix};"
+    overall_count_q = f"SELECT COUNT(f.id) AS value {query_suffix};"
+    status_counts_q = f"SELECT fs.status, COUNT(f.id) AS count {query_suffix} GROUP BY fs.status;"
 
-    if mandatory_conditions:
-        for field, value in mandatory_conditions.items():
-            where_clauses.append(f"{field} = ${param_index}")
-            params.append(value)
-            param_index += 1
+    return {
+        "daily_volume": await conn.fetch(daily_volume_q, *params),
+        "daily_count": await conn.fetch(daily_count_q, *params),
+        "overall_volume": await conn.fetchval(overall_volume_q, *params),
+        "overall_count": await conn.fetchval(overall_count_q, *params),
+        "status_counts": await conn.fetch(status_counts_q, *params)
+    }
 
-    if optional_filters.get("start_date"):
-        where_clauses.append(f"fs.upload_time >= ${param_index}")
-        params.append(optional_filters["start_date"])
-        param_index += 1
-    if optional_filters.get("end_date"):
-        where_clauses.append(f"DATE(fs.upload_time) <= ${param_index}")
-        params.append(optional_filters["end_date"])
-        param_index += 1
-    if optional_filters.get("user_id"):
-        where_clauses.append(f"f.cueuser_uploaded = ${param_index}")
-        params.append(optional_filters["user_id"])
-        param_index += 1
-    if optional_filters.get("collection_id"):
-        where_clauses.append(f"f.collection_id = ${param_index}")
-        params.append(optional_filters["collection_id"])
-        param_index += 1
-    if optional_filters.get("provider_id"):
-        where_clauses.append(f"c.provider_id = ${param_index}")
-        params.append(optional_filters["provider_id"])
-        param_index += 1
-
-    query_suffix = base_query + joins
-    if where_clauses:
-        query_suffix += " WHERE " + " AND ".join(where_clauses)
-
-    return query_suffix, params
-
-async def get_daily_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any]) -> List:
-    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
-    select_clause = "SELECT DATE(fs.upload_time) as date, SUM(f.size_bytes) as size, SUM(EXTRACT(EPOCH FROM (scan_end - scan_start))) as scan_duration, count(f.id) as file_count"
-    groupby_clause = " GROUP BY DATE(fs.upload_time)"
-    full_query = select_clause + query_suffix + groupby_clause
-    try:
-        return await conn.fetch(full_query, *params)
-    except Exception as e:
-        logger.error(f"Error fetching daily metrics: {e}", exc_info=True)
-        raise
-
-async def get_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any], limit:int, offset:int) -> List:
-    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
-    select_clause = "SELECT c.short_name as name, SUM(f.size_bytes) as size, SUM(EXTRACT(EPOCH FROM (fs.scan_end - fs.scan_start))) as scan_duration "
-    limit_param_index = len(params) + 1
-    offset_param_index = len(params) + 2
+async def list_files_by_status(conn: Connection, ngroup_id: UUID, status: str, filters: Dict[str, Any], limit: int, offset: int) -> List[Dict[str, Any]]:
+    mandatory = {'fs.status': status}
+    query_suffix, params = _build_metrics_query_parts(ngroup_id, filters, mandatory_conditions=mandatory)
+    
+    select_clause = """
+        SELECT f.*, fs.status, fs.upload_time, fs.scan_start, fs.scan_end, fs.egress_start, fs.scan_results
+    """
+    pagination_clause = f" ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
     params.extend([limit, offset])
-    groupby_clause = " GROUP BY f.collection_id, c.short_name"
-    pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
-    orderby_clause = " ORDER BY c.short_name"
-    full_query = select_clause + query_suffix + groupby_clause + orderby_clause + pagination_clause
-    try:
-        return await conn.fetch(full_query, *params)
-    except Exception as e:
-        logger.error(f"Error fetching collection metrics: {e}", exc_info=True)
-        raise
+    
+    return await conn.fetch(select_clause + query_suffix + pagination_clause, *params)
 
-async def count_collection_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any]) -> int:
-    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
-    select_clause = "SELECT COUNT(DISTINCT(c.id)) "
-    full_query = select_clause + query_suffix
-    try:
-        count = await conn.fetchval(full_query, *params)
-        return int(count) if count is not None else 0
-    except Exception as e:
-        logger.error(f"Error counting collection metrics: {e}", exc_info=True)
-        raise
+async def count_files_by_status(conn: Connection, ngroup_id: UUID, status: str, filters: Dict[str, Any]) -> int:
+    mandatory = {'fs.status': status}
+    query_suffix, params = _build_metrics_query_parts(ngroup_id, filters, mandatory_conditions=mandatory)
+    count = await conn.fetchval(f"SELECT COUNT(f.id) {query_suffix}", *params)
+    return count or 0
 
-async def get_file_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any], limit:int, offset:int) -> List:
-    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
-    select_clause = "SELECT f.name as name, f.size_bytes as size, EXTRACT(EPOCH FROM (fs.scan_end - fs.scan_start)) as scan_duration "
-    limit_param_index = len(params) + 1
-    offset_param_index = len(params) + 2
+async def get_cost_by_collection(conn: Connection, ngroup_id: UUID, filters: Dict[str, Any], limit: int, offset: int) -> List[Dict[str, Any]]:
+    query_suffix, params = _build_metrics_query_parts(ngroup_id, filters)
+    select_clause = """
+        SELECT c.short_name as name, SUM(f.size_bytes) as size_bytes,
+               SUM(cm.scanner_cost + cm.aws_transfer_cost) as cost
+    """
+    join_clause = " JOIN cost_metric cm ON f.id = cm.file_id "
+    pagination_clause = f" GROUP BY c.short_name ORDER BY cost DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
     params.extend([limit, offset])
-    pagination_clause = f" LIMIT ${limit_param_index} OFFSET ${offset_param_index}"
-    orderby_clause = " ORDER BY size"
-    full_query = select_clause + query_suffix + orderby_clause + pagination_clause
-    try:
-        return await conn.fetch(full_query, *params)
-    except Exception as e:
-        logger.error(f"Error fetching file metrics: {e}", exc_info=True)
-        raise
 
-async def count_file_metrics(conn: Connection, ngroup_id:UUID, filters: Dict[str, Any]) -> int:
-    query_suffix, params = await _build_metrics_query_parts(ngroup_id, filters)
-    select_clause = "SELECT COUNT(f.id) "
-    full_query = select_clause + query_suffix
-    try:
-        count = await conn.fetchval(full_query, *params)
-        return int(count) if count is not None else 0
-    except Exception as e:
-        logger.error(f"Error fetching file metrics: {e}", exc_info=True)
-        raise
+    return await conn.fetch(select_clause + query_suffix + join_clause + pagination_clause, *params)

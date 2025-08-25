@@ -37,7 +37,8 @@ INSERT INTO privilege (id, privilege) VALUES
     ('a1a1a1a1-0000-0000-0000-000000000034', 'ngroup:read'),
     ('a1a1a1a1-0000-0000-0000-000000000035', 'ngroup:update'),
     ('a1a1a1a1-0000-0000-0000-000000000036', 'ngroup:delete'),
-    ('a1a1a1a1-0000-0000-0000-000000000037', 'file:delete');
+    ('a1a1a1a1-0000-0000-0000-000000000037', 'file:delete'),
+    ('a1a1a1a1-0000-0000-0000-000000000040', 'archive:query');
 
 -- Roles
 INSERT INTO role (id, short_name, long_name) VALUES
@@ -84,7 +85,8 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'file:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'scan:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'metrics:read')),
-    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'file:delete')); 
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'file:delete')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'archive:query')); 
 
 -- DAAC Staff
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
@@ -103,7 +105,8 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'file:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'scan:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'metrics:read')),
-    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'file:delete')); 
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'file:delete')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'archive:query')); 
 
 -- DAAC Observer
 INSERT INTO role_privilege (role_id, privilege_id) VALUES

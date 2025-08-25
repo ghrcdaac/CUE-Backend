@@ -1,83 +1,81 @@
-from typing import Optional, List, Dict
-from pydantic import BaseModel, Field, PositiveInt, HttpUrl 
+# File: src/python/api/v2/type_util/upload.py
 
-# --- For Single File Upload ---
-class UploadURLPayload(BaseModel): 
+from pydantic import BaseModel, Field, PositiveInt
+from typing import Optional, List, Dict
+from uuid import UUID
+
+# --- Single File Upload ---
+
+class PrepareUploadRequest(BaseModel):
+    collection_name: str = Field(..., description="The short_name of the collection to upload to.")
+    file_name: str = Field(..., description="The original name of the file.")
+    file_size_bytes: PositiveInt
+    checksum: str
+    collection_path: Optional[str] = None
+    content_type: str = "application/octet-stream"
+
+class PrepareUploadResponse(BaseModel):
+    file_id: UUID
+    presigned_url: str
+    s3_key: str
+
+# --- CHANGE: Consolidated into a single model for the complete step ---
+class CompleteUploadRequest(BaseModel):
+    """A single, consolidated model for the 'complete' step."""
+    # From the prepare step
+    file_id: UUID
+    collection_name: str
     file_name: str
-    checksum: str 
-    size: PositiveInt 
-    collection: str 
-    file_type: str 
+    file_size_bytes: PositiveInt
+    checksum: str
+    collection_path: Optional[str] = None
+    content_type: str = "application/octet-stream"
+    # From the S3 upload response
+    s3_etag: str
+
+# --- Multipart Upload ---
+
+class MultipartStartRequest(BaseModel):
+    collection_name: str
+    file_name: str
+    content_type: str = "application/octet-stream"
     collection_path: Optional[str] = None
 
-class UploadURLResponse(BaseModel): 
-    url: str 
-    fields: Dict[str, str] 
-    s3_key: str 
+class MultipartStartResponse(BaseModel):
+    file_id: UUID
+    s3_key: str
+    upload_id: str
 
-# NEW: For confirming single upload after client uploads to S3
-class ConfirmSingleUploadPayload(BaseModel):
-    s3_key: str 
-    file_name: str 
-    collection: str 
-    size_bytes: PositiveInt
-    checksum: str 
-    file_type: str
-    collection_path: Optional[str] = None 
-    # s3_etag: Optional[str] = None 
-
-class ConfirmSingleUploadResponse(BaseModel): 
-    file_id: str 
-    status: str 
-
-# --- For Multipart Upload ---
-
-class MultipartStartRequestPayload(BaseModel):
-    file_name: str 
-    collection: str 
-    upload_target: Optional[str] = None 
-    content_type: str 
-    overall_checksum: str 
-
-class MultipartStartResponsePayload(BaseModel):
-    upload_id: str 
-    s3_key: str    
-
-class MultipartGetPartUrlRequestPayload(BaseModel):
+class MultipartGetPartUrlRequest(BaseModel):
+    s3_key: str
     upload_id: str
     part_number: PositiveInt
-    file_name: str 
-    collection: str 
-    checksum: str 
-    content_type: str 
 
-class MultipartGetPartUrlResponsePayload(BaseModel):
-    presigned_url: str 
+class MultipartGetPartUrlResponse(BaseModel):
+    presigned_url: str
 
-class PartInfoPayload(BaseModel):
+class PartInfo(BaseModel):
     PartNumber: PositiveInt
     ETag: str
-    ChecksumSHA256: Optional[str] = None 
 
-class MultipartCompleteRequestPayload(BaseModel):
+class MultipartCompleteRequest(BaseModel):
+    s3_key: str
     upload_id: str
-    parts: List[PartInfoPayload]
-    s3_key: str 
-    file_name: str 
-    collection: str 
-    checksum: str 
-    final_file_size: PositiveInt 
-    collection_path: Optional[str] = None # Client sends this
-    content_type: str # <<< ADDED THIS FIELD
+    parts: List[PartInfo]
+    file_name: str
+    collection_name: str
+    collection_path: Optional[str] = None
+    content_type: str
+    checksum: str
+    final_file_size: PositiveInt
 
-class MultipartCompleteResponsePayload(BaseModel): 
-    Location: str 
-    Bucket: str
-    Key: str 
-    ETag: str
-    
-class MultipartAbortRequestPayload(BaseModel):
+class MultipartAbortRequest(BaseModel):
+    s3_key: str
     upload_id: str
-    s3_key: str 
-    file_name: str 
-    collection: str
+
+# --- Generic Success Response ---
+
+class UploadSuccessResponse(BaseModel):
+    file_id: UUID
+    status: str
+    message: str

@@ -27,6 +27,11 @@ async def get_collection_by_id(conn: Connection, collection_id: UUID) -> Optiona
     """Retrieves a collection record from the database by its ID."""
     return await conn.fetchrow("SELECT * FROM collection WHERE id = $1", collection_id)
 
+async def get_collection_by_short_name(conn: Connection, short_name: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a collection record from the database by its short_name."""
+    return await conn.fetchrow("SELECT * FROM collection WHERE short_name = $1", short_name)
+
+
 async def list_collections_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Retrieves all collection records for a specific ngroup."""
     return await conn.fetch("SELECT * FROM collection WHERE ngroup_id = $1 ORDER BY short_name", ngroup_id)

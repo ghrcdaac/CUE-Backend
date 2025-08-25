@@ -21,7 +21,6 @@ from uuid import UUID
 from core.db import get_db_connection
 from v2.database_util import cueuser as user_db
 from v2.database_util import api_keys as api_key_db
-# ---  Import user models from the new type_util file ---
 from v2.type_util.auth import AuthUser, AuthenticatedUserClaims
 
 # --- Environment Variables ---
@@ -67,7 +66,6 @@ class OIDCValidator:
             rsa_key = next((key for key in jwks_keys if key["kid"] == kid), None)
             if not rsa_key: raise JOSEError("Public key not found for token")
 
-            # --- CHANGE: Added detailed logging for debugging clock skew ---
             unverified_claims = jwt.get_unverified_claims(token)
             token_exp = unverified_claims.get("exp")
             token_iat = unverified_claims.get("iat")
@@ -84,7 +82,6 @@ class OIDCValidator:
                 server_time_utc=datetime.fromtimestamp(server_time, tz=timezone.utc).isoformat(),
                 time_difference_seconds=int(server_time - token_exp) if token_exp else "N/A"
             )
-            # --- END CHANGE ---
 
             payload = jwt.decode(
                 token, 
@@ -125,6 +122,7 @@ class OIDCBearer(HTTPBearer, OIDCValidator):
             user.roles = json.loads(db_details.get("roles", "[]"))
             user.privileges = json.loads(db_details.get("privileges", "[]"))
             ngroup_objects = json.loads(db_details.get("ngroups", "[]"))
+
             user.ngroups = [ng['short_name'] for ng in ngroup_objects]
             user_ngroup_ids = [str(ng['id']) for ng in ngroup_objects]
 
@@ -178,12 +176,26 @@ class APIKeyBearer(HTTPBearer):
         async with get_db_connection() as conn:
             user_profile = await user_db.get_user_by_id(conn, user_id)
             if not user_profile:
-                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
             
             db_details = await user_db.get_user_auth_details(conn, user_id)
             full_profile = {**user_profile, **db_details}
             
-            # Manually create the AuthUser object from the combined DB data
+            for key in ["roles", "ngroups", "privileges"]:
+                if isinstance(full_profile.get(key), str):
+                    try:
+                        full_profile[key] = json.loads(full_profile[key])
+                    except json.JSONDecodeError:
+                        logger.warning("db.json.parse_error", field=key, value=full_profile[key])
+                        full_profile[key] = []
+            
+            # --- FIX: Convert list of ngroup objects to list of strings ---
+            if isinstance(full_profile.get("ngroups"), list):
+                full_profile["ngroups"] = [
+                    ng.get("short_name") for ng in full_profile["ngroups"] if isinstance(ng, dict)
+                ]
+            # --- END FIX ---
+            
             return AuthUser.model_validate(full_profile)
 
 # --- Dependency Instances ---

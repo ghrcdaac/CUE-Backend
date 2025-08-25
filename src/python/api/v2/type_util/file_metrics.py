@@ -1,47 +1,50 @@
-from pydantic import BaseModel
-from typing import Optional, List 
-from datetime import date
+# File: src/python/api/v2/type_util/file_metrics.py
+
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
 from uuid import UUID
-    
+from datetime import date
+from .file import FileResponse # Import the rich FileResponse model
+
 class MetricsQueryParameters(BaseModel):
-    """Common OPTIONAL query parameters for metric endpoints."""
+    """Optional query parameters for filtering metric endpoints."""
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     user_id: Optional[UUID] = None
     collection_id: Optional[UUID] = None
     provider_id: Optional[UUID] = None
 
-class CostReturn(BaseModel):
-    """Represents cost of a file/collection"""
-    cost: float
-    name: Optional[str] = None
-    size: Optional[str] = None
+class DailyMetric(BaseModel):
+    day: date
+    value: float
 
-class DailyCostReturn(CostReturn):
-    """Represents costs on a particular date"""
-    date: date
+class OverallMetric(BaseModel):
+    value: float
 
-class TotalCostReturn(BaseModel):
-    """Represents total cost over the date range between start_date and end_date"""
-    cost: float
-    start_date: date
-    end_date: date
+class StatusCount(BaseModel):
+    status: str
+    count: int
 
-class FilesMetadata(BaseModel):
-    """Represents metadata on files included in the cost_summary"""
-    number_of_files: int
-    size: str
-    cost_per_byte: float
+class MetricsSummaryResponse(BaseModel):
+    daily_volume: List[DailyMetric]
+    daily_count: List[DailyMetric]
+    overall_volume: OverallMetric
+    overall_count: OverallMetric
+    status_counts: List[StatusCount]
 
-class SummaryCostReturn(BaseModel):
-    """Represents a cost summary between a date range"""
-    daily_cost: List[DailyCostReturn]
-    total_cost: TotalCostReturn
-    files_metadata: FilesMetadata
-
-class PaginatedReturn(BaseModel):
-    costs: List[CostReturn]
+class PaginatedFileStatusResponse(BaseModel):
+    items: List[FileResponse] # Uses the rich FileResponse
     total: int
     page: int
-    size: int
-    pages: int
+    page_size: int
+
+class CostMetric(BaseModel):
+    name: str
+    size_gb: float
+    cost: float
+
+class PaginatedCostResponse(BaseModel):
+    items: List[CostMetric]
+    total: int
+    page: int
+    page_size: int

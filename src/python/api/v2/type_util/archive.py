@@ -1,43 +1,21 @@
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
+# File: src/python/api/v2/type_util/archive.py
+
+from pydantic import BaseModel, Field
+from typing import List
 from uuid import UUID
-import json
-from datetime import datetime
-from lambda_utils.type_util.file_status import MetricsQueryParameters
+from .file_metrics import MetricsQueryParameters
+from .file import FileResponse # Re-use the rich file response model
 
-class ArchiveRequestBody(MetricsQueryParameters):
-    """Represents Archive Query Request Body"""
-    ngroup_id: UUID
+class ArchiveQueryRequest(MetricsQueryParameters):
+    """Request body for starting an archive query. Filters are inherited."""
+    pass
 
-class ArchiveReturn(BaseModel):
-    """Represents a row in a Archive Query result"""
-    id: UUID
-    name: str
-    type: str
-    checksum: str
-    cueuser_uploaded: UUID
-    collection_id: UUID
-    collection_path: Optional[str] = None
-    size_bytes: int
-    edpub: bool
-    upload_time: datetime
+class ArchiveQueryStartResponse(BaseModel):
+    query_execution_id: str
+
+class ArchiveQueryStatusResponse(BaseModel):
     status: str
-    scan_start: Optional[datetime] = None
-    scan_end: Optional[datetime] = None
-    egress_start: Optional[datetime] = None
-    scan_results: Optional[dict] = None
-    provider_id: UUID
+    reason: str | None = None
 
-    @classmethod
-    def convert_str(cls,json_object: Dict) -> "ArchiveReturn":
-        """Convert fields to their actual data type"""
-        for key, value in json_object.items():
-            if value == "":
-                json_object[key] = None
-            if key == "size_bytes":
-                json_object[key] = int(value)
-            if key == "edpub":
-                json_object[key] = bool(value)
-            if key == "scan_results":
-                json_object[key] = json.loads(value) if value else None
-        return cls(**json_object)
+class ArchiveQueryResultsResponse(BaseModel):
+    items: List[FileResponse]
