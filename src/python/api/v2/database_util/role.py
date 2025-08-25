@@ -64,3 +64,10 @@ async def list_all_privileges(conn: Connection) -> List[str]:
     query = "SELECT privilege FROM privilege ORDER BY privilege;"
     records = await conn.fetch(query)
     return [record['privilege'] for record in records]
+
+async def get_role_short_name_by_id(conn: Connection, role_id: UUID) -> Optional[str]:
+    """
+    Fetches the short_name of a role by its ID.
+    This is used to validate role assignments during application approval.
+    """
+    return await conn.fetchval("SELECT short_name FROM role WHERE id = $1", role_id)
