@@ -142,3 +142,13 @@ The following AWS resources are typically managed manually to prevent accidental
 
 Terraform scripts refer to these using existing IDs/ARNs passed as variables (`TF_VAR_*`).
 
+## 6. Metrics age-off into S3 
+In order to preserve the database performance file metric data are aged-off into a S3 bucket using an scheduled AWS Glue Job. The glue job finds file metric data in the database that is outside of a configurable retention period, writes the data to partitioned parquet files, uploads the files to a s3 bucket, then removes the archived data from the database. 
+
+Configuration for the glue job is done with the following:
+- The retention period is fetched from a SSM parameter.  
+- The execution schedule is configured by a glue job trigger.
+
+The glue job script is in `src/python/glue_jobs/` and infrastructure is contained within the module `terraform/glue`.
+
+Glue job runs are logged into Cloudwatch.

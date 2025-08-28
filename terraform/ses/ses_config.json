@@ -1,0 +1,13 @@
+{
+    "ConfigurationSetName": "CUE-App-Configuration-Set",
+    "DeliveryOptions": {
+        "TlsPolicy": "REQUIRE"
+    },
+    "ReputationOptions": {
+        "ReputationMetricsEnabled": true
+    },
+    "SendingOptions": {
+        "SendingEnabled": true
+    },
+    "Tags": []
+}

@@ -36,6 +36,9 @@ services:
       - ./tests:/app/tests:cached 
       - ./src/python/api:/app:cached
       - ./src/python/lambda_utils:/app/lambda_utils:cached
+    env_file:
+      - ./.env
+
   
   postgres:
     image: postgres

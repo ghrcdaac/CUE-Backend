@@ -16,3 +16,18 @@ export bamboo_POOL_ID="yourCognitoUserPoolId"
 export bamboo_CLIENT_ID="yourCognitoAppClientId"
 export bamboo_CLIENT_SECRET="YOUR_COGNITO_APP_CLIENT_SECRET_VALUE"
 export bamboo_LAMBDA_ADDITIONAL_ENV_VARS='{ "POOL_MIN_SIZE": "1", "POOL_MAX_SIZE": "70", "LOG_LEVEL": "INFO" }'
+
+# ---  SES Configuration ---
+export bamboo_SENDER_EMAIL="cue-no-reply@nasa.gov"
+export bamboo_SES_REGION="us-east-1"
+export bamboo_SES_SOURCE_ARN="arn:aws:ses:us-east-1:866324986652:identity/nasa.gov"
+export bamboo_SES_CONFIGURATION_SET_NAME="CUE-App-Configuration-Set"
+
+export bamboo_ARCHIVE_BUCKET="your-archive-bucket-name"
+export bamboo_METRIC_RETENTION_PERIOD_NAME="yourMetricRetentionPeriodName"
+export bamboo_METRIC_RETENTION_PERIOD_VALUE="90"
+export bamboo_GLUE_AVAILABILITY_ZONE="availabilityZoneForVPC"
+export bamboo_GLUE_SUBNET_ID="SubnetIDForVPC"
+export bamboo_CUE_ARCHIVE_DATABASE_NAME="your-archive-database-name"
+export bamboo_S3_ARCHIVE_RESULTS_BUCKET="your-archive-results-bucket"
+
