@@ -59,7 +59,7 @@ async def create_file(file: FileCreate, user_ngroup_id: UUID) -> FileReturn:
              if not collection_row:
                   raise AuthorizationError(f"Collection {file.collection_id} not found or does not belong to user's group {user_ngroup_id}.")
 
-             params = (str(uuid7()),file.name, file.type, file.cueuser_uploaded, file.size_bytes, file.collection_id, file.edpub, file.checksum)
+             params = (file.name, file.type, file.cueuser_uploaded, file.size_bytes, file.collection_id, file.edpub, file.checksum)
              result = await file_db.create_file_in_db(conn, params) # Use the acquired connection
 
         if not result: # Should not happen if DB call is correct

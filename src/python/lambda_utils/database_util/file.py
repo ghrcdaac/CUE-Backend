@@ -135,33 +135,3 @@ async def list_files_from_db(conn: Connection, ngroup_id: UUID) -> List:
     except Exception as e:
         logger.error(f"An unexpected error occurred while listing files: {e}", exc_info=True)
         raise
-
-async def get_manager_emails_by_files(conn: Connection, file_ids: List[UUID]) -> List[str]:
-    """
-    Fetches the emails of managers (role = 'daac_manager') who belong to the same ngroup
-    as the user(s) who uploaded the given file(s).
-
-    Args:
-        conn (Connection): Active database connection.
-        file_ids (List[UUID]): List of UUIDs of the files.
-
-    Returns:
-        List[str]: A list of manager email addresses.
-    """
-    select_query = """
-        SELECT DISTINCT cu.email
-        FROM file f
-        JOIN cueuser_ngroup uploader_ngroup ON uploader_ngroup.cueuser_id = f.cueuser_uploaded
-        JOIN cueuser_ngroup cn ON cn.ngroup_id = uploader_ngroup.ngroup_id
-        JOIN cueuser cu ON cu.id = cn.cueuser_id
-        JOIN cueuser_role cr ON cr.cueuser_id = cu.id
-        JOIN role r ON r.id = cr.role_id
-        WHERE f.id = ANY($1)
-        AND r.short_name = 'daac_manager';
-    """
-    try:
-        rows = await conn.fetch(select_query, file_ids)
-        return [row['email'] for row in rows]
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while fetching manager emails: {e}", exc_info=True)
-        raise
