@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
-async def get_notification_details_for_file(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
+async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
     """
     Finds all details needed for an infected file notification, including:
     - The file name

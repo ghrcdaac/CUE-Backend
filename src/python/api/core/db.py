@@ -26,14 +26,15 @@ async def get_db_connection():
     if not all([DB_HOST, DB_NAME, DB_USER, DB_PASS]):
         logger.error("Database environment variables are not fully configured.")
         raise ValueError("Missing database configuration in environment variables.")
-
+    ssl_mode = os.getenv("DB_SSL_MODE", "require")
     try:
         conn = await asyncpg.connect(
             host=DB_HOST,
             port=DB_PORT,
             database=DB_NAME,
             user=DB_USER,
-            password=DB_PASS
+            password=DB_PASS,
+            ssl=ssl_mode
         )
         logger.debug(f"Connection acquired to {DB_HOST}")
         yield conn

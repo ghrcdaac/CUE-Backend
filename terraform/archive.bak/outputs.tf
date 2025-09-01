@@ -1,6 +1,6 @@
-output "cue_process_athena_query" {
-    value = aws_lambda_function.cue_process_athena_query.invoke_arn
-}
+# ==============================================================================
+# File: terraform/archive/outputs.tf (Corrected)
+# ==============================================================================
 
 output "metrics_crawler_arn"{
     value = aws_glue_crawler.metrics_crawler.arn

@@ -1,31 +1,44 @@
-# ./terraform/glue/main.tf
+# ==============================================================================
+# File: terraform/glue/main.tf (V2 Refactored)
+# Purpose: Defines the Glue job, trigger, connection, and its own IAM Role.
+# ==============================================================================
 
-# This resource uploads the Python script to the S3 bucket created in s3.tf.
+# --- IAM Role for the Glue Job ---
+# This role is defined here, alongside the job that uses it, making the module self-contained.
+resource "aws_iam_role" "cue_glue_job_role" {
+  name               = "CUEGlueJobRole-v2"
+  assume_role_policy = data.aws_iam_policy_document.glue_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy" "cue_glue_job_policy" {
+  name   = "CUEGlueJobPolicy-v2"
+  role   = aws_iam_role.cue_glue_job_role.id
+  policy = data.aws_iam_policy_document.cue_glue_job_policy.json
+}
+
+# --- Glue Resources ---
+
+# This resource uploads the Python script for the Glue job to S3.
 resource "aws_s3_object" "glue_job_script" {
-  # Reference the bucket created in this module.
-  bucket = aws_s3_bucket.cue_archive_bucket.id
-  # Removed the leading slash from the key for S3 best practices.
+  bucket       = var.cue_archive_bucket
   key          = "scripts/age_off_metrics_job.py"
   source       = "../src/python/glue_jobs/age_off_metrics_job.py"
   content_type = "text/x-python"
-
-  # This ensures the bucket is created before Terraform attempts to upload the file.
-  depends_on = [aws_s3_bucket.cue_archive_bucket]
 }
 
+# This defines the Glue job that archives old metrics.
 resource "aws_glue_job" "cue_age_off_metrics_job" {
-  name         = "age_off_metrics"
-  glue_version = "5.0" 
-  role_arn     = var.cue_glue_job_role_arn
-  max_capacity = 0.0625
-  max_retries  = 0
-  timeout      = 10
-  connections  = [aws_glue_connection.cue_db_connection.name]
+  name           = "age_off_metrics"
+  glue_version   = "5.0"
+  role_arn       = aws_iam_role.cue_glue_job_role.arn # Use the role created in this module
+  max_capacity   = 0.0625
+  max_retries    = 0
+  timeout        = 10
+  connections    = [aws_glue_connection.cue_db_connection.name]
 
   command {
     name            = "pythonshell"
-    # Reference the bucket created in this module for the script location.
-    script_location = "s3://${aws_s3_bucket.cue_archive_bucket.id}/scripts/age_off_metrics_job.py"
+    script_location = "s3://${var.cue_archive_bucket}/scripts/age_off_metrics_job.py"
     python_version  = "3.9"
   }
 
@@ -36,13 +49,13 @@ resource "aws_glue_job" "cue_age_off_metrics_job" {
     "--DB_USER"                   = var.db_user
     "--DB_PASSWORD"               = var.db_password
     "--SSM_PARAM_NAME"            = var.metric_retention_period_name
-    # Reference the bucket created in this module.
-    "--ARCHIVE_BUCKET"            = aws_s3_bucket.cue_archive_bucket.id
+    "--ARCHIVE_BUCKET"            = var.cue_archive_bucket
     "--library-set"               = "analytics"
     "--additional-python-modules" = "psycopg2-binary"
   }
 }
 
+# This trigger runs the Glue job on a weekly schedule.
 resource "aws_glue_trigger" "age_off_metrics_trigger" {
   name     = "metrics_age_off_trigger"
   type     = "SCHEDULED"
@@ -53,6 +66,7 @@ resource "aws_glue_trigger" "age_off_metrics_trigger" {
   }
 }
 
+# This defines the VPC connection for the Glue job to access the database.
 resource "aws_glue_connection" "cue_db_connection" {
   connection_properties = {
     JDBC_CONNECTION_URL = "jdbc:postgresql://${var.db_host}:${var.db_port}/${var.db_database}"
@@ -68,3 +82,4 @@ resource "aws_glue_connection" "cue_db_connection" {
     subnet_id              = var.subnet_id
   }
 }
+

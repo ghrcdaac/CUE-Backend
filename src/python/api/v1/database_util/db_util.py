@@ -32,18 +32,11 @@ async def get_connection_pool(
     setup: Optional[Callable] = None
 ):
     """
-    Creates and returns a connection pool with configurable parameters.
-
-    Args:
-        min_size: Minimum number of connections in the pool.
-        max_size: Maximum number of connections in the pool.
-        max_queries: Number of queries after which a connection is closed and replaced with a new one.
-        max_inactive_connection_lifetime: Maximum time (in seconds) after which an inactive connection is closed.
-        setup: An optional async function to setup each connection when its created.
+    Creates and returns a connection pool for the V1 API.
     """
     global _connection_pool_metrics
-
-    pool = None  # Initialize pool to None outside the try block
+    pool = None
+    ssl_mode = os.getenv("DB_SSL_MODE", "require")
     try:
         pool = await asyncpg.create_pool(
             database=os.getenv('PG_DB'),
@@ -55,23 +48,16 @@ async def get_connection_pool(
             max_size=max_size,
             max_queries=max_queries,
             max_inactive_connection_lifetime=max_inactive_connection_lifetime,
-            setup=setup
+            setup=setup,
+            ssl=ssl_mode
         )
-        # Update total connections based on successful pool creation
-        # Initial state: all connections are idle (available)
         async with _metrics_lock:
-            # Note: asyncpg might not create all 'max_size' connections immediately.
-            # get_size() reflects current physical connections. total_connections reflects the configured limit.
-            current_size = pool.get_size() # Actual connections created so far
-            _connection_pool_metrics["total_connections"] = max_size # Configured maximum
-            _connection_pool_metrics["idle_connections"] = current_size # Initially, all created connections are idle
+            current_size = pool.get_size()
+            _connection_pool_metrics["total_connections"] = max_size
+            _connection_pool_metrics["idle_connections"] = current_size
             _connection_pool_metrics["active_connections"] = 0
             _connection_pool_metrics["pool_available"] = _connection_pool_metrics["idle_connections"]
             _connection_pool_metrics["pool_used"] = _connection_pool_metrics["active_connections"]
-            # It might be more accurate to use pool.get_size() for total *currently existing* connections
-            # But "total_connections" often implies the maximum configured capacity (max_size)
-            # Sticking to max_size for total_connections as per previous logic.
-
         return pool
     except Exception as e:
         logger.error(f"Failed to create connection pool: {e}", exc_info=True)
@@ -79,20 +65,12 @@ async def get_connection_pool(
             await pool.close()
         raise
 
-# The setup function in the original code incremented total_connections,
-# which seems incorrect as total_connections should represent max_size.
-# Removing that increment logic. Setup is for *configuring* a connection,
-# not tracking pool size changes. Pool size is managed by asyncpg internally up to max_size.
 async def setup_connection(conn):
     """Setup function for connections in the pool."""
-    # Check if the connection is already closed
     if conn.is_closed():
         logger.warning("Attempted to set up a closed connection")
         return
-
-    # Proceed with setup if the connection is open
     try:
-        # set custom connection properties here if needed.
         pass
     except Exception as e:
         logger.error(f"Error setting up connection: {e}", exc_info=True)
@@ -100,31 +78,18 @@ async def setup_connection(conn):
 
 async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Optional[Tuple] = None, row_mapper: Optional[Callable[[Tuple], T]] = None) -> List[T] | List[Any]:
     """
-    Executes a database query using the provided connection pool.
-
-    Args:
-        pool: The asyncpg connection pool.
-        operation: The database operation function to execute (e.g., from egress_db, scanning_db, etc.).
-        params: The parameters to pass to the operation function.
-        row_mapper: An optional function to map each result row to a desired type (e.g., a Pydantic model).
-
-    Returns:
-        A list of mapped objects (if row_mapper is provided) or a list of raw database rows.
+    Executes a database query using the provided V1 connection pool.
     """
     global _connection_pool_metrics
     acquire_start_time = time.time()
     async with pool.acquire() as conn:
         acquire_end_time = time.time()
         async with _metrics_lock:
-            # Update metrics upon acquiring a connection
             _connection_pool_metrics["active_connections"] += 1
-            # Idle connections decrease. Use pool's reported size for current total.
-            current_total = pool.get_size() # Current number of connections pool physically has
-            # Idle = Total Existing - Active. Ensure it's not negative if pool size fluctuates.
+            current_total = pool.get_size()
             _connection_pool_metrics["idle_connections"] = max(0, current_total - _connection_pool_metrics["active_connections"])
             _connection_pool_metrics["total_acquire_time_ms"] += (acquire_end_time - acquire_start_time) * 1000
             _connection_pool_metrics["acquire_count"] += 1
-            # Update the mirrored metrics
             _connection_pool_metrics["pool_used"] = _connection_pool_metrics["active_connections"]
             _connection_pool_metrics["pool_available"] = _connection_pool_metrics["idle_connections"]
 
@@ -143,16 +108,11 @@ async def query(pool: asyncpg.pool.Pool, operation: Callable, params: Optional[T
             raise
         finally:
             async with _metrics_lock:
-                 # Update metrics upon releasing a connection
-                _connection_pool_metrics["active_connections"] -= 1
-                # Idle connections increase. Use pool's reported size for current total.
-                current_total = pool.get_size()
-                 # Idle = Total Existing - Active. Ensure it's not negative.
-                _connection_pool_metrics["idle_connections"] = max(0, current_total - _connection_pool_metrics["active_connections"])
-                 # Update the mirrored metrics
-                _connection_pool_metrics["pool_used"] = _connection_pool_metrics["active_connections"]
-                _connection_pool_metrics["pool_available"] = _connection_pool_metrics["idle_connections"]
-
+               _connection_pool_metrics["active_connections"] -= 1
+               current_total = pool.get_size()
+               _connection_pool_metrics["idle_connections"] = max(0, current_total - _connection_pool_metrics["active_connections"])
+               _connection_pool_metrics["pool_used"] = _connection_pool_metrics["active_connections"]
+               _connection_pool_metrics["pool_available"] = _connection_pool_metrics["idle_connections"]
 
 # Need the pool object to get accurate live counts for available/used
 async def get_metrics(pool: Optional[asyncpg.pool.Pool] = None):

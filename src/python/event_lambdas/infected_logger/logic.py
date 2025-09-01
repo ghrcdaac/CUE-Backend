@@ -1,21 +1,18 @@
 # --- src/python/event_lambdas/infected_logger/logic.py ---
 import json
-import logging
 import boto3
 import asyncio
 import socket # Import the socket library for network testing
+import structlog
 
-from asyncpg.pool import Pool
-from .db import upsert_scan_status_in_database
-from .model import ScanResultMessage
+from core.db import get_db_connection
+from db import upsert_scan_status_in_database
+from model import ScanResultMessage
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 eventbridge_client = boto3.client('events')
 
-STATUS_MAP = {
-    "Clean": "clean",
-    "Infected": "infected"
-}
+STATUS_MAP = {"Clean": "clean", "Infected": "infected"}
 DEFAULT_STATUS = "scan_failed"
 
 
@@ -50,56 +47,41 @@ async def perform_network_diagnostics():
 
 async def publish_infected_file_event(scan_details: ScanResultMessage):
     """Publishes an event to EventBridge for an infected file."""
-    # Run diagnostics before attempting to publish
-    if not await perform_network_diagnostics():
-        logger.error("Skipping EventBridge publish due to failed network diagnostics.")
-        return # Do not attempt to publish if connectivity is broken
-
-    logger.info(f"Publishing 'InfectedFileFound' event for key: {scan_details.key}")
+    logger.info("eventbridge.publish.started", file_id=str(scan_details.key))
     try:
         eventbridge_client.put_events(
-            Entries=[
-                {
-                    'Source': 'com.cue.scanner',
-                    'DetailType': 'InfectedFileFound',
-                    'Detail': scan_details.model_dump_json(by_alias=True),
-                    'EventBusName': 'cue-application-bus'
-                }
-            ]
+            Entries=[{
+                'Source': 'com.cue.scanner',
+                'DetailType': 'InfectedFileFound',
+                'Detail': scan_details.model_dump_json(by_alias=True),
+                'EventBusName': 'cue-application-bus'
+            }]
         )
-        logger.info(f"Successfully published event for key: {scan_details.key}")
+        logger.info("eventbridge.publish.success", file_id=str(scan_details.key))
     except Exception as e:
-        logger.error(f"Failed to publish event to EventBridge for key {scan_details.key}: {e}", exc_info=True)
+        logger.error("eventbridge.publish.failed", file_id=str(scan_details.key), exc_info=True)
+        # We don't re-raise here, because the DB update has already succeeded.
+        # A monitoring system should alert on these logs.
 
-
-async def process_scan_result(message: ScanResultMessage, db_pool: Pool) -> None:
+async def process_scan_result(message: ScanResultMessage):
     """
-    Processes a validated scan result message, upserts its status, and publishes an event if infected.
+    Processes a validated scan result message, upserts its status,
+    and publishes an event if infected.
     """
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
 
-    if status == DEFAULT_STATUS:
-        logger.warning(f"Received unknown scan result '{message.result}' for file key {file_id}. Defaulting to '{DEFAULT_STATUS}'.")
-
-    scan_details_dict = json.loads(message.model_dump_json(by_alias=True))
     update_data = {
         "status": status,
         "scan_start": message.date_scanned,
         "scan_end": message.date_scanned,
-        "scan_results": json.dumps(scan_details_dict.get("scanResults"))
+        "scan_results": json.dumps(message.model_dump(by_alias=True).get("scanResults"))
     }
     
-    logger.info(f"Upserting file status for ID {file_id} with status '{status}'.")
-    try:
-        async with db_pool.acquire() as conn:
-            async with conn.transaction():
-                await upsert_scan_status_in_database(conn, file_id, update_data)
-        
-        # Only attempt to publish the event if the file was infected
-        if status == 'infected':
-            await publish_infected_file_event(message)
-
-    except Exception as e:
-        logger.error(f"Failed to run database transaction for file {file_id}: {e}", exc_info=True)
-        raise
+    logger.info("scan_result.processing", file_id=str(file_id), status=status)
+    
+    async with get_db_connection() as conn:
+        await upsert_scan_status_in_database(conn, file_id, update_data)
+    
+    if status == 'infected':
+        await publish_infected_file_event(message)

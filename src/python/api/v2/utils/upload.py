@@ -56,22 +56,24 @@ async def _validate_upload_permissions(collection_name: str, user: AuthUser):
 
 async def prepare_single_file_upload(params: PrepareUploadRequest, user: AuthUser) -> dict:
     await _validate_upload_permissions(params.collection_name, user)
-    file_id, s3_key = uuid4(), str(uuid4())
+    
+    file_id = uuid4()
+
     s3_client = _get_s3_client()
     try:
         url = s3_client.generate_presigned_url(
             'put_object',
-            Params={'Bucket': S3_BUCKET_NAME, 'Key': s3_key, 'ContentType': params.content_type},
+            Params={'Bucket': S3_BUCKET_NAME, 'Key': str(file_id), 'ContentType': params.content_type},
             ExpiresIn=PRESIGNED_URL_EXPIRATION
         )
-        return {"file_id": file_id, "presigned_url": url, "s3_key": s3_key}
+        return {"file_id": file_id, "presigned_url": url}
     except ClientError as e:
         logger.error("s3.presigned_url.failed", error=str(e))
         raise S3ClientError("Could not generate upload URL.") from e
 
-# --- CHANGE: Simplified to accept a single payload ---
-async def complete_single_file_upload(params: CompleteUploadRequest, user: AuthUser) -> UUID:
-    """Creates the file and file_status records atomically after a successful upload."""
+async def complete_single_file_upload(
+    params: CompleteUploadRequest, user: AuthUser
+) -> UUID:
     async with get_db_connection() as conn:
         collection = await _validate_upload_permissions(params.collection_name, user)
         async with conn.transaction():
@@ -87,13 +89,15 @@ async def complete_single_file_upload(params: CompleteUploadRequest, user: AuthU
 
 async def start_multipart_upload(params: MultipartStartRequest, user: AuthUser) -> dict:
     await _validate_upload_permissions(params.collection_name, user)
-    file_id, s3_key = uuid4(), str(uuid4())
+
+    file_id = uuid4()
+
     s3_client = _get_s3_client()
     try:
         response = s3_client.create_multipart_upload(
-            Bucket=S3_BUCKET_NAME, Key=s3_key, ContentType=params.content_type,
+            Bucket=S3_BUCKET_NAME, Key=str(file_id), ContentType=params.content_type,
         )
-        return {"file_id": file_id, "s3_key": s3_key, "upload_id": response['UploadId']}
+        return {"file_id": file_id, "upload_id": response['UploadId']}
     except ClientError as e:
         logger.error("s3.multipart_start.failed", error=str(e))
         raise S3ClientError("Could not start multipart upload.") from e
@@ -103,7 +107,7 @@ async def get_multipart_presigned_url(params: MultipartGetPartUrlRequest) -> dic
     try:
         url = s3_client.generate_presigned_url(
             'upload_part',
-            Params={'Bucket': S3_BUCKET_NAME, 'Key': params.s3_key,
+            Params={'Bucket': S3_BUCKET_NAME, 'Key': str(params.file_id),
                     'UploadId': params.upload_id, 'PartNumber': params.part_number},
             ExpiresIn=PRESIGNED_URL_EXPIRATION
         )
@@ -114,12 +118,12 @@ async def get_multipart_presigned_url(params: MultipartGetPartUrlRequest) -> dic
 
 async def complete_multipart_upload(params: MultipartCompleteRequest, user: AuthUser) -> UUID:
     s3_client = _get_s3_client()
-    file_id = UUID(params.s3_key)
+    file_id = params.file_id
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
     
     try:
         s3_client.complete_multipart_upload(
-            Bucket=S3_BUCKET_NAME, Key=params.s3_key, UploadId=params.upload_id,
+            Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id,
             MultipartUpload={'Parts': formatted_parts}
         )
     except ClientError as e:
@@ -141,12 +145,12 @@ async def abort_multipart_upload(params: MultipartAbortRequest):
     s3_client = _get_s3_client()
     try:
         s3_client.abort_multipart_upload(
-            Bucket=S3_BUCKET_NAME, Key=params.s3_key, UploadId=params.upload_id
+            Bucket=S3_BUCKET_NAME, Key=str(params.file_id), UploadId=params.upload_id
         )
-        logger.info("upload.multipart.aborted", s3_key=params.s3_key, upload_id=params.upload_id)
+        logger.info("upload.multipart.aborted", file_id=str(params.file_id), upload_id=params.upload_id)
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchUpload':
-            logger.warning("s3.multipart_abort.not_found", s3_key=params.s3_key)
+            logger.warning("s3.multipart_abort.not_found", file_id=str(params.file_id))
             return
         logger.error("s3.multipart_abort.failed", error=str(e))
         raise S3ClientError("Failed to abort S3 multipart upload.") from e

@@ -21,9 +21,9 @@ DROP TABLE IF EXISTS cueuser_ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_role CASCADE;
 DROP TABLE IF EXISTS role_privilege CASCADE;
 DROP TABLE IF EXISTS privilege CASCADE;
+DROP TABLE IF EXISTS api_key CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
-DROP TABLE IF EXISTS api_key CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE; 
 DROP TABLE IF EXISTS cueuser CASCADE;
 
@@ -55,21 +55,6 @@ CREATE TABLE IF NOT EXISTS cueuser_auth (
 );
 
 
-CREATE TABLE IF NOT EXISTS api_key (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
-    key_hash VARCHAR NOT NULL,
-    prefix VARCHAR(10) NOT NULL,
-    user_id UUID NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    scopes VARCHAR[] NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_used_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (id),
-    UNIQUE (key_hash),
-    FOREIGN KEY (user_id) REFERENCES cueuser(id) ON DELETE CASCADE
-);
 
 CREATE TABLE IF NOT EXISTS ngroup (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
@@ -95,6 +80,42 @@ CREATE TABLE IF NOT EXISTS role (
     PRIMARY KEY (id),
     UNIQUE (short_name),
     UNIQUE (long_name)
+);
+
+CREATE TABLE IF NOT EXISTS api_key (
+    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    key_hash VARCHAR NOT NULL,
+    prefix VARCHAR(10) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    scopes VARCHAR[] NOT NULL,
+    
+    -- "Created For" - Can be NULL for proxy keys
+    user_id UUID NULL, 
+    
+    -- "Created By" - The user who generated the key
+    created_by_user_id UUID NOT NULL,
+
+    -- For Proxy Keys
+    proxy_user_name VARCHAR(255) NULL,
+    ngroup_id UUID NULL, -- Required only if user_id is NULL
+
+    -- Timestamps & Status
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    PRIMARY KEY (id),
+    UNIQUE (key_hash),
+    FOREIGN KEY (user_id) REFERENCES cueuser(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES cueuser(id) ON DELETE CASCADE,
+    FOREIGN KEY (ngroup_id) REFERENCES ngroup(id) ON DELETE SET NULL,
+
+    -- Ensures that a key is either for a CUE user OR a proxy, but not both.
+    CONSTRAINT chk_key_owner CHECK (
+        (user_id IS NOT NULL AND proxy_user_name IS NULL AND ngroup_id IS NULL) OR
+        (user_id IS NULL AND proxy_user_name IS NOT NULL AND ngroup_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE IF NOT EXISTS cueuser_role (

@@ -66,6 +66,24 @@ if [ $? -ne 0 ]; then
 fi
 echo "Image pushed successfully to ${REMOTE_IMAGE_NAME}"
 
+# Get the image digest of the image we just pushed.
+echo "Retrieving image digest from ECR..."
+IMAGE_DIGEST=$(aws ecr describe-images --repository-name ${REPO_NAME} --image-ids imageTag=${IMAGE_TAG} --query 'imageDetails[0].imageDigest' --output text)
+
+if [ -z "${IMAGE_DIGEST}" ]; then
+    echo "Could not retrieve image digest from ECR."
+    exit 1
+fi
+
+# Construct the full, unique URI using the digest.
+DIGEST_BASED_URI="${ECR_REGISTRY}/${REPO_NAME}@${IMAGE_DIGEST}"
+echo "ECR Image Digest URI: ${DIGEST_BASED_URI}"
+
+# Output this unique URI so the calling script can use it.
+# This is the final output of the script.
+echo "${DIGEST_BASED_URI}"
+# --------------------
+
 # --- Cleanup ---
 echo "Cleaning up local Docker images..."
 docker rmi "${LOCAL_IMAGE_NAME}" "${REMOTE_IMAGE_NAME}"

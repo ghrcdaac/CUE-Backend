@@ -17,20 +17,22 @@ class PrepareUploadRequest(BaseModel):
 class PrepareUploadResponse(BaseModel):
     file_id: UUID
     presigned_url: str
-    s3_key: str
 
-# --- CHANGE: Consolidated into a single model for the complete step ---
+# --- FIX: The CompleteUploadRequest now includes all necessary metadata ---
 class CompleteUploadRequest(BaseModel):
     """A single, consolidated model for the 'complete' step."""
-    # From the prepare step
+    # ID from the prepare step
     file_id: UUID
+    
+    # All original metadata from the prepare step, needed for validation and DB creation
     collection_name: str
     file_name: str
     file_size_bytes: PositiveInt
     checksum: str
     collection_path: Optional[str] = None
     content_type: str = "application/octet-stream"
-    # From the S3 upload response
+    
+    # ETag from the S3 upload response
     s3_etag: str
 
 # --- Multipart Upload ---
@@ -43,11 +45,10 @@ class MultipartStartRequest(BaseModel):
 
 class MultipartStartResponse(BaseModel):
     file_id: UUID
-    s3_key: str
     upload_id: str
 
 class MultipartGetPartUrlRequest(BaseModel):
-    s3_key: str
+    file_id: UUID = Field(..., description="The file_id from the 'start' response.")
     upload_id: str
     part_number: PositiveInt
 
@@ -59,7 +60,7 @@ class PartInfo(BaseModel):
     ETag: str
 
 class MultipartCompleteRequest(BaseModel):
-    s3_key: str
+    file_id: UUID = Field(..., description="The file_id from the 'start' response.")
     upload_id: str
     parts: List[PartInfo]
     file_name: str
@@ -70,7 +71,7 @@ class MultipartCompleteRequest(BaseModel):
     final_file_size: PositiveInt
 
 class MultipartAbortRequest(BaseModel):
-    s3_key: str
+    file_id: UUID = Field(..., description="The file_id from the 'start' response.")
     upload_id: str
 
 # --- Generic Success Response ---

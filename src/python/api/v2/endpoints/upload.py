@@ -36,7 +36,7 @@ async def prepare_single_upload(
         logger.error("endpoint.prepare_single.failed", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-# --- CHANGE: Simplified to accept a single, consolidated request body ---
+# --- FIX: The endpoint now uses the corrected CompleteUploadRequest model ---
 @router.post("/complete-single", response_model=UploadSuccessResponse)
 async def complete_single_upload(
     params: CompleteUploadRequest,

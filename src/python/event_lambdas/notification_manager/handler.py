@@ -12,15 +12,15 @@ from pathlib import Path
 from uuid import UUID
 
 # Import the new logging setup and DB connection method
-from logging_config import setup_logging
+from core.logging_config import setup_logging
 from core.db import get_db_connection
-from .db import (
+from db import (
     get_infected_file_details, 
     get_new_application_details, 
     get_approved_user_details
 )
 
-# Initialize logging at the start of the module
+# Initialize logging at the start of the module . check
 setup_logging()
 logger = structlog.get_logger(__name__)
 

@@ -58,10 +58,16 @@ class ManualJSONBodyParsingMiddleware:
 
 load_dotenv()
 
+API_ROOT_PATH = os.getenv("API_ROOT_PATH", "")
+
+
 app = FastAPI(
     title="CUE API",
+    openapi_version="3.1.0",
+    root_path=API_ROOT_PATH, 
     debug=os.getenv("DEBUG", "false").lower() == "true"
 )
+
 
 
 # --- Add the request logging middleware ---

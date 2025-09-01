@@ -1,116 +1,171 @@
 # ==============================================================================
-# File: terraform/lambda/main.tf (Updated)
-# Purpose: Adds new EventBridge resources and Lambda environment variables.
+# File: terraform/lambda/main.tf (V2 Final & Corrected)
+# Purpose: Defines all Lambda functions and their event-driven infrastructure,
+#          combining all V2 requirements and best practices.
 # ==============================================================================
 
 # --- SNS Subscription ---
-# This subscribes the SQS queue (defined in sqs.tf) to the SNS topic.
-resource "aws_sns_topic_subscription" "cue_scan_even_sns_subscription" {
-  topic_arn            = var.cue_css_scan_sns_arn
-  protocol             = "sqs"
-  endpoint             = aws_sqs_queue.scan_results_queue.arn
-  raw_message_delivery = "true"
-}
+# Subscribes the SQS queue to the external virus scanner's SNS topic.
+# resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
+#   topic_arn            = var.cue_css_scan_sns_arn
+#   protocol             = "sqs"
+#   endpoint             = aws_sqs_queue.scan_results_queue.arn
+#   raw_message_delivery = "true"
+# }
+
+# --- Lambda Code Packaging ---
+# These resources create the zip files from your source code directories.
+
 
 # --- Lambda Function Definitions ---
 
-resource "aws_lambda_function" "cue_scan_event" {
-  filename         = "../artifacts/infected-logger-lambda.zip"
-  function_name    = "cue_scan_event"
-  role             = var.cue_scan_event_role_arn
-  handler          = "infected_logger.handler.handler"
-  runtime          = "python3.13"
-  architectures    = ["x86_64"]
-  source_code_hash = filesha256("../artifacts/infected-logger-lambda.zip")
-  timeout          = 180
-  memory_size      = 256
-
-  environment {
-    variables = {
-      PG_USER       = var.db_user
-      PG_HOST       = var.db_host
-      PG_DB         = var.db_database
-      PG_PASS       = var.db_password
-      PG_PORT       = var.db_port
-      POOL_MIN_SIZE = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
-      POOL_MAX_SIZE = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "20")
-      LOG_LEVEL     = lookup(var.lambda_env_vars, "LOG_LEVEL", "INFO")
-    }
-  }
-
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = var.security_group_ids
-  }
-
-  logging_config {
-    log_format = "Text"
-    log_group  = aws_cloudwatch_log_group.cue_scan_event_lg.name
-  }
-}
-
-resource "aws_lambda_function" "notification_manager" {
-  filename         = "../artifacts/notification-manager-lambda.zip"
-  function_name    = "cue_notification_manager"
-  role             = var.notification_manager_role_arn
-  handler          = "notification_manager.handler.handler"
-  runtime          = "python3.13"
-  architectures    = ["x86_64"]
-  source_code_hash = filesha256("../artifacts/notification-manager-lambda.zip")
-  timeout          = 60
-  memory_size      = 256
-
-  environment {
-    variables = {
-      PG_USER          = var.db_user
-      PG_HOST          = var.db_host
-      PG_DB            = var.db_database
-      PG_PASS          = var.db_password
-      PG_PORT          = var.db_port
-      LOG_LEVEL        = "INFO"
-      EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
-      # --- CHANGE: Added FRONTEND_URL for welcome emails ---
-      FRONTEND_URL     = var.frontend_url
-    }
-  }
-
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = var.security_group_ids
-  }
-}
-
+# 1. Main API Lambda (Docker Image)
 resource "aws_lambda_function" "cue_api" {
   function_name = "cue_api"
-  role          = var.cue_api_lambda_role_arn
-  image_uri     = var.api_docker
+  role          = var.api_lambda_role_arn
+  image_uri     = var.api_docker_uri
   package_type  = "Image"
-  timeout       = 180
-  kms_key_arn   = null
-
-  environment {
-    variables = {
-      PG_USER                 = var.db_user
-      PG_HOST                 = var.db_host
-      PG_DB                   = var.db_database
-      PG_PASS                 = var.db_password
-      PG_PORT                 = var.db_port
-      POOL_ID                 = var.pool_id
-      CLIENT_ID               = var.client_id
-      CLIENT_SECRET           = var.client_secret
-      S3_UPLOAD_BUCKET        = var.s3_upload_bucket
-      # --- CHANGE: Added EVENT_BUS_NAME so the API knows where to publish events ---
-      EVENT_BUS_NAME          = aws_cloudwatch_event_bus.cue_app_bus.name
-    }
-  }
+  timeout       = 30 # API Gateway timeout is 29s
 
   vpc_config {
     subnet_ids         = var.subnet_ids
     security_group_ids = var.security_group_ids
   }
+
+  environment {
+    variables = {
+      PG_HOST                        = var.db_proxy_host
+      PG_PORT                        = var.db_port
+      PG_DB                          = var.db_database
+      PG_USER                        = var.db_user
+      PG_PASS                        = var.db_password
+      S3_UPLOAD_BUCKET               = var.s3_upload_bucket
+      EVENT_BUS_NAME                 = aws_cloudwatch_event_bus.cue_app_bus.name
+      KEYCLOAK_ISSUER                = var.keycloak_issuer
+      KEYCLOAK_AUDIENCE              = var.keycloak_audience
+      KEYCLOAK_ADMIN_CLIENT_ID       = var.keycloak_admin_client_id
+      KEYCLOAK_ADMIN_CLIENT_SECRET   = var.keycloak_admin_client_secret
+      FRONTEND_URL                   = var.frontend_url
+      FRONTEND_CALLBACK_URL          = var.frontend_callback_url
+      LOG_LEVEL                      = "INFO"
+      POOL_ID          = var.pool_id
+      CLIENT_ID        = var.client_id
+      CLIENT_SECRET    = var.client_secret
+      POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
+      POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
+      ATHENA_DB_NAME="cue-uat-athena"
+      ATHENA_OUTPUT_BUCKET="cue-uat-athena"
+      ATHENA_RESULTS_BUCKET="cue-uat-athena"
+      DB_SSL_MODE="require"
+      API_ROOT_PATH = "/api"
+    }
+  }
 }
 
-# --- Triggers, Events, and other resources ---
+# 2. Scan Event Logger Lambda (SQS Consumer)
+resource "aws_lambda_function" "cue_scan_event" {
+  filename         = "../artifacts/infected-logger-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/infected-logger-lambda.zip")
+  function_name    = "cue_scan_event" # Using your preferred name
+  role             = var.infected_logger_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST        = var.db_proxy_host
+      PG_PORT        = var.db_port
+      PG_DB          = var.db_database
+      PG_USER        = var.db_user
+      PG_PASS        = var.db_password
+      LOG_LEVEL      = "INFO"
+      EVENT_BUS_NAME = aws_cloudwatch_event_bus.cue_app_bus.name
+    }
+  }
+}
+
+# 3. Notification Manager Lambda
+resource "aws_lambda_function" "notification_manager" {
+  filename         = "../artifacts/notification-manager-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/notification-manager-lambda.zip")
+  function_name    = "cue_notification_manager"
+  role             = var.notification_manager_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 60
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST          = var.db_proxy_host
+      PG_PORT          = var.db_port
+      PG_DB            = var.db_database
+      PG_USER          = var.db_user
+      PG_PASS          = var.db_password
+      EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
+      FRONTEND_URL     = var.frontend_url
+      LOG_LEVEL        = "INFO"
+    }
+  }
+}
+
+# 4. Email Sender Lambda
+# resource "aws_lambda_function" "email_sender" {
+#   filename         = "../artifacts/email-sender-lambda.zip"
+#   source_code_hash = filebase64sha256("../artifacts/email-sender-lambda.zip")
+#   function_name    = "cue_email_sender"
+#   role             = var.email_sender_role_arn
+#   handler          = "handler.handler"
+#   runtime          = "python3.13"
+#   architectures    = ["x86_64"]
+#   timeout          = 30
+#   memory_size      = 128
+
+#   environment {
+#     variables = {
+#       SENDER_EMAIL           = var.sender_email
+#       SOURCE_ARN             = var.ses_source_arn
+#       CONFIGURATION_SET_NAME = var.ses_configuration_set_name
+#       SES_REGION             = var.ses_region
+#       LOG_LEVEL              = "INFO"
+#     }
+#   }
+# }
+
+# 5. Process Athena Query Lambda
+# resource "aws_lambda_function" "process_athena_query" {
+#   # --- DEBUGGING CHANGE 2: Updated this reference ---
+#   filename         = archive_file.process_athena_query_zip_NEW.output_path
+#   source_code_hash = archive_file.process_athena_query_zip_NEW.output_base64sha256
+#   function_name    = "cue_process_athena_query"
+#   role             = var.process_athena_query_role_arn
+#   handler          = "handler.handler"
+#   runtime          = "python3.13"
+#   architectures    = ["x86_64"]
+#   timeout          = 180
+
+#   environment {
+#     variables = {
+#       RESULTS_BUCKET = var.cue_archive_results_bucket
+#       LOG_LEVEL      = "INFO"
+#     }
+#   }
+# }
+
+
+# --- Event Triggers and Permissions ---
 
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   event_source_arn = aws_sqs_queue.scan_results_queue.arn
@@ -118,62 +173,23 @@ resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   batch_size       = 5
 }
 
-resource "aws_cloudwatch_event_rule" "infected_file_rule" {
-  name           = "cue-infected-file-found-rule"
-  description    = "Triggers notification manager for infected files"
-  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
-  event_pattern = jsonencode({
-    source      = ["com.cue.scanner"],
-    "detail-type" = ["InfectedFileFound"]
-  })
-}
-
-resource "aws_cloudwatch_event_target" "infected_file_target" {
-  rule           = aws_cloudwatch_event_rule.infected_file_rule.name
-  target_id      = "TriggerNotificationManagerForInfection"
-  arn            = aws_lambda_function.notification_manager.arn
-  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
-}
+# --- Lambda Permissions ---
 
 resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager" {
   statement_id  = "AllowExecutionFromEventBridge"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.notification_manager.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.infected_file_rule.arn
+  source_arn    = aws_cloudwatch_event_rule.application_events_rule.arn
 }
 
-# --- NEW: Rule for User Application Events ---
-resource "aws_cloudwatch_event_rule" "user_application_rule" {
-  name           = "cue-user-application-events-rule"
-  description    = "Triggers notification manager for user application events"
-  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
-  event_pattern = jsonencode({
-    source      = ["com.cue.api"],
-    "detail-type" = [
-      "UserApplicationSubmitted",
-      "UserApplicationApproved"
-    ]
-  })
-}
-
-# --- NEW: Target for User Application Events ---
-resource "aws_cloudwatch_event_target" "user_application_target" {
-  rule           = aws_cloudwatch_event_rule.user_application_rule.name
-  target_id      = "TriggerNotificationManagerForUserApps"
-  arn            = aws_lambda_function.notification_manager.arn
-  event_bus_name = aws_cloudwatch_event_bus.cue_app_bus.name
-}
-
-# --- NEW: Permission for the new rule to invoke the Lambda ---
-resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager_user_app" {
-  statement_id  = "AllowExecutionFromEventBridgeUserApp"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.notification_manager.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.user_application_rule.arn
-}
-
+# resource "aws_lambda_permission" "allow_eventbridge_to_athena_processor" {
+#   statement_id  = "AllowExecutionFromEventBridgeForAthena"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.process_athena_query.function_name
+#   principal     = "events.amazonaws.com"
+#   source_arn    = aws_cloudwatch_event_rule.athena_query_state_change_rule.arn
+# }
 
 resource "aws_lambda_permission" "cue_api_apigw_permission" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -183,8 +199,30 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
 }
 
-# --- Logging ---
-resource "aws_cloudwatch_log_group" "cue_scan_event_lg" {
-  name              = "/aws/lambda/cue_scan_event"
+# --- CloudWatch Log Groups ---
+
+resource "aws_cloudwatch_log_group" "api_lambda_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.cue_api.function_name}"
   retention_in_days = 14
 }
+
+resource "aws_cloudwatch_log_group" "scan_event_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.cue_scan_event.function_name}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "notification_manager_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.notification_manager.function_name}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "email_sender_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.email_sender.function_name}"
+  retention_in_days = 14
+}
+
+# resource "aws_cloudwatch_log_group" "process_athena_query_lg" {
+#   name              = "/aws/lambda/${aws_lambda_function.process_athena_query.function_name}"
+#   retention_in_days = 14
+# }
+

@@ -1,5 +1,3 @@
-# File: src/python/api/v2/utils/user_application.py (Updated)
-
 from uuid import UUID
 from typing import List, Dict, Any, Optional
 import structlog
@@ -7,17 +5,18 @@ import structlog
 from core.db import get_db_connection
 from v2.database_util import user_application as app_db
 from v2.database_util import cueuser as user_db
-# --- ADDED: New dependencies for validation and security user creation ---
 from v2.database_util import role as role_db
 from v2.database_util import ngroup as ngroup_db
 from v2.type_util.auth import AuthUser as User
 from v2.type_util.user_application import UserApplicationCreate, ApplicationStatus, AccountType
 from v2.utils.cueuser import get_user_profile
 from asyncpg.exceptions import UniqueViolationError, ForeignKeyViolationError
+# --- Import the new event publisher utility ---
+from .event_publisher import publish_event
 
 logger = structlog.get_logger(__name__)
 
-# The UUID for the special 'ESDIS Security' ngroup from your seed data. Refer and change the Seed.sql values is this UUID changes.
+# The UUID for the special 'ESDIS Security' ngroup from your seed data
 ESDIS_SECURITY_NGROUP_ID = UUID('0259fb55-1146-4461-ade2-57504e0c3ace')
 
 class ApplicationNotFoundError(Exception):
@@ -27,9 +26,16 @@ class ApplicationInvalidStateError(Exception):
     pass
 
 async def submit_application(app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
-    """Submits a new user application."""
+    """Submits a new user application and publishes an event."""
     async with get_db_connection() as conn:
         new_app = await app_db.create_user_application(conn, app_data, user_id)
+    
+    # --- Publish event to notify admins ---
+    publish_event(
+        source="com.cue.api",
+        detail_type="UserApplicationSubmitted",
+        detail={"application_id": str(new_app['id'])}
+    )
     
     logger.info("application.submitted", application_id=str(new_app['id']))
     return new_app
@@ -50,12 +56,11 @@ async def list_applications(ngroup_id: Optional[UUID] = None, status: Optional[A
 async def approve_application(application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
     """
     Approves an application, creates the user in the local CUE database,
-    and enforces role assignment permissions.
+    and publishes an approval event.
     """
     logger.info("application.approval.started", application_id=str(application_id), approver_id=str(approver.id))
     try:
         async with get_db_connection() as conn:
-            # --- START: New validation logic ---
             role_to_assign = await role_db.get_role_short_name_by_id(conn, role_id_to_assign)
             if not role_to_assign:
                 raise ValueError("The specified role does not exist.")
@@ -71,7 +76,6 @@ async def approve_application(application_id: UUID, role_id_to_assign: UUID, app
                         raise ValueError("Security users may only assign the 'security' role.")
                 else:
                     raise ValueError("You do not have permission to assign roles.")
-            # --- END: New validation logic ---
 
             app_data = await app_db.get_user_application_by_id(conn, application_id)
             if not app_data:
@@ -90,14 +94,11 @@ async def approve_application(application_id: UUID, role_id_to_assign: UUID, app
                 )
                 await user_db.assign_role_to_user(conn, user_id, role_id_to_assign)
                 
-                # --- START: Special handling for Security user creation ---
                 if app_data['ngroup_id'] == ESDIS_SECURITY_NGROUP_ID:
                     all_ngroup_ids = await ngroup_db.list_all_ngroup_ids(conn)
                     await user_db.assign_ngroups_to_user(conn, user_id, all_ngroup_ids)
                     logger.info("user.creation.security", user_id=str(user_id), assigned_all_ngroups=len(all_ngroup_ids))
-                # --- END: Special handling ---
                 else:
-                    # Standard user creation logic
                     ngroups_to_assign = [app_data['ngroup_id']]
                     providers_to_assign = [app_data['provider_id']] if app_data.get('provider_id') else []
                     
@@ -108,7 +109,14 @@ async def approve_application(application_id: UUID, role_id_to_assign: UUID, app
                 await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
 
         new_user_profile = await get_user_profile(user_id)
-        
+
+        # --- Publish event to notify the user of their approval ---
+        publish_event(
+            source="com.cue.api",
+            detail_type="UserApplicationApproved",
+            detail={"user_id": str(user_id)}
+        )
+
         logger.info("application.approval.completed", application_id=str(application_id), new_user_id=str(user_id))
         return new_user_profile
             
@@ -132,3 +140,4 @@ async def reject_application(application_id: UUID) -> Dict[str, Any]:
         updated_app = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
     logger.info("application.rejection.completed", application_id=str(application_id))
     return updated_app
+

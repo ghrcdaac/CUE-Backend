@@ -13,8 +13,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DB_NAME = os.environ["ARCHIVE_DB"]
-ARCHIVE_BUCKET = os.environ["ARCHIVE_BUCKET"]
+DB_NAME = os.environ["ATHENA_DB_NAME"]
+ARCHIVE_BUCKET = os.environ["ATHENA_OUTPUT_BUCKET"]
+
 
 async def start_archive_query(ngroup_id: UUID, filters:MetricsQueryParameters) -> UUID:
     filter_dict = filters.model_dump(exclude=None)

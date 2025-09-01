@@ -1,49 +1,60 @@
-# ==============================================================================
-# File: src/python/api/v2/endpoints/api_keys.py (Fixed)
-# Purpose: Provides the REST API endpoints for managing API keys.
-# Fix: Corrected the import path for the User model.
-# ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status
 from uuid import UUID
 from typing import List
 
-# --- CHANGE: Corrected imports ---
-from core.security import get_current_user
-from v2.type_util.auth import AuthUser as User # Correctly import the user model
+from core.security import get_current_user, require_privilege
+from v2.type_util.auth import AuthUser
 from v2.utils import api_keys as api_key_utils
-from v2.type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyInfo
+from v2.type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyInfo, ApiKeyUpdateRequest
 
 router = APIRouter(prefix="/api-keys", tags=["V2 - API Keys"])
 
-@router.get("/", response_model=List[ApiKeyInfo])
-async def get_my_api_keys(user: User = Depends(get_current_user)):
-    """
-    Lists all API keys for the currently authenticated user.
-    The secret key itself is not returned.
-    """
-    return await api_key_utils.list_user_api_keys(user.id)
+@router.post("/", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_privilege("api-key:create"))])
+async def create_api_key_endpoint(request: ApiKeyCreateRequest, user: AuthUser = Depends(get_current_user)):
+    """Creates a new API key, either for the requester or a target user/proxy."""
+    try:
+        created_key = await api_key_utils.create_api_key(request, user)
+        return ApiKeyCreateResponse.model_validate(created_key)
+    except (ValueError, api_key_utils.ApiKeyPermissionError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.post("/", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED)
-async def create_api_key(
-    request: ApiKeyCreateRequest,
-    user: User = Depends(get_current_user)
-):
+@router.get("/", response_model=List[ApiKeyInfo], dependencies=[Depends(require_privilege("api-key:read"))])
+async def list_api_keys_endpoint(user: AuthUser = Depends(get_current_user)):
     """
-    Creates a new API key for the currently authenticated user.
-    The secret key is only returned in this response.
-    """
-    created_key = await api_key_utils.create_api_key_for_user(user.id, request.name)
-    return ApiKeyCreateResponse(**created_key)
-
-@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_api_key_endpoint(
-    key_id: UUID,
-    user: User = Depends(get_current_user)
-):
-    """
-    Revokes (deletes) an API key owned by the currently authenticated user.
+    Lists API keys.
+    - Regular users see keys created by or for them.
+    - Managers/Admins see all keys within their active ngroup.
     """
     try:
-        await api_key_utils.revoke_user_api_key(key_id, user.id)
+        return await api_key_utils.list_api_keys(user)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.patch("/{key_id}", status_code=status.HTTP_204_NO_CONTENT,
+              dependencies=[Depends(require_privilege("api-key:update"))])
+async def update_api_key_endpoint(key_id: UUID, request: ApiKeyUpdateRequest, user: AuthUser = Depends(get_current_user)):
+    """Updates an API key (e.g., suspends or reactivates it)."""
+    try:
+        await api_key_utils.update_api_key(key_id, request, user)
     except api_key_utils.ApiKeyNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except api_key_utils.ApiKeyPermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(require_privilege("api-key:delete"))])
+async def revoke_api_key_endpoint(key_id: UUID, user: AuthUser = Depends(get_current_user)):
+    """Revokes (deletes) an API key."""
+    try:
+        await api_key_utils.revoke_api_key(key_id, user)
+    except api_key_utils.ApiKeyNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except api_key_utils.ApiKeyPermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

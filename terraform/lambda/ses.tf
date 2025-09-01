@@ -1,41 +1,61 @@
-# ./terraform/lambda/ses.tf
+# ==============================================================================
+# File: terraform/lambda/ses.tf (V2 Refactored)
+# Purpose: Defines the email_sender Lambda and its specific IAM Role.
+# ==============================================================================
 
-# --- IAM Role for email_sender Lambda ---
-# This role and its policy are now defined here, alongside the Lambda that uses them.
-resource "aws_iam_role" "email_sender_role" {
-  name               = "CUEEmailSenderRole"
-  assume_role_policy = file("${path.module}/../iam/cue_scan_event_assume_role.json")
+# --- Assume Role Policy Document for Lambda ---
+# This defines the trust relationship allowing the Lambda service to assume this role.
+data "aws_iam_policy_document" "lambda_assume_role_policy" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
 }
 
-# This policy grants the necessary permission to send emails via SES.
+# --- Permissions Policy Document for the Email Sender ---
+# This defines what the email_sender Lambda is allowed to do.
+data "aws_iam_policy_document" "email_sender_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["ses:SendEmail", "ses:SendRawEmail"]
+    # SES requires a wildcard resource for this action.
+    resources = ["*"]
+  }
+}
+
+
+# --- IAM Role for email_sender Lambda ---
+resource "aws_iam_role" "email_sender_role" {
+  name               = "CUEEmailSenderRole-v2"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+# --- IAM Policy Attachment ---
 resource "aws_iam_role_policy" "email_sender_ses_policy" {
-  name = "CUEEmailSenderSESPolicy"
-  role = aws_iam_role.email_sender_role.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Action    = ["ses:SendEmail", "ses:SendRawEmail"],
-      # Resource must be "*" for ses:SendEmail as required by AWS.
-      Resource  = ["*"]
-    }]
-  })
+  name   = "CUEEmailSenderSESPolicy-v2"
+  role   = aws_iam_role.email_sender_role.id
+  policy = data.aws_iam_policy_document.email_sender_policy.json
 }
 
 
 # --- Email Sender Lambda ---
 # This function's only job is to send emails via SES.
 resource "aws_lambda_function" "email_sender" {
+  # This references the archive_file resource defined in main.tf
   filename         = "../artifacts/email-sender-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/email-sender-lambda.zip")
   function_name    = "cue_email_sender"
-  # This now correctly references the role created in this same file.
   role             = aws_iam_role.email_sender_role.arn
-  handler          = "email_sender.handler.handler"
-  runtime          = "python3.13"
-  architectures    = ["x86_64"]
-  source_code_hash = filesha256("../artifacts/email-sender-lambda.zip")
-  timeout          = 30
-  memory_size      = 128
+  handler          = "handler.handler"
+  runtime          = "python3.13" # Updated runtime
+  architectures    = ["x86_64"]   # Added architecture
+
+  timeout     = 30
+  memory_size = 128
 
   environment {
     variables = {
@@ -47,3 +67,4 @@ resource "aws_lambda_function" "email_sender" {
     }
   }
 }
+

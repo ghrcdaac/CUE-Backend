@@ -1,4 +1,7 @@
-// ./lambda/variables.tf
+# ==============================================================================
+# File: terraform/lambda/variables.tf (V2 Refactored)
+# Purpose: Defines input variables for the Lambda module.
+# ==============================================================================
 
 variable "region" {
   description = "AWS region."
@@ -10,23 +13,19 @@ variable "account_id" {
   type        = string
 }
 
-variable "lambda_execution_policy_arn" {
-  description = "The ARN for the basic Lambda execution policy (for VPC access)."
-  type        = string
-}
-
 variable "cue_css_scan_sns_arn" {
   description = "ARN of the SNS topic for CUE CSS scans."
   type        = string
 }
 
-variable "db_user" {
-  description = "Database username."
+# --- Database & Networking ---
+variable "db_proxy_host" {
+  description = "The endpoint of the RDS Proxy."
   type        = string
 }
 
-variable "db_host" {
-  description = "Database host endpoint."
+variable "db_port" {
+  description = "Database port."
   type        = string
 }
 
@@ -35,15 +34,15 @@ variable "db_database" {
   type        = string
 }
 
+variable "db_user" {
+  description = "Database username."
+  type        = string
+}
+
 variable "db_password" {
   description = "Database password."
   type        = string
-  sensitive   = true // Mark password as sensitive
-}
-
-variable "db_port" {
-  description = "Database port."
-  type        = string
+  sensitive   = true
 }
 
 variable "subnet_ids" {
@@ -56,15 +55,110 @@ variable "security_group_ids" {
   type        = list(string)
 }
 
+# --- API Configuration ---
 variable "api_id" {
   description = "API Gateway ID."
   type        = string
 }
 
-variable "api_docker" {
+variable "api_docker_uri" {
   description = "ECR Image URI for the API Lambda."
   type        = string
 }
+
+variable "s3_upload_bucket" {
+  description = "S3 bucket for file uploads."
+  type        = string
+}
+
+variable "frontend_url" {
+  description = "The root URL of the CUE dashboard frontend, used for email links."
+  type        = string
+}
+
+variable "frontend_callback_url" {
+  description = "The full callback URL for the frontend application after OIDC login."
+  type        = string
+}
+
+# --- Keycloak Configuration ---
+variable "keycloak_issuer" {
+  description = "The OIDC issuer URL for the Keycloak realm."
+  type        = string
+}
+
+variable "keycloak_audience" {
+  description = "The expected audience value in the JWT."
+  type        = string
+}
+
+variable "keycloak_admin_client_id" {
+  description = "The client ID for the Keycloak admin client used by the backend."
+  type        = string
+}
+
+variable "keycloak_admin_client_secret" {
+  description = "The client secret for the Keycloak admin client."
+  type        = string
+  sensitive   = true
+}
+
+# --- SES Configuration ---
+variable "sender_email" {
+  description = "The email address to send notifications from."
+  type        = string
+}
+
+variable "ses_source_arn" {
+  description = "The ARN of the SES identity that is authorized to send emails."
+  type        = string
+}
+
+variable "ses_configuration_set_name" {
+  description = "The name of the SES Configuration Set to use."
+  type        = string
+}
+
+variable "ses_region" {
+  description = "The AWS region where SES is configured."
+  type        = string
+}
+
+# --- IAM Role ARNs ---
+variable "api_lambda_role_arn" {
+  description = "IAM Role ARN for the CUE API Lambda."
+  type        = string
+}
+
+variable "infected_logger_role_arn" {
+  description = "IAM Role ARN for the Infected Logger Lambda."
+  type        = string
+}
+
+variable "notification_manager_role_arn" {
+  description = "IAM Role ARN for the Notification Manager Lambda."
+  type        = string
+}
+
+variable "email_sender_role_arn" {
+  description = "IAM Role ARN for the Email Sender Lambda."
+  type        = string
+}
+
+variable "process_athena_query_role_arn" {
+  description = "IAM Role ARN for the Process Athena Query Lambda."
+  type        = string
+}
+
+# --- Archive Bucket ---
+variable "cue_archive_results_bucket" {
+  description = "The S3 bucket for final Athena query results."
+  type        = string
+}
+
+
+
+# delete later
 
 variable "pool_id" {
   description = "Cognito User Pool ID or similar identifier."
@@ -86,56 +180,4 @@ variable "lambda_env_vars" {
   description = "A map of additional environment variables for the Lambda functions."
   type        = map(string)
   default     = {}
-}
-
-variable "s3_upload_bucket" {
-  description = "S3 bucket for upload"
-  type        = string
-}
-
-# --- SES Configuration Variables ---
-variable "sender_email" {
-  description = "The email address to send notifications from."
-  type        = string
-}
-
-variable "ses_source_arn" {
-  description = "The ARN of the SES identity (domain/email) that is authorized to send emails."
-  type        = string
-}
-
-variable "ses_configuration_set_name" {
-  description = "The name of the SES Configuration Set to use for sending emails."
-  type        = string
-}
-
-variable "ses_region" {
-  description = "The AWS region where SES is configured (often us-east-1)."
-  type        = string
-}
-
-variable "cue_scan_event_role_arn" {
-  description = "IAM Role ARN for the CUE Scan Event Lambda."
-  type        = string
-}
-
-variable "cue_api_lambda_role_arn" {
-  description = "IAM Role ARN for the CUE API Lambda."
-  type        = string
-}
-
-variable "notification_manager_role_arn" {
-  description = "IAM Role ARN for the Notification Manager Lambda."
-  type        = string
-}
-
-variable "email_sender_role_arn" {
-  description = "IAM Role ARN for the Email Sender Lambda."
-  type        = string
-}
-
-variable "frontend_url" {
-  description = "The root URL of the CUE dashboard frontend, used for email links."
-  type        = string
-  default     = "http://localhost:3000" 
 }

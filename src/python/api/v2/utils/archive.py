@@ -1,5 +1,3 @@
-# File: src/python/api/v2/utils/archive.py
-
 import os
 from uuid import UUID
 from typing import List, Dict
@@ -79,7 +77,8 @@ async def get_query_results(query_execution_id: str) -> List[FileResponse]:
         results = []
         # Skip the header row (index 0)
         for row in response['ResultSet']['Rows'][1:]:
-            row_data = {col_info[i]: item.get('VarCharValue') for i, item in enumerate(row['Data'])}
+            
+            row_data = {column_info[i]: item.get('VarCharValue') for i, item in enumerate(row['Data'])}
             results.append(FileResponse.model_validate(row_data))
         return results
     except ClientError as e:

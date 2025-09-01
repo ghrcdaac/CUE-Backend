@@ -38,7 +38,11 @@ INSERT INTO privilege (id, privilege) VALUES
     ('a1a1a1a1-0000-0000-0000-000000000035', 'ngroup:update'),
     ('a1a1a1a1-0000-0000-0000-000000000036', 'ngroup:delete'),
     ('a1a1a1a1-0000-0000-0000-000000000037', 'file:delete'),
-    ('a1a1a1a1-0000-0000-0000-000000000040', 'archive:query');
+    ('a1a1a1a1-0000-0000-0000-000000000040', 'archive:query'),
+    ('a1a1a1a1-0000-0000-0000-000000000041', 'api-key:create'),
+    ('a1a1a1a1-0000-0000-0000-000000000042', 'api-key:read'),
+    ('a1a1a1a1-0000-0000-0000-000000000043', 'api-key:update'),
+    ('a1a1a1a1-0000-0000-0000-000000000044', 'api-key:delete');
 
 -- Roles
 INSERT INTO role (id, short_name, long_name) VALUES
@@ -86,7 +90,11 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'scan:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'metrics:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'file:delete')),
-    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'archive:query')); 
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'archive:query')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'api-key:create')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'api-key:read')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'api-key:update')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'api-key:delete')); 
 
 -- DAAC Staff
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
@@ -106,7 +114,11 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'scan:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'metrics:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'file:delete')),
-    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'archive:query')); 
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'archive:query')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'api-key:create')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'api-key:read')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'api-key:update')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'api-key:delete')); 
 
 -- DAAC Observer
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
@@ -123,7 +135,10 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'file:upload')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'file:read')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'scan:read')),
-    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'metrics:read'));
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'metrics:read')),
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:create')),
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:read')),
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:delete'));
 
 
 -- ngroup

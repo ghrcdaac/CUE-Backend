@@ -93,7 +93,7 @@ async def get_user_info(user: AuthUser = Depends(get_current_user)):
 def get_logout_url(request: LogoutUrlRequest):
     """Constructs the full logout URL for Keycloak."""
     logout_endpoint = f"{os.getenv('KEYCLOAK_ISSUER')}/protocol/openid-connect/logout"
-    post_logout_redirect_uri = os.getenv("FRONTEND_URL", "http://localhost:8080")
+    post_logout_redirect_uri = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
     params = {"id_token_hint": request.id_token_hint, "post_logout_redirect_uri": post_logout_redirect_uri}
     return LogoutUrlResponse(logout_url=f"{logout_endpoint}?{urlencode(params)}")
