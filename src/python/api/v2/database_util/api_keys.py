@@ -9,18 +9,18 @@ logger = structlog.get_logger(__name__)
 async def store_api_key(
     conn: Connection, key_hash: str, prefix: str, name: str, scopes: List[str],
     user_id: Optional[UUID], created_by_user_id: UUID, proxy_user_name: Optional[str],
-    ngroup_id: Optional[UUID], expires_at: datetime
+    ngroup_id: Optional[UUID], expires_at: datetime, key_display_suffix: str 
 ) -> UUID:
     """Stores a new hashed API key in the database and returns its ID."""
     query = """
         INSERT INTO api_key (key_hash, prefix, name, scopes, user_id, created_by_user_id, 
-                             proxy_user_name, ngroup_id, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                             proxy_user_name, ngroup_id, expires_at, key_display_suffix) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
         RETURNING id;
     """
     return await conn.fetchval(
         query, key_hash, prefix, name, scopes, user_id, created_by_user_id,
-        proxy_user_name, ngroup_id, expires_at
+        proxy_user_name, ngroup_id, expires_at, key_display_suffix 
     )
 
 async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dict[str, Any]]:
@@ -42,14 +42,35 @@ async def list_api_keys(
     """
     Lists API keys. If ngroup_id_for_admin is provided, lists all keys for that group.
     Otherwise, lists keys owned by or created for the given user_id.
+    
+    This query now joins the cueuser table twice to get the names for the
+    key owner (user_id) and the key creator (created_by_user_id).
     """
+    base_query = """
+        SELECT
+            ak.*,
+            owner.name AS user_name,
+            creator.name AS created_by_user_name
+        FROM
+            api_key ak
+        LEFT JOIN
+            cueuser owner ON ak.user_id = owner.id
+        LEFT JOIN
+            cueuser creator ON ak.created_by_user_id = creator.id
+    """
+    
     if ngroup_id_for_admin:
-        query = "SELECT * FROM api_key WHERE ngroup_id = $1 OR user_id IN (SELECT cueuser_id FROM cueuser_ngroup WHERE ngroup_id = $1) ORDER BY created_at DESC;"
+        # For managers, get all keys associated with their active group
+        where_clause = "WHERE ak.ngroup_id = $1 OR ak.user_id IN (SELECT cueuser_id FROM cueuser_ngroup WHERE ngroup_id = $1)"
+        order_clause = "ORDER BY ak.created_at DESC;"
         params = (ngroup_id_for_admin,)
     else:
-        query = "SELECT * FROM api_key WHERE user_id = $1 OR created_by_user_id = $1 ORDER BY created_at DESC;"
+        # For regular users, get keys they own or created
+        where_clause = "WHERE ak.user_id = $1 OR ak.created_by_user_id = $1"
+        order_clause = "ORDER BY ak.created_at DESC;"
         params = (user_id,)
         
+    query = f"{base_query} {where_clause} {order_clause}"
     return await conn.fetch(query, *params)
 
 async def get_api_key_by_id(conn: Connection, key_id: UUID) -> Optional[Dict[str, Any]]:

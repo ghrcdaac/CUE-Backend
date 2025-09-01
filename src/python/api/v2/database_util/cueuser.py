@@ -2,7 +2,7 @@
 # File: src/python/api/v2/database_util/cueuser.py (Final)
 # Purpose: Contains all raw SQL queries for user management.
 # ==============================================================================
-from asyncpg import Connection
+from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 import structlog
@@ -192,11 +192,14 @@ async def remove_all_user_associations(conn: Connection, user_id: UUID):
     await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
 
 async def delete_user(conn: Connection, user_id: UUID) -> bool:
-    """
-    Deletes a user from the cueuser table.
-    """
-    result = await conn.execute("DELETE FROM cueuser WHERE id = $1", user_id)
-    return result.strip() == "DELETE 1"
+    """Deletes a user from the cueuser table."""
+    try:
+        result = await conn.execute("DELETE FROM cueuser WHERE id = $1", user_id)
+        return result.strip() == "DELETE 1"
+    except ForeignKeyViolationError as e:
+        logger.warning("db.user.delete.failed_fk", user_id=str(user_id), error=str(e))
+        # This clear error will now be sent to the frontend
+        raise ValueError("Cannot delete this user because they are still linked to other critical data (e.g., as a point of contact for a provider).") from e
 
 
 async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:

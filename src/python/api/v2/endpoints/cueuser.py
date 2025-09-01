@@ -8,7 +8,7 @@ from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser as User
 from v2.utils import cueuser as cueuser_utils
 # --- REMOVED: KeycloakClient dependency ---
-from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse
+from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse, UserRoleUpdateRequest
 
 router = APIRouter(prefix="/cueusers", tags=["V2 - CUE Users"])
 
@@ -107,6 +107,22 @@ async def update_user_endpoint(user_id: UUID, update_request: UserUpdateRequest)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+@router.patch("/{user_id}/role", response_model=UserResponse, dependencies=[Depends(require_privilege("user:assign_role"))])
+async def update_user_role_endpoint(
+    user_id: UUID, 
+    request: UserRoleUpdateRequest, 
+    current_user: User = Depends(get_current_user)
+):
+    """Assigns a new role to a user."""
+    try:
+        updated_user = await cueuser_utils.update_user_role(user_id, request.role_id, current_user)
+        return UserResponse.model_validate(updated_user)
+    except cueuser_utils.UserNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("user:delete"))])
 async def delete_user_endpoint(user_id: UUID):
     """Deletes a user from the local CUE database. Requires 'user:delete' privilege."""
@@ -114,3 +130,10 @@ async def delete_user_endpoint(user_id: UUID):
         await cueuser_utils.delete_user_fully(user_id)
     except cueuser_utils.UserNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        # This will catch the user-friendly error from the database layer
+        # and send it to the frontend as a 400 Bad Request.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        # Catch-all for any other unexpected errors.
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

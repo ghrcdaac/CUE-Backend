@@ -54,3 +54,7 @@ class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     edpub_id: Optional[str] = None
+
+class UserRoleUpdateRequest(BaseModel):
+    """Request body for updating a user's role."""
+    role_id: UUID

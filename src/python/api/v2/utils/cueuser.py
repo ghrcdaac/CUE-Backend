@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 import structlog
 import json
 
+from v2.type_util.auth import AuthUser
 from core.db import get_db_connection
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db 
@@ -129,4 +130,38 @@ async def update_user_details(user_id: UUID, update_request: UserUpdateRequest) 
     async with get_db_connection() as conn:
         await user_db.update_user(conn, user_id, update_data)
     
+    return await get_user_profile(user_id)
+
+async def update_user_role(user_id: UUID, role_id: UUID, current_user: AuthUser) -> Dict[str, Any]:
+    """
+    Updates a user's role after performing permission checks.
+    For simplicity in this system, it replaces all existing roles with the new one.
+    """
+    # Server-side permission check to ensure users can't assign roles they shouldn't
+    # This logic should mirror the frontend's getEditableRoles helper
+    
+    is_admin = "admin" in current_user.roles
+    is_manager = "daac_manager" in current_user.roles
+    
+    if not is_admin:
+        async with get_db_connection() as conn:
+            target_role = await role_db.get_role_by_id(conn, role_id)
+            if not target_role:
+                raise ValueError("Target role not found.")
+
+            allowed_roles = set()
+            if is_manager:
+                allowed_roles.update(["daac_staff", "daac_observer", "provider"])
+            
+            if "security" in current_user.roles:
+                allowed_roles.add("security")
+            
+            if target_role['short_name'] not in allowed_roles:
+                raise ValueError("You do not have permission to assign this role.")
+
+    async with get_db_connection() as conn:
+        # The DB function expects a list of IDs
+        await user_db.update_user_roles(conn, user_id, [role_id])
+    
+    logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
     return await get_user_profile(user_id)

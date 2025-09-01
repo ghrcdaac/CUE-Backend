@@ -1,26 +1,41 @@
+# v2/type_util/api_keys.py
+
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 class ApiKeyCreateRequest(BaseModel):
     """Request body for creating a new API key."""
     name: str = Field(..., min_length=3, max_length=100)
-    expires_in_days: int = Field(..., gt=0, le=365)
     scopes: List[str] = Field(default=["file:upload"])
     
-    # --- Mutually exclusive fields for key owner ---
+    # --- Expiration fields to support custom dates ---
+    expires_in_days: Optional[int] = Field(None, gt=0, le=365)
+    expires_at: Optional[datetime] = None
+    
+    # --- Owner fields ---
     target_user_id: Optional[UUID] = None
     proxy_user_name: Optional[str] = Field(None, min_length=3, max_length=100)
-    ngroup_id: Optional[UUID] = None # Required if proxy_user_name is set
+    ngroup_id: Optional[UUID] = None
 
-    @field_validator("proxy_user_name")
-    def validate_owner(cls, v, info):
-        if v and info.data.get("target_user_id"):
+    # Validator to ensure expiration is handled correctly
+    @model_validator(mode='after')
+    def validate_expiration(self):
+        if self.expires_in_days is None and self.expires_at is None:
+            raise ValueError("Either 'expires_in_days' or 'expires_at' must be provided.")
+        if self.expires_in_days is not None and self.expires_at is not None:
+            raise ValueError("'expires_in_days' and 'expires_at' are mutually exclusive.")
+        return self
+
+    # Validator to ensure owner is handled correctly
+    @model_validator(mode='after')
+    def validate_owner(self):
+        if self.proxy_user_name and self.target_user_id:
             raise ValueError("target_user_id and proxy_user_name are mutually exclusive.")
-        if v and not info.data.get("ngroup_id"):
+        if self.proxy_user_name and not self.ngroup_id:
             raise ValueError("ngroup_id is required when creating a proxy key.")
-        return v
+        return self
 
 class ApiKeyUpdateRequest(BaseModel):
     """Request body for updating an API key's status."""
@@ -43,12 +58,16 @@ class ApiKeyInfo(BaseModel):
     last_used_at: Optional[datetime] = None
     expires_at: datetime
     is_active: bool
+    key_display_suffix: Optional[str] = None
     
     # --- Owner Info ---
     user_id: Optional[UUID] = None
     proxy_user_name: Optional[str] = None
     ngroup_id: Optional[UUID] = None
     created_by_user_id: UUID
+
+    user_name: Optional[str] = None
+    created_by_user_name: Optional[str] = None
 
     class Config:
         from_attributes = True

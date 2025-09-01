@@ -88,16 +88,17 @@ CREATE TABLE IF NOT EXISTS api_key (
     prefix VARCHAR(10) NOT NULL,
     name VARCHAR(255) NOT NULL,
     scopes VARCHAR[] NOT NULL,
+    key_display_suffix VARCHAR(7) NULL,
     
-    -- "Created For" - Can be NULL for proxy keys
+    -- "Created For"
     user_id UUID NULL, 
-    
-    -- "Created By" - The user who generated the key
+    proxy_user_name VARCHAR(255) NULL,
+
+    -- "Created By"
     created_by_user_id UUID NOT NULL,
 
-    -- For Proxy Keys
-    proxy_user_name VARCHAR(255) NULL,
-    ngroup_id UUID NULL, -- Required only if user_id is NULL
+    -- Group association (can now be used for both user and proxy keys)
+    ngroup_id UUID NULL,
 
     -- Timestamps & Status
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -111,10 +112,10 @@ CREATE TABLE IF NOT EXISTS api_key (
     FOREIGN KEY (created_by_user_id) REFERENCES cueuser(id) ON DELETE CASCADE,
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id) ON DELETE SET NULL,
 
-    -- Ensures that a key is either for a CUE user OR a proxy, but not both.
+
     CONSTRAINT chk_key_owner CHECK (
-        (user_id IS NOT NULL AND proxy_user_name IS NULL AND ngroup_id IS NULL) OR
-        (user_id IS NULL AND proxy_user_name IS NOT NULL AND ngroup_id IS NOT NULL)
+        (user_id IS NOT NULL AND proxy_user_name IS NULL) OR
+        (user_id IS NULL AND proxy_user_name IS NOT NULL)
     )
 );
 
