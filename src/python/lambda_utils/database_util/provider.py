@@ -138,7 +138,7 @@ async def delete_provider_from_db_ngroup(conn: Connection, params: Tuple) -> boo
 async def list_providers_from_db(conn: Connection) -> List:
     """Retrieves all provider records from the database."""
     select_query = """
-     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+     SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason
         FROM provider
     """
     try:
@@ -150,7 +150,7 @@ async def list_providers_from_db(conn: Connection) -> List:
 async def list_providers_from_db_ngroup(conn: Connection, params: Tuple) -> List:
     """Retrieves provider records filtered by ngroup_id."""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason
         FROM provider
         WHERE ngroup_id = $1
     """
@@ -163,7 +163,7 @@ async def list_providers_from_db_ngroup(conn: Connection, params: Tuple) -> List
 async def list_providers_from_db_upload(conn: Connection, params: Tuple) -> List:
     """Retrieves provider records filtered by can_upload."""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason
         FROM provider
         WHERE can_upload = $1
     """
@@ -176,7 +176,7 @@ async def list_providers_from_db_upload(conn: Connection, params: Tuple) -> List
 async def list_providers_from_db_ngroup_and_upload(conn: Connection, params: Tuple) -> List:
     """Retrieves provider records filtered by ngroup_id and can_upload."""
     select_query = """
-        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact
+        SELECT id, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason
         FROM provider
         WHERE ngroup_id = $1 AND can_upload = $2
     """
