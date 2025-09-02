@@ -87,7 +87,7 @@ async def handle_application_approved(detail: dict):
         return
         
     subject = "Welcome to the CUE System!"
-    details["dashboard_url"] = os.getenv("FRONTEND_URL", "http://localhost:8080")
+    details["dashboard_url"] = os.getenv("FRONTEND_URL", "http://localhost:3000")
     body_html = load_template("application_approved_user_welcome.html", details)
     body_text = f"Welcome, {details.get('user_name')}! Your application has been approved."
     await invoke_email_sender([details['user_email']], subject, body_html, body_text)

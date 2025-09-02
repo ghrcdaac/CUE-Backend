@@ -30,12 +30,12 @@ echo "---"
 
 # --- Build Lambda Artifacts ---
 echo "STEP 1: Building Lambda artifacts..."
-bash ./scripts/build.sh
+# bash ./scripts/build.sh
 
 #--- Build and Push API Docker Image ---
 echo "STEP 2: Building and pushing API Docker image..."
 API_IMAGE_TAG="latest"
-API_DOCKER_URI=$(bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}")
+# API_DOCKER_URI=$(bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}")
 
 # # Check if the value is empty or not
 # if [[ -z "$API_DOCKER_URI" ]]; then

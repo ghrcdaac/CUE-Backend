@@ -13,7 +13,7 @@ from v2.type_util.role import RoleCreate, RoleUpdate, RoleResponse
 router = APIRouter(prefix="/roles", tags=["V2 - Roles"])
 
 @router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(require_privilege("admin"))])
+             dependencies=[Depends(require_privilege("role:create"))])
 async def create_role_endpoint(role: RoleCreate):
     """Creates a new role. Requires 'admin' privilege."""
     try:
@@ -24,7 +24,7 @@ async def create_role_endpoint(role: RoleCreate):
     except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
 
-@router.get("/", response_model=List[RoleResponse], dependencies=[Depends(require_privilege("admin"))])
+@router.get("/", response_model=List[RoleResponse], dependencies=[Depends(require_privilege("role:read"))])
 async def list_roles_endpoint():
     """Retrieves all role records. Requires 'admin' privilege."""
     try:
@@ -32,7 +32,7 @@ async def list_roles_endpoint():
     except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
 
-@router.get("/find", response_model=RoleResponse, dependencies=[Depends(require_privilege("admin"))])
+@router.get("/find", response_model=RoleResponse, dependencies=[Depends(require_privilege("role:read"))])
 async def lookup_role_endpoint(
     short_name: Optional[str] = Query(None, description="Role Short Name to search for"),
     long_name: Optional[str] = Query(None, description="Role Long Name to search for")
@@ -46,7 +46,7 @@ async def lookup_role_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.get("/{role_id}", response_model=RoleResponse, dependencies=[Depends(require_privilege("admin"))])
+@router.get("/{role_id}", response_model=RoleResponse, dependencies=[Depends(require_privilege("role:read"))])
 async def get_role_endpoint(role_id: UUID):
     """Retrieves a single role by its ID. Requires 'admin' privilege."""
     try:
@@ -55,7 +55,7 @@ async def get_role_endpoint(role_id: UUID):
     except role_utils.RoleNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-@router.patch("/{role_id}", response_model=RoleResponse, dependencies=[Depends(require_privilege("admin"))])
+@router.patch("/{role_id}", response_model=RoleResponse, dependencies=[Depends(require_privilege("role:update"))])
 async def update_role_endpoint(role_id: UUID, role_update: RoleUpdate):
     """Updates an existing role. Requires 'admin' privilege."""
     try:
@@ -66,7 +66,7 @@ async def update_role_endpoint(role_id: UUID, role_update: RoleUpdate):
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("admin"))])
+@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("role:delete"))])
 async def delete_role_endpoint(role_id: UUID):
     """Deletes a role. Requires 'admin' privilege."""
     try:

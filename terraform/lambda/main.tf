@@ -6,12 +6,13 @@
 
 # --- SNS Subscription ---
 # Subscribes the SQS queue to the external virus scanner's SNS topic.
-# resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
-#   topic_arn            = var.cue_css_scan_sns_arn
-#   protocol             = "sqs"
-#   endpoint             = aws_sqs_queue.scan_results_queue.arn
-#   raw_message_delivery = "true"
-# }
+
+resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
+  topic_arn            = var.cue_css_scan_sns_arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.scan_results_queue.arn
+  raw_message_delivery = "true"
+}
 
 # --- Lambda Code Packaging ---
 # These resources create the zip files from your source code directories.

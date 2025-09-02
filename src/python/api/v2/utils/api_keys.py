@@ -46,7 +46,7 @@ async def _can_manager_access_key(manager: AuthUser, key_info: Dict[str, Any], c
         if not target_user:
             return False
         
-        # --- THE FIX: This block handles both list-of-strings and list-of-dicts for ngroups ---
+        # --- This block handles both list-of-strings and list-of-dicts for ngroups ---
         target_ngroups_raw = target_user.get('ngroups', [])
         target_user_ngroups = set()
         for ng in target_ngroups_raw:
@@ -56,7 +56,7 @@ async def _can_manager_access_key(manager: AuthUser, key_info: Dict[str, Any], c
                     target_user_ngroups.add(str(ng_id))
             else:
                 target_user_ngroups.add(str(ng))
-        # --- END FIX ---
+       
         
         if set(manager.ngroups).intersection(target_user_ngroups):
             return True
@@ -133,7 +133,7 @@ async def update_api_key(key_id: UUID, update_request: ApiKeyUpdateRequest, user
         if not key_to_update:
             raise ApiKeyNotFoundError("API Key not found.")
 
-        # --- UPDATED: Using the new permission helper ---
+        # ---Using the new permission helper ---
         can_manage = False
         is_manager_role = any(role in user.roles for role in ["admin", "daac_manager", "daac_staff"])
 
