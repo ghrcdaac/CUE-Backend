@@ -155,6 +155,8 @@ async def update_provider(provider_id: UUID, provider_update: ProviderUpdate) ->
                 }
 
                 if update_fields:
+                    if update_fields['can_upload'] == True:
+                        update_fields['reason'] = None
                     update_params = (update_fields, provider_id)
                     updated_provider_rows = await provider_db.update_provider_in_db(conn, update_params)
                     if not updated_provider_rows:
