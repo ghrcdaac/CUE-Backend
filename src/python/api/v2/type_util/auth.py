@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/type_util/auth.py (Final)
+# File: src/python/api/v2/type_util/auth.py 
 # Purpose: Defines all Pydantic models for the v2 authentication process.
 # ==============================================================================
 from pydantic import BaseModel, Field, EmailStr

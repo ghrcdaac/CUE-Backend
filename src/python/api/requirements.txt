@@ -13,3 +13,4 @@ python-jose[cryptography]>=3.3,<4.0
 warrant>=0.6.1,<0.7.0
 structlog~=25.4.0
 httpx~=0.28.1
+aws-xray-sdk~=2.14.0

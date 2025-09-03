@@ -1,6 +1,7 @@
 # ==============================================================================
-# File: src/python/api/core/security.py 
+# File: src/python/api/core/security.py
 # Purpose: Contains all core logic for authentication and authorization.
+# ---  to use the shared connection pool from the request state ---
 # ==============================================================================
 import os
 import time
@@ -16,9 +17,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, jwk
 from jose.exceptions import JOSEError
 from pydantic import ValidationError
-from uuid import UUID
 
-from core.db import get_db_connection
+# -- REMOVED: from core.db import get_db_connection (No longer needed)
 from v2.database_util import cueuser as user_db
 from v2.database_util import api_keys as api_key_db
 from v2.type_util.auth import AuthUser, AuthenticatedUserClaims
@@ -28,6 +28,7 @@ KEYCLOAK_ISSUER = os.getenv("KEYCLOAK_ISSUER", "https://idfs.uat.earthdatacloud.
 KEYCLOAK_AUDIENCE = os.getenv("KEYCLOAK_AUDIENCE", "cue-uat")
 KEYCLOAK_JWKS_URI = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
 
+timeout = httpx.Timeout(30.0, connect=30.0)
 # --- Global Cache for JWKS Keys ---
 _jwks_cache: Dict[str, Any] = {"keys": [], "expires_at": 0}
 
@@ -42,7 +43,7 @@ async def _fetch_jwks_keys() -> List[Dict[str, Any]]:
     if current_time > _jwks_cache["expires_at"]:
         logger.info("jwks.cache.expired", issuer=KEYCLOAK_ISSUER)
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(KEYCLOAK_JWKS_URI)
                 response.raise_for_status()
                 jwks = response.json()
@@ -113,7 +114,8 @@ class OIDCBearer(HTTPBearer, OIDCValidator):
         payload = await self.validate_token(credentials.credentials)
         user = AuthUser(**payload)
 
-        async with get_db_connection() as conn:
+        # --- MODIFIED: Use the connection pool from the request state ---
+        async with request.state.pool.acquire() as conn:
             db_details = await user_db.get_user_auth_details(conn, user.id)
             if not db_details:
                 logger.warning("auth.user.not_in_local_db", user_id=str(user.id))
@@ -162,18 +164,18 @@ class APIKeyBearer(HTTPBearer):
         api_key = credentials.credentials
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
-        async with get_db_connection() as conn:
+        # --- MODIFIED: Use the connection pool from the request state and consolidate DB calls ---
+        async with request.state.pool.acquire() as conn:
             key_data = await api_key_db.get_user_from_api_key(conn, key_hash)
 
-        if not key_data:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
+            if not key_data:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
 
-        key_scopes = set(key_data.get("scopes", []))
-        if not self.required_scopes.issubset(key_scopes):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API Key does not have the required permissions.")
+            key_scopes = set(key_data.get("scopes", []))
+            if not self.required_scopes.issubset(key_scopes):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API Key does not have the required permissions.")
 
-        user_id = key_data["user_id"]
-        async with get_db_connection() as conn:
+            user_id = key_data["user_id"]
             user_profile = await user_db.get_user_by_id(conn, user_id)
             if not user_profile:
                     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
@@ -189,12 +191,11 @@ class APIKeyBearer(HTTPBearer):
                         logger.warning("db.json.parse_error", field=key, value=full_profile[key])
                         full_profile[key] = []
             
-            # --- FIX: Convert list of ngroup objects to list of strings ---
+            # --- Convert list of ngroup objects to list of strings ---
             if isinstance(full_profile.get("ngroups"), list):
                 full_profile["ngroups"] = [
                     ng.get("short_name") for ng in full_profile["ngroups"] if isinstance(ng, dict)
                 ]
-            # --- END FIX ---
             
             return AuthUser.model_validate(full_profile)
 
@@ -212,3 +213,4 @@ def require_privilege(privilege: str):
             logger.warning("authz.failed", required_privilege=privilege, user_id=user.id)
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Insufficient privileges: requires '{privilege}'.")
     return privilege_checker
+

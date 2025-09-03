@@ -35,16 +35,24 @@ echo "STEP 1: Building Lambda artifacts..."
 #--- Build and Push API Docker Image ---
 echo "STEP 2: Building and pushing API Docker image..."
 API_IMAGE_TAG="latest"
-# API_DOCKER_URI=$(bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}")
 
-# # Check if the value is empty or not
-# if [[ -z "$API_DOCKER_URI" ]]; then
-#   export TF_VAR_api_docker_uri="${bamboo_API_DOCKER}"
-# else
-#   export TF_VAR_api_docker_uri="$API_DOCKER_URI"
-# fi
+API_DOCKER_URI=$(bash ./scripts/build-api.sh "${bamboo_ACCOUNT_ID}" "${bamboo_AWS_REGION}" "${API_IMAGE_TAG}"  | grep "@sha256:" | tail -n 1)
+
+echo ${API_DOCKER_URI}
+
+# 2. Check if the captured URI is a valid ECR digest URI.
+#    Then, export the Terraform variable with the captured value.
+if [[ -z "$API_DOCKER_URI" ]] || [[ ! "$API_DOCKER_URI" == *"@sha256:"* ]]; then
+  echo "ERROR: Failed to retrieve a valid Docker image digest URI from the build script."
+  echo "Falling back to default value: ${bamboo_API_DOCKER}"
+  export TF_VAR_api_docker_uri="${bamboo_API_DOCKER}"
+else
+  echo "Successfully retrieved Docker image URI: ${API_DOCKER_URI}"
+  export TF_VAR_api_docker_uri="${API_DOCKER_URI}"
+fi
 
 
+echo "TF_VAR_api_docker_uri is set to: $TF_VAR_api_docker_uri"
 
 
 # --- Deploy with Terraform ---
@@ -52,8 +60,8 @@ echo "STEP 3: Running Terraform deployment..."
 cd terraform
 
 # --- Export ALL variables for Terraform ---
-export TF_VAR_api_docker_uri="${bamboo_API_DOCKER}"
-echo "TF_VAR_api_docker_uri is set to: $TF_VAR_api_docker_uri"
+
+
 
 
 # Standard AWS & Networking
@@ -125,13 +133,13 @@ terraform apply -auto-approve
 # echo "------------------------------------------------------------------------"
 
 # # Ask for confirmation before applying the plan.
-# # read -p "Do you want to apply this plan? (yes/no) " -n 1 -r
+# read -p "Do you want to apply this plan? (y/n) " -n 1 -r
 # echo # Move to a new line
-# # if [[ $REPLY =~ ^[Yy]$ ]]
-# # then
-# echo "STEP 3B: Applying Terraform configuration..."
-# terraform apply "tfplan"
-echo "Deployment complete."
+# if [[ $REPLY =~ ^[Yy]$ ]]
+# then
+#   echo "STEP 3B: Applying Terraform configuration..."
+#   terraform apply "tfplan"
+#   echo "Deployment complete."
 # else
 #     echo "Plan not applied. Exiting."
 #     exit 0

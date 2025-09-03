@@ -1,6 +1,7 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/auth.py (Final)
+# File: src/python/api/v2/endpoints/auth.py
 # Purpose: Provides all necessary OIDC authentication and user management endpoints.
+# --- MODIFIED to pass the request object down to the utility layer ---
 # ==============================================================================
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response
 from urllib.parse import urlencode
@@ -18,7 +19,7 @@ from v2.type_util.auth import (
 from v2.utils.auth import get_keycloak_client, KeycloakClient, get_user_login_status
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
-
+timeout = httpx.Timeout(30.0, connect=30.0)
 # --- Initial Login Flow ---
 
 @router.get("/login-url", response_model=LoginUrlResponse)
@@ -46,15 +47,18 @@ async def exchange_code(
 
 # --- User Status and Token Management ---
 
+# --- MODIFIED: This endpoint now accepts the request object and passes it down ---
 @router.get("/status", response_model=UserStatusResponse)
 async def get_user_status(
+    request: Request, # <-- Added the request object
     claims: AuthenticatedUserClaims = Depends(get_authenticated_user_claims)
 ):
     """
     Checks if the authenticated user is registered, pending approval, or new.
     This is the first endpoint the frontend should call after a user logs in.
     """
-    status = await get_user_login_status(claims.id)
+    # Pass the request object to the utility function
+    status = await get_user_login_status(request, claims.id)
     return UserStatusResponse(status=status)
 
 @router.get("/claims", response_model=UserClaimsResponse)
@@ -126,6 +130,7 @@ async def introspect_token(
         "client_id": keycloak_client.admin_client_id,
         "client_secret": keycloak_client.admin_client_secret,
     }
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(introspection_endpoint, data=payload)
         return response.json()
+

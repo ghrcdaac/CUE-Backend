@@ -59,6 +59,7 @@ class ApiKeyInfo(BaseModel):
     expires_at: datetime
     is_active: bool
     key_display_suffix: Optional[str] = None
+    last_used_at: Optional[datetime] = None  # Added
     
     # --- Owner Info ---
     user_id: Optional[UUID] = None

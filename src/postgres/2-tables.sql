@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS api_key (
     prefix VARCHAR(10) NOT NULL,
     name VARCHAR(255) NOT NULL,
     scopes VARCHAR[] NOT NULL,
-    key_display_suffix VARCHAR(7) NULL,
+    key_display_suffix VARCHAR(4) NULL,
     
     -- "Created For"
     user_id UUID NULL, 
@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS api_key (
     last_used_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    revoked_at TIMESTAMPTZ NULL,
 
     PRIMARY KEY (id),
     UNIQUE (key_hash),

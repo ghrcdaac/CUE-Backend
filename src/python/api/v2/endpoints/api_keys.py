@@ -46,6 +46,20 @@ async def update_api_key_endpoint(key_id: UUID, request: ApiKeyUpdateRequest, us
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+@router.patch("/{key_id}/record-usage", status_code=status.HTTP_204_NO_CONTENT,
+             dependencies=[Depends(require_privilege("file:upload"))]) # Protected by a basic privilege
+async def record_key_usage_endpoint(key_id: UUID):
+    """
+    An internal-facing endpoint to update the `last_used_at` timestamp of an API key.
+    This should be called by other services (like the Upload API) upon successful key usage.
+    """
+    try:
+        await api_key_utils.record_api_key_usage(key_id)
+    except Exception:
+        # Silently fail or log. This operation is not critical to the user-facing flow.
+        pass
+
+
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(require_privilege("api-key:delete"))])
 async def revoke_api_key_endpoint(key_id: UUID, user: AuthUser = Depends(get_current_user)):

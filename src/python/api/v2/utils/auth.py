@@ -1,6 +1,7 @@
 # ==============================================================================
 # File: src/python/api/v2/utils/auth.py (Final)
 # Purpose: Handles all server-to-server communication with Keycloak and auth logic.
+# --- MODIFIED to use the shared connection pool from the request state ---
 # ==============================================================================
 import os
 import time
@@ -10,12 +11,14 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from jose import jwt
 from urllib.parse import urlencode
+from fastapi import Request # <-- Import Request
 
-from core.db import get_db_connection
+# -- REMOVED: from core.db import get_db_connection (No longer needed)
 from v2.database_util import cueuser as user_db
 from v2.database_util import user_application as app_db
 
 logger = structlog.get_logger(__name__)
+timeout = httpx.Timeout(30.0, connect=30.0)
 
 class KeycloakClient:
     """
@@ -60,7 +63,7 @@ class KeycloakClient:
             "client_id": self.admin_client_id,
             "client_secret": self.admin_client_secret,
         }
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(self.token_url, data=payload)
             response.raise_for_status()
             return response.json()
@@ -76,7 +79,7 @@ class KeycloakClient:
             "client_id": self.admin_client_id,
             "client_secret": self.admin_client_secret,
         }
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(self.token_url, data=payload)
             response.raise_for_status()
             token_data = response.json()
@@ -102,7 +105,7 @@ class KeycloakClient:
         users_url = f"{self.admin_api_url}/users"
         
         logger.info("keycloak.admin.api.create_user", target_url=users_url)
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(users_url, headers=headers, json=user_representation)
             if response.status_code == 409:
                 raise ValueError(f"User with username '{username}' or email '{email}' already exists.")
@@ -124,7 +127,7 @@ class KeycloakClient:
             "client_id": self.admin_client_id,
             "client_secret": self.admin_client_secret,
         }
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(self.token_url, data=payload)
             response.raise_for_status()
             return response.json()
@@ -134,7 +137,7 @@ class KeycloakClient:
         token = await self._get_service_token()
         headers = {"Authorization": f"Bearer {token}"}
         delete_url = f"{self.admin_api_url}/users/{user_id}"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.delete(delete_url, headers=headers)
             if response.status_code not in [204, 404]:
                 logger.error("keycloak.admin.delete.failed", user_id=str(user_id), status_code=response.status_code)
@@ -146,7 +149,7 @@ class KeycloakClient:
         payload = ["UPDATE_PASSWORD"]
         reset_url = f"{self.admin_api_url}/users/{user_id}/execute-actions-email"
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             params = {"redirect_uri": os.getenv("FRONTEND_URL", "http://localhost:3000")}
             response = await client.put(reset_url, headers=headers, json=payload, params=params)
             response.raise_for_status()
@@ -157,12 +160,13 @@ keycloak_client = KeycloakClient()
 def get_keycloak_client() -> KeycloakClient:
     return keycloak_client
 
-async def get_user_login_status(user_id: UUID) -> str:
+# --- MODIFIED: This function now requires the request object to access the connection pool ---
+async def get_user_login_status(request: Request, user_id: UUID) -> str:
     """
     Checks the database to determine a user's status for the login workflow.
     """
     logger.info("auth.status.checking", user_id=str(user_id))
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         # 1. Check if the user is fully registered in the cueuser table.
         is_registered = await user_db.user_exists_by_id(conn, user_id)
         logger.info("auth.status.check.is_registered", result=is_registered)
@@ -178,3 +182,4 @@ async def get_user_login_status(user_id: UUID) -> str:
     # 3. If neither of the above, the user is new to the system.
     logger.info("auth.status.check.is_unregistered", result=True)
     return "unregistered"
+

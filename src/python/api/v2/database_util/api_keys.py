@@ -36,15 +36,15 @@ async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dic
     """
     return await conn.fetchrow(query, key_hash)
 
+
 async def list_api_keys(
-    conn: Connection, user_id: UUID, ngroup_id_for_admin: Optional[UUID] = None
+    conn: Connection, user_id: UUID, ngroup_id_for_manager: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
-    Lists API keys. If ngroup_id_for_admin is provided, lists all keys for that group.
-    Otherwise, lists keys owned by or created for the given user_id.
-    
-    This query now joins the cueuser table twice to get the names for the
-    key owner (user_id) and the key creator (created_by_user_id).
+    Lists API keys with refined privacy rules.
+    - Managers see proxy keys for their group and any keys they personally own.
+    - Regular users only see keys they personally own.
+    - Filters out revoked (soft-deleted) keys.
     """
     base_query = """
         SELECT
@@ -59,17 +59,23 @@ async def list_api_keys(
             cueuser creator ON ak.created_by_user_id = creator.id
     """
     
-    if ngroup_id_for_admin:
-        # For managers, get all keys associated with their active group
-        where_clause = "WHERE ak.ngroup_id = $1 OR ak.user_id IN (SELECT cueuser_id FROM cueuser_ngroup WHERE ngroup_id = $1)"
-        order_clause = "ORDER BY ak.created_at DESC;"
-        params = (ngroup_id_for_admin,)
+    if ngroup_id_for_manager:
+        # For managers/admins, show proxy keys for their active group OR any key they own.
+        where_clause = """
+            WHERE
+              (
+                (ak.proxy_user_name IS NOT NULL AND ak.ngroup_id = $1)
+                OR (ak.user_id = $2)
+              )
+              AND ak.revoked_at IS NULL
+        """
+        params = (ngroup_id_for_manager, user_id)
     else:
-        # For regular users, get keys they own or created
-        where_clause = "WHERE ak.user_id = $1 OR ak.created_by_user_id = $1"
-        order_clause = "ORDER BY ak.created_at DESC;"
+        # For regular users, only show keys they own.
+        where_clause = "WHERE ak.user_id = $1 AND ak.revoked_at IS NULL"
         params = (user_id,)
         
+    order_clause = "ORDER BY ak.created_at DESC;"
     query = f"{base_query} {where_clause} {order_clause}"
     return await conn.fetch(query, *params)
 
@@ -90,3 +96,16 @@ async def revoke_api_key(conn: Connection, key_id: UUID) -> bool:
     """Deletes an API key."""
     result = await conn.execute("DELETE FROM api_key WHERE id = $1", key_id)
     return result.strip() == "DELETE 1"
+
+async def soft_delete_api_key(conn: Connection, key_id: UUID) -> bool:
+    """Soft-deletes an API key by setting the revoked_at timestamp and deactivating it."""
+    query = "UPDATE api_key SET is_active = FALSE, revoked_at = NOW() WHERE id = $1 RETURNING id;"
+    result = await conn.fetchval(query, key_id)
+    return result is not None
+
+# --- Function to update last_used_at ---
+async def record_key_usage(conn: Connection, key_id: UUID) -> bool:
+    """Updates the last_used_at timestamp for a given key."""
+    query = "UPDATE api_key SET last_used_at = NOW() WHERE id = $1 RETURNING id;"
+    result = await conn.fetchval(query, key_id)
+    return result is not None

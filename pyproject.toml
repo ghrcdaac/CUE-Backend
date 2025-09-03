@@ -21,6 +21,7 @@ warrant = "^0.6.1"  # Added: For Cognito SRP
 requests = "^2.32.3" # Added for jwks fetch
 structlog~=25.4.0
 httpx~=0.28.1
+aws-xray-sdk~=2.14.0
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"

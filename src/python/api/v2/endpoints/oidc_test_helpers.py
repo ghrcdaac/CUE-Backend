@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body, HTTPException, status
 from urllib.parse import urlencode
 
 router = APIRouter(prefix="/oidc-helpers", tags=["V2 - OIDC Test Helpers"])
-
+timeout = httpx.Timeout(30.0, connect=30.0)
 
 
 # --- Configuration ---
@@ -61,7 +61,7 @@ async def exchange_code_for_token(request_body: dict = Body(...)):
         "client_secret": CLIENT_SECRET,
     }
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             token_response = await client.post(TOKEN_ENDPOINT, data=token_payload)
             token_response.raise_for_status()

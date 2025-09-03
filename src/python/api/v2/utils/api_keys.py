@@ -98,7 +98,7 @@ async def create_api_key(request: ApiKeyCreateRequest, creator: AuthUser) -> Dic
 
     raw_key, prefix = _generate_secure_key()
     key_hash = _hash_key(raw_key)
-    key_display_suffix = raw_key[-7:]
+    key_display_suffix = raw_key[-4:]
     
     if request.expires_at:
         expires_at = request.expires_at
@@ -149,13 +149,24 @@ async def update_api_key(key_id: UUID, update_request: ApiKeyUpdateRequest, user
     logger.info("api_key.updated", key_id=str(key_id), updater_id=str(user.id))
 
 async def revoke_api_key(key_id: UUID, user: AuthUser):
-    """Revokes an API key after checking permissions."""
-    # We can reuse the permission logic from update_api_key
-    await update_api_key(key_id, ApiKeyUpdateRequest(is_active=False), user) # This also serves to check permissions
+    """Soft-deletes an API key after checking permissions."""
+    # First, perform permission checks by simulating an update.
+    await update_api_key(key_id, ApiKeyUpdateRequest(is_active=False), user)
     
     async with get_db_connection() as conn:
-        success = await api_key_db.revoke_api_key(conn, key_id)
+        # --- Call the new soft-delete function ---
+        success = await api_key_db.soft_delete_api_key(conn, key_id)
+    
     if not success:
-        # This case is unlikely if the update_api_key call succeeded, but good for safety
         raise ApiKeyNotFoundError("API Key not found.")
-    logger.info("api_key.revoked", key_id=str(key_id), revoker_id=str(user.id))
+    logger.info("api_key.revoked (soft_delete)", key_id=str(key_id), revoker_id=str(user.id))
+
+# --- Business logic to record key usage ---
+async def record_api_key_usage(key_id: UUID):
+    """Records the usage of an API key by updating its last_used_at timestamp."""
+    async with get_db_connection() as conn:
+        success = await api_key_db.record_key_usage(conn, key_id)
+        if not success:
+            # We don't raise a loud error here, as this is an internal-facing
+            # endpoint and failure is not critical to the primary operation (e.g., file upload).
+            logger.warning("api_key.record_usage.not_found", key_id=str(key_id))

@@ -7,12 +7,12 @@
 # --- SNS Subscription ---
 # Subscribes the SQS queue to the external virus scanner's SNS topic.
 
-resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
-  topic_arn            = var.cue_css_scan_sns_arn
-  protocol             = "sqs"
-  endpoint             = aws_sqs_queue.scan_results_queue.arn
-  raw_message_delivery = "true"
-}
+# resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
+#   topic_arn            = var.cue_css_scan_sns_arn
+#   protocol             = "sqs"
+#   endpoint             = aws_sqs_queue.scan_results_queue.arn
+#   raw_message_delivery = "true"
+# }
 
 # --- Lambda Code Packaging ---
 # These resources create the zip files from your source code directories.
@@ -26,7 +26,13 @@ resource "aws_lambda_function" "cue_api" {
   role          = var.api_lambda_role_arn
   image_uri     = var.api_docker_uri
   package_type  = "Image"
-  timeout       = 30 # API Gateway timeout is 29s
+  timeout       = 150 # API Gateway timeout is 29s
+  publish = true # This enables versioning, which is required for an alias
+
+  
+  tracing_config {
+    mode = "Active"
+  }
 
   vpc_config {
     subnet_ids         = var.subnet_ids
@@ -59,6 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       ATHENA_RESULTS_BUCKET="cue-uat-athena"
       DB_SSL_MODE="require"
       API_ROOT_PATH = "/api"
+      DEBUG = "True"
     }
   }
 }
@@ -165,7 +172,29 @@ resource "aws_lambda_function" "notification_manager" {
 #   }
 # }
 
+# Creates a stable alias named "live" that points to the latest published version
+resource "aws_lambda_alias" "cue_api_live_alias" {
+  name             = "live"
+  description      = "The live alias for production traffic"
+  function_name    = aws_lambda_function.cue_api.arn
+  function_version = aws_lambda_function.cue_api.version
+}
 
+# Attaches 1 provisioned (warm) instance to the "live" alias
+resource "aws_lambda_provisioned_concurrency_config" "cue_api_pc" {
+  function_name                     = aws_lambda_function.cue_api.function_name
+  provisioned_concurrent_executions = 1
+  qualifier                         = aws_lambda_alias.cue_api_live_alias.name
+}
+
+resource "aws_lambda_permission" "cue_api_apigw_permission" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+
+  function_name = aws_lambda_alias.cue_api_live_alias.arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
+}
 # --- Event Triggers and Permissions ---
 
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
@@ -192,13 +221,13 @@ resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager" {
 #   source_arn    = aws_cloudwatch_event_rule.athena_query_state_change_rule.arn
 # }
 
-resource "aws_lambda_permission" "cue_api_apigw_permission" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.cue_api.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
-}
+# resource "aws_lambda_permission" "cue_api_apigw_permission" {
+#   statement_id  = "AllowExecutionFromAPIGateway"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.cue_api.function_name
+#   principal     = "apigateway.amazonaws.com"
+#   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
+# }
 
 # --- CloudWatch Log Groups ---
 
