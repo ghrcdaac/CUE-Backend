@@ -38,6 +38,17 @@ data "aws_iam_policy_document" "glue_assume_role_policy" {
   }
 }
 
+#data "aws_iam_policy_document" "eventbridge_scheduler_assume_role" { 
+  #statement {
+    #effect  = "Allow"
+    #actions = ["sts:AssumeRole"]
+    #principals {
+      #type        = "Service"
+      #identifiers = ["scheduler.amazonaws.com"]
+    #}
+  #}
+#}
+
 # --- Permission Policies for Lambda Roles ---
 
 data "aws_iam_policy_document" "api_lambda_policy" {
@@ -58,6 +69,11 @@ data "aws_iam_policy_document" "infected_logger_policy" {
     effect    = "Allow"
     actions   = ["events:PutEvents"]
     resources = ["arn:aws:events:${var.region}:${var.account_id}:event-bus/cue-application-bus"]
+  }
+  statement{
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = ["arn:aws:sqs:${var.region}:${var.account_id}:cue-file-transfer-queue"]
   }
 }
 
@@ -93,6 +109,24 @@ data "aws_iam_policy_document" "process_athena_query_policy" {
       "arn:aws:s3:::${var.cue_archive_bucket}/results/*",
       "arn:aws:s3:::${var.cue_archive_results_bucket}/*"
     ]
+  }
+}
+
+data "aws_iam_policy_document" "file_transfer_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:GetObject","s3:GetObjectTagging","s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.cue_staging_bucket}", "arn:aws:s3:::${var.cue_staging_bucket}/*" ]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:PutObject","s3:PutObjectTagging","s3:PutObjectAcl"]
+    resources = ["*"]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
+    resources = ["arn:aws:sqs:${var.region}:${var.account_id}:cue-file-transfer-queue"]
   }
 }
 
@@ -144,3 +178,12 @@ data "aws_iam_policy_document" "glue_crawler_policy" {
   }
 }
 
+# --- Policy for EventBridge Scheduler ---
+
+#data "aws_iam_policy_document" "infected_notif_scheduler_policy" {
+  #statement {
+    #effect = "Allow"
+    #actions = ["lambda:InvokeFunction"]
+    #resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
+  #}
+#}

@@ -195,12 +195,52 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
 }
+
+# 6. File Transfer Lambda
+resource  "aws_lambda_function" "cue_file_transfer"{
+  filename         = "../artifacts/file-transfer-lambda.zip"
+  function_name    = "cue_file_transfer"
+  role             = var.file_transfer_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  source_code_hash = filesha256("../artifacts/file-transfer-lambda.zip")
+  timeout          = 180
+  environment {
+    variables = {
+      PG_USER        = var.db_user
+      PG_HOST        = var.db_proxy_host
+      PG_DB          = var.db_database
+      PG_PASS        = var.db_password
+      PG_PORT        = var.db_port
+      POOL_ID        = var.pool_id
+      CLIENT_ID      = var.client_id
+      CLIENT_SECRET  = var.client_secret
+      STAGING_BUCKET = var.cue_staging_bucket
+      LOG_LEVEL      = "INFO"
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
+
 # --- Event Triggers and Permissions ---
 
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   event_source_arn = aws_sqs_queue.scan_results_queue.arn
   function_name    = aws_lambda_function.cue_scan_event.arn
   batch_size       = 5
+}
+
+resource "aws_lambda_event_source_mapping" "file_transfer_queue_to_transfer_lambda" {
+  event_source_arn = aws_sqs_queue.cue_file_transfer_queue.arn
+  function_name = aws_lambda_function.cue_file_transfer.function_name
+  batch_size = 100
+  maximum_batching_window_in_seconds = 300
+  function_response_types  = ["ReportBatchItemFailures"] 
 }
 
 # --- Lambda Permissions ---

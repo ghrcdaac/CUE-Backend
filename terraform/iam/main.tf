@@ -74,6 +74,35 @@ resource "aws_iam_role_policy" "process_athena_query_policy" {
   policy = data.aws_iam_policy_document.process_athena_query_policy.json
 }
 
+# --- Role for Infected files Eventbridge Scheduler ---
+# resource "aws_iam_role" "infected_notif_scheduler_role" {
+  # name               = "CUEInfectedFileSchedulerRole" 
+  # assume_role_policy = data.aws_iam_policy_document.evenbridge_s
+# }
+
+# resource "aws_iam_role_policy" "infected_notif_scheduler_policy" {
+  # name       = "CUEInfectedFileSchedulerPolicy"
+  # role       = aws_iam_role.infected_notif_scheduler_role.id
+  # policy     = data.aws_iam_policy_document.infected_notif_scheduler_policy.json
+# }
+
+# --- Role for the File Transfer Lambda ---
+resource "aws_iam_role" "file_transfer_role"{
+  name               = "CUEFileTransferRole" # Use static name
+  assume_role_policy =  data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "file_transfer_vpc" {
+  role       = aws_iam_role.file_transfer_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "file_transfer_policy" {
+  name   = "CUEFileTransferPolicy" 
+  role   = aws_iam_role.file_transfer_role.id
+  policy = data.aws_iam_policy_document.file_transfer_policy.json
+}
+
 # --- Role for the RDS Proxy ---
 resource "aws_iam_role" "db_proxy_iam_role" {
   name               = "CUERDSProxyRole" # Use static name

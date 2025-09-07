@@ -2,6 +2,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import List, Optional, Any
 from uuid import UUID
+import json
 
 from pydantic import BaseModel, Field, field_validator, ValidationError
 
@@ -52,3 +53,10 @@ def parse_and_validate_message(message_content: dict) -> Optional[ScanResultMess
         file_key = message_content.get('key', 'N/A')
         logger.error("sns.message.validation_failed", file_key=file_key, exc_info=True)
         return None
+
+class ScanResultDetailJSONEncoder(json.JSONEncoder):
+    """JSONEncoder class to serialize ScanResultDetails into JSON strings""" 
+    def default(self, obj):
+        if isinstance(obj, datetime):
+           return obj.strftime("%Y-%m-%dT%H:%M:%S%fZ")
+        return super().default(obj)

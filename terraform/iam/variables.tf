@@ -33,3 +33,8 @@ variable "cue_archive_results_bucket" {
   type        = string
 }
 
+variable "cue_staging_bucket" {
+  description = "The S3 bucket for clean scanned files."
+  type        = string
+}
+
