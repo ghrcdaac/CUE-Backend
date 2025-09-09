@@ -78,6 +78,7 @@ export TF_VAR_rds_cluster_identifier="${bamboo_RDS_CLUSTER_IDENTIFIER}"
 export TF_VAR_api_id="${bamboo_API_ID}"
 
 # S3 Buckets
+export TF_VAR_cue_staging_bucket="${bamboo_S3_STAGING_BUCKET}"
 export TF_VAR_s3_upload_bucket="${bamboo_S3_UPLOAD_BUCKET}"
 export TF_VAR_cue_archive_bucket="${bamboo_S3_ARCHIVE_BUCKET}" 
 export TF_VAR_cue_archive_results_bucket="${bamboo_S3_ARCHIVE_RESULTS_BUCKET}"
