@@ -1,17 +1,23 @@
-# File: src/python/api/v2/utils/file_metrics.py
-
+# ==============================================================================
+# File: src/python/api/v2/utils/file_metrics.py (Updated)
+# --- MODIFIED to use the shared connection pool from the request state ---
+# ==============================================================================
 from uuid import UUID
 from typing import Dict, Any, List, Tuple
-from core.db import get_db_connection
+from fastapi import Request # <-- Import Request
+
+# --- REMOVED: from core.db import get_db_connection ---
 from v2.database_util import file_metrics as metrics_db
 from v2.type_util.file_metrics import MetricsQueryParameters
 
 BYTES_TO_GB = 1 / (1024**3)
 
-async def get_metrics_summary(ngroup_id: UUID, filters: MetricsQueryParameters) -> Dict[str, Any]:
+# --- MODIFIED: Functions now accept the `request` object ---
+
+async def get_metrics_summary(request: Request, ngroup_id: UUID, filters: MetricsQueryParameters) -> Dict[str, Any]:
     """Calculates and aggregates all file metrics."""
     filter_dict = filters.model_dump(exclude_none=True)
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_metrics_summary_data(conn, ngroup_id, filter_dict)
 
     return {
@@ -23,23 +29,23 @@ async def get_metrics_summary(ngroup_id: UUID, filters: MetricsQueryParameters) 
     }
 
 async def list_files_by_status(
-    ngroup_id: UUID, status: str, filters: MetricsQueryParameters, page: int, page_size: int
+    request: Request, ngroup_id: UUID, status: str, filters: MetricsQueryParameters, page: int, page_size: int
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Lists files filtered by status with pagination."""
     filter_dict = filters.model_dump(exclude_none=True)
     offset = (page - 1) * page_size
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         total = await metrics_db.count_files_by_status(conn, ngroup_id, status, filter_dict)
         items = await metrics_db.list_files_by_status(conn, ngroup_id, status, filter_dict, page_size, offset)
     return [dict(item) for item in items], total
 
 async def get_cost_by_collection(
-    ngroup_id: UUID, filters: MetricsQueryParameters, page: int, page_size: int
+    request: Request, ngroup_id: UUID, filters: MetricsQueryParameters, page: int, page_size: int
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Gets cost metrics aggregated by collection."""
     filter_dict = filters.model_dump(exclude_none=True)
     offset = (page - 1) * page_size
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         # We need a separate count function for this aggregation
         # For now, we'll assume a simplified total count. A more accurate count would be COUNT(DISTINCT c.id)
         total = await metrics_db.count_files_by_status(conn, ngroup_id, "distributed", {}) # Placeholder count

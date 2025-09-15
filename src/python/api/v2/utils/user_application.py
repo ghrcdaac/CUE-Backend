@@ -1,8 +1,14 @@
+# ==============================================================================
+# File: src/python/api/v2/utils/user_application.py (Corrected)
+# --- MODIFIED to pass the request object on cross-utility calls ---
+# ==============================================================================
 from uuid import UUID
 from typing import List, Dict, Any, Optional
 import structlog
+from fastapi import Request
 
-from core.db import get_db_connection
+# No longer need get_db_connection
+# from core.db import get_db_connection
 from v2.database_util import user_application as app_db
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db
@@ -25,9 +31,9 @@ class ApplicationNotFoundError(Exception):
 class ApplicationInvalidStateError(Exception):
     pass
 
-async def submit_application(app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
+async def submit_application(request: Request, app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
     """Submits a new user application and publishes an event."""
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         new_app = await app_db.create_user_application(conn, app_data, user_id)
     
     # --- Publish event to notify admins ---
@@ -40,27 +46,27 @@ async def submit_application(app_data: UserApplicationCreate, user_id: UUID) -> 
     logger.info("application.submitted", application_id=str(new_app['id']))
     return new_app
 
-async def get_application(application_id: UUID) -> Dict[str, Any]:
+async def get_application(request: Request, application_id: UUID) -> Dict[str, Any]:
     """Retrieves a single application."""
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         app = await app_db.get_user_application_by_id(conn, application_id)
     if not app:
         raise ApplicationNotFoundError("Application not found.")
     return app
 
-async def list_applications(ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
+async def list_applications(request: Request, ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
     """Lists all applications based on optional filters."""
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         return await app_db.list_user_applications(conn, ngroup_id, status)
 
-async def approve_application(application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
+async def approve_application(request: Request, application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
     """
     Approves an application, creates the user in the local CUE database,
     and publishes an approval event.
     """
     logger.info("application.approval.started", application_id=str(application_id), approver_id=str(approver.id))
     try:
-        async with get_db_connection() as conn:
+        async with request.state.pool.acquire() as conn:
             role_to_assign = await role_db.get_role_short_name_by_id(conn, role_id_to_assign)
             if not role_to_assign:
                 raise ValueError("The specified role does not exist.")
@@ -108,7 +114,8 @@ async def approve_application(application_id: UUID, role_id_to_assign: UUID, app
                 
                 await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
 
-        new_user_profile = await get_user_profile(user_id)
+        # --- MODIFIED: Pass the request object to the user utility function ---
+        new_user_profile = await get_user_profile(request, user_id)
 
         # --- Publish event to notify the user of their approval ---
         publish_event(
@@ -127,10 +134,10 @@ async def approve_application(application_id: UUID, role_id_to_assign: UUID, app
         logger.error("application.approval.failed", application_id=str(application_id), exc_info=True)
         raise e
 
-async def reject_application(application_id: UUID) -> Dict[str, Any]:
+async def reject_application(request: Request, application_id: UUID) -> Dict[str, Any]:
     """Rejects a pending user application."""
     logger.info("application.rejection.started", application_id=str(application_id))
-    async with get_db_connection() as conn:
+    async with request.state.pool.acquire() as conn:
         app_data = await app_db.get_user_application_by_id(conn, application_id)
         if not app_data:
             raise ApplicationNotFoundError("Application not found.")

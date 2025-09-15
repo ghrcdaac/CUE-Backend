@@ -26,7 +26,7 @@ resource "aws_lambda_function" "cue_api" {
   role          = var.api_lambda_role_arn
   image_uri     = var.api_docker_uri
   package_type  = "Image"
-  timeout       = 150 # API Gateway timeout is 29s
+  timeout       = 30 # API Gateway timeout is 29s
   publish = true # This enables versioning, which is required for an alias
 
   
@@ -59,15 +59,21 @@ resource "aws_lambda_function" "cue_api" {
       CLIENT_ID        = var.client_id
       CLIENT_SECRET    = var.client_secret
       POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
-      POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "70")
+      POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "10")
       ATHENA_DB_NAME="cue-uat-athena"
       ATHENA_OUTPUT_BUCKET="cue-uat-athena"
       ATHENA_RESULTS_BUCKET="cue-uat-athena"
       DB_SSL_MODE="require"
       API_ROOT_PATH = "/api"
       DEBUG = "True"
+      ENV = "production"
     }
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
 }
 
 # 2. Scan Event Logger Lambda (SQS Consumer)
@@ -172,20 +178,43 @@ resource "aws_lambda_function" "notification_manager" {
 #   }
 # }
 
-# Creates a stable alias named "live" that points to the latest published version
 resource "aws_lambda_alias" "cue_api_live_alias" {
-  name             = "live"
-  description      = "The live alias for production traffic"
-  function_name    = aws_lambda_function.cue_api.arn
+  name             = "uat"
+  description      = "The uat alias for production traffic"
+  function_name    = aws_lambda_function.cue_api.function_name
   function_version = aws_lambda_function.cue_api.version
+
+  # --- CRITICAL FIX ---
+  # This block explicitly tells Terraform that we want NO weighted routing.
+  # This resolves the "stuck" alias state by giving the AWS API a clear
+  # instruction, allowing the update to succeed.
+  routing_config {
+    additional_version_weights = {}
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-# Attaches 1 provisioned (warm) instance to the "live" alias
+# 3. Attaches 1 provisioned (warm) instance to the "live" alias AND waits for it to be ready
 resource "aws_lambda_provisioned_concurrency_config" "cue_api_pc" {
   function_name                     = aws_lambda_function.cue_api.function_name
   provisioned_concurrent_executions = 1
   qualifier                         = aws_lambda_alias.cue_api_live_alias.name
+
+  # This explicit dependency ensures the alias is created/updated before this resource is applied.
+  depends_on = [aws_lambda_alias.cue_api_live_alias]
+
+  # This provisioner is the key to solving the race condition. It forces Terraform
+  # to pause the 'apply' process until AWS confirms the warm instance is fully ready.
+  provisioner "local-exec" {
+    # --- Using a single-line command to avoid shell interpretation issues ---
+    command = "aws lambda wait function-updated --function-name ${self.function_name} --qualifier ${self.qualifier}"
+  }
 }
+
+
 
 resource "aws_lambda_permission" "cue_api_apigw_permission" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -194,6 +223,7 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   function_name = aws_lambda_alias.cue_api_live_alias.arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:aws:execute-api:${var.region}:${var.account_id}:${var.api_id}/*/*/*"
+  depends_on = [aws_lambda_provisioned_concurrency_config.cue_api_pc]
 }
 # --- Event Triggers and Permissions ---
 

@@ -1,6 +1,8 @@
-# File: src/python/api/v2/endpoints/user_application.py (Updated)
-
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+# ==============================================================================
+# File: src/python/api/v2/endpoints/user_application.py (Corrected)
+# --- MODIFIED to pass the request object to the utility layer ---
+# ==============================================================================
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from uuid import UUID
 from typing import List, Optional
 
@@ -16,6 +18,7 @@ router = APIRouter(prefix="/user_application", tags=["V2 - User Applications"])
 
 @router.post("/", response_model=UserApplicationResponse, status_code=status.HTTP_201_CREATED)
 async def submit_user_application(
+    request: Request,
     application_data: UserApplicationCreate,
     claims: AuthenticatedUserClaims = Depends(get_authenticated_user_claims)
 ):
@@ -24,7 +27,7 @@ async def submit_user_application(
     is protected to ensure we have the user's verified Keycloak ID.
     """
     try:
-        new_app = await app_utils.submit_application(application_data, claims.id)
+        new_app = await app_utils.submit_application(request, application_data, claims.id)
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
         if "already exists" in str(e):
@@ -35,6 +38,7 @@ async def submit_user_application(
 
 @router.get("/", response_model=List[UserApplicationResponse], dependencies=[Depends(require_privilege("application:read"))])
 async def list_all_applications(
+    request: Request,
     user: User = Depends(get_current_user),
     status: Optional[ApplicationStatus] = Query(None, description="Filter applications by status.")
 ):
@@ -48,22 +52,22 @@ async def list_all_applications(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="X-Active-Ngroup-Id header is required for non-admins.")
         ngroup_filter = UUID(user.active_ngroup_id)
 
-    apps = await app_utils.list_applications(ngroup_id=ngroup_filter, status=status)
+    apps = await app_utils.list_applications(request, ngroup_id=ngroup_filter, status=status)
     return [UserApplicationResponse.model_validate(app) for app in apps]
 
 @router.get("/{application_id}", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("application:read"))])
-async def get_single_application(application_id: UUID):
+async def get_single_application(request: Request, application_id: UUID):
     """Retrieves a single user application by its ID."""
     try:
-        app = await app_utils.get_application(application_id)
+        app = await app_utils.get_application(request, application_id)
         return UserApplicationResponse.model_validate(app)
     except app_utils.ApplicationNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found.")
 
 @router.post("/{application_id}/approve", response_model=CueUserResponse, dependencies=[Depends(require_privilege("application:approve"))])
 async def approve_application_endpoint(
+    request: Request,
     application_id: UUID,
-    # --- CHANGE: Pass the full approver object to the utility function ---
     approver: User = Depends(get_current_user),
     role_id: UUID = Query(..., description="The ID of the role to assign to the new user.")
 ):
@@ -72,6 +76,7 @@ async def approve_application_endpoint(
     """
     try:
         created_user = await app_utils.approve_application(
+            request=request,
             application_id=application_id,
             role_id_to_assign=role_id,
             approver=approver
@@ -85,10 +90,11 @@ async def approve_application_endpoint(
 
 
 @router.post("/{application_id}/reject", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("application:approve"))])
-async def reject_application_endpoint(application_id: UUID):
+async def reject_application_endpoint(request: Request, application_id: UUID):
     """Rejects a pending user application."""
     try:
-        rejected_app = await app_utils.reject_application(application_id)
+        rejected_app = await app_utils.reject_application(request, application_id)
         return UserApplicationResponse.model_validate(rejected_app)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+

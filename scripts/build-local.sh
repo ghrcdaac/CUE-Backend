@@ -116,6 +116,7 @@ export TF_VAR_cue_archive_database_name="${bamboo_CUE_ARCHIVE_DATABASE_NAME}"
 echo "Initializing Terraform..."
 terraform init \
   -reconfigure \
+  -upgrade \
   -backend-config="bucket=${bamboo_STATE_BUCKET}" \
   -backend-config="key=terraform.tfstate" \
   -backend-config="region=${bamboo_AWS_REGION}"

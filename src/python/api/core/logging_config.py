@@ -9,6 +9,7 @@ def setup_logging():
     - Human-readable logs for local development.
     - JSON logs for production (Lambda).
     """
+    # print("--- Executing setup_logging() function ---")
     # These processors are shared between development and production
     shared_processors = [
         structlog.contextvars.merge_contextvars,
@@ -19,6 +20,7 @@ def setup_logging():
 
     # Determine which renderer to use based on the environment
     if os.getenv("ENV") == "production":
+        # print("--- prod flow ---")
         # Production JSON logs are best for CloudWatch
         processors = shared_processors + [
             structlog.stdlib.PositionalArgumentsFormatter(),
@@ -28,6 +30,7 @@ def setup_logging():
         ]
         log_level = logging.INFO
     else:
+        # print("--- dev flow ---")
         # Development console logs are easier for humans to read
         processors = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True),
@@ -37,8 +40,8 @@ def setup_logging():
     # Configure the standard logging library to be a sink for structlog
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
         level=log_level,
+        force=True
     )
 
     # Configure structlog itself
