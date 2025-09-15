@@ -73,6 +73,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:create')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:update')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:delete')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:assign_role')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'provider:create')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'provider:read')),

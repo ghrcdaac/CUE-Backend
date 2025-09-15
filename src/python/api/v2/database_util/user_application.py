@@ -1,7 +1,7 @@
 # ==============================================================================
 # File: src/python/api/v2/database_util/user_application.py (Final)
 # Purpose: Contains all raw SQL queries for managing user applications.
-# Fix: Added explicit type casting in the list_user_applications query to
+# Added explicit type casting in the list_user_applications query to
 #      resolve the IndeterminateDatatypeError.
 # ==============================================================================
 from asyncpg import Connection

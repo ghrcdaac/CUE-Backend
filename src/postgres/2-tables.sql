@@ -2,7 +2,7 @@
 -- File: src/postgres/2-tables.sql (Updated Schema)
 -- Purpose: Defines the complete database schema for v2, including all tables,
 -- types, and performance-enhancing indexes.
--- Fix: Corrected the syntax for the partial unique constraint on user_application.
+-- Corrected the syntax for the partial unique constraint on user_application.
 -- ==============================================================================
 
 -- Drop tables if they exist (in reverse order of creation due to dependencies)

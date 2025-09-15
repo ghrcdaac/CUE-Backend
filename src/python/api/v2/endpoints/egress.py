@@ -1,8 +1,8 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/egress.py (Updated)
-# --- MODIFIED to pass the request object down to the utility layer ---
+# File: src/python/api/v2/endpoints/egress.py (Corrected)
+# --- MODIFIED to robustly handle the structure of user.ngroups ---
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request # <-- Import Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
 from typing import List
 
@@ -11,9 +11,7 @@ from v2.type_util.auth import AuthUser
 from v2.utils import egress as egress_utils
 from v2.type_util.egress import EgressCreate, EgressUpdate, EgressResponse
 
-router = APIRouter(prefix="/egress", tags=["V2 - Egress Targets"])
-
-# --- MODIFIED: All endpoints now accept `request: Request` ---
+router = APIRouter(prefix="/egress", tags=["V2 - DAAC Egress"])
 
 @router.post("/", response_model=EgressResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("egress:create"))])
@@ -53,7 +51,15 @@ async def get_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser 
     try:
         egress = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+        
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+
         if not is_admin and str(egress['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         return EgressResponse.model_validate(egress)
@@ -71,14 +77,20 @@ async def update_egress_endpoint(
 ):
     """Updates an existing egress target."""
     try:
-        # First, ensure the user has access to this egress target
         egress_to_update = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+        
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+        
         if not is_admin and str(egress_to_update['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         
-        # If access is confirmed, perform the update
         updated_egress = await egress_utils.update_egress(request, egress_id, egress_update)
         return EgressResponse.model_validate(updated_egress)
     except egress_utils.EgressNotFoundError as e:
@@ -92,14 +104,20 @@ async def update_egress_endpoint(
 async def delete_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser = Depends(get_current_user)):
     """Deletes an egress target."""
     try:
-        # First, ensure the user has access to this egress target
         egress_to_delete = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+        
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+        
         if not is_admin and str(egress_to_delete['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
 
-        # If access is confirmed, perform the delete
         await egress_utils.delete_egress(request, egress_id)
     except egress_utils.EgressNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

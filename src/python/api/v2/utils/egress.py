@@ -1,13 +1,13 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/egress.py (Updated)
-# --- MODIFIED to use the shared connection pool from the request state ---
+# File: src/python/api/v2/utils/egress.py
+
 # ==============================================================================
 from uuid import UUID
 from typing import List, Dict, Any
 import structlog
-from fastapi import Request # <-- Import Request
+from fastapi import Request
+import json
 
-# --- REMOVED: from core.db import get_db_connection ---
 from v2.database_util import egress as egress_db
 from v2.type_util.egress import EgressCreate, EgressUpdate
 
@@ -17,7 +17,11 @@ class EgressNotFoundError(Exception):
     """Custom exception raised when an egress target is not found."""
     pass
 
-# --- MODIFIED: Functions now accept the `request` object ---
+def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Helper function to parse the config field if it's a string."""
+    if record and record.get('config') and isinstance(record['config'], str):
+        record['config'] = json.loads(record['config'])
+    return record
 
 async def create_egress(request: Request, egress: EgressCreate, ngroup_id: UUID) -> Dict[str, Any]:
     """Creates a new egress record."""
@@ -26,7 +30,8 @@ async def create_egress(request: Request, egress: EgressCreate, ngroup_id: UUID)
             conn, egress.type, egress.path, egress.config, ngroup_id
         )
     logger.info("egress.created", egress_id=str(new_egress['id']))
-    return dict(new_egress)
+    # --- Parse the record returned from the database ---
+    return _process_record(dict(new_egress))
 
 async def get_egress(request: Request, egress_id: UUID) -> Dict[str, Any]:
     """Retrieves an egress record by its ID."""
@@ -34,13 +39,13 @@ async def get_egress(request: Request, egress_id: UUID) -> Dict[str, Any]:
         egress = await egress_db.get_egress_by_id(conn, egress_id)
     if not egress:
         raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
-    return dict(egress)
+    return _process_record(dict(egress))
 
 async def list_egresses(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Retrieves all egress records for a specific ngroup."""
     async with request.state.pool.acquire() as conn:
         records = await egress_db.list_egresses_by_ngroup(conn, ngroup_id)
-    return [dict(r) for r in records]
+    return [_process_record(dict(r)) for r in records]
 
 async def update_egress(request: Request, egress_id: UUID, egress_update: EgressUpdate) -> Dict[str, Any]:
     """Updates an existing egress record."""
@@ -55,7 +60,8 @@ async def update_egress(request: Request, egress_id: UUID, egress_update: Egress
         raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
     
     logger.info("egress.updated", egress_id=str(egress_id))
-    return dict(updated_egress)
+    # --- Parse the record returned from the database ---
+    return _process_record(dict(updated_egress))
 
 async def delete_egress(request: Request, egress_id: UUID):
     """Deletes an egress record by its ID."""

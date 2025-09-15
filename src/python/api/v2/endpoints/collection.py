@@ -1,8 +1,8 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/collection.py (Updated)
-# --- MODIFIED to pass the request object down to the utility layer ---
+# File: src/python/api/v2/endpoints/collection.py (Corrected)
+# --- MODIFIED to robustly handle the structure of user.ngroups ---
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request # <-- Import Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
 from typing import List
 
@@ -12,8 +12,6 @@ from v2.utils import collection as collection_utils
 from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse
 
 router = APIRouter(prefix="/collections", tags=["V2 - Collections"])
-
-# --- MODIFIED: All endpoints now accept `request: Request` ---
 
 @router.post("/", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("collection:create"))])
@@ -52,9 +50,16 @@ async def get_collection_endpoint(request: Request, collection_id: UUID, user: A
     """Retrieves a single collection by its ID."""
     try:
         collection = await collection_utils.get_collection(request, collection_id)
-        # AuthZ check: User must be an admin or a member of the ngroup that owns the collection
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups} # Get IDs from enriched AuthUser
+        
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+
         if not is_admin and str(collection['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         return CollectionResponse.model_validate(collection)
@@ -75,7 +80,15 @@ async def update_collection_endpoint(
     try:
         collection_to_update = await collection_utils.get_collection(request, collection_id)
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+        
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+
         if not is_admin and str(collection_to_update['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         
@@ -94,7 +107,15 @@ async def delete_collection_endpoint(request: Request, collection_id: UUID, user
     try:
         collection_to_delete = await collection_utils.get_collection(request, collection_id)
         is_admin = "admin" in user.roles
-        user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+
+        # --- Robustly build the user_ngroup_ids set ---
+        user_ngroup_ids = set()
+        if user.ngroups:
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+        
         if not is_admin and str(collection_to_delete['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
 

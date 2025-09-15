@@ -156,7 +156,8 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
 
             allowed_roles = set()
             if is_manager:
-                allowed_roles.update(["daac_staff", "daac_observer", "provider"])
+                # --- Add 'daac_manager' to the list of assignable roles ---
+                allowed_roles.update(["daac_manager", "daac_staff", "daac_observer", "provider"])
             
             if "security" in current_user.roles:
                 allowed_roles.add("security")
