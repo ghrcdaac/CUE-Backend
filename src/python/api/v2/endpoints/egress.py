@@ -1,6 +1,5 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/egress.py (Corrected)
-# --- MODIFIED to robustly handle the structure of user.ngroups ---
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from uuid import UUID
@@ -21,7 +20,7 @@ async def create_egress_endpoint(
     user: AuthUser = Depends(get_current_user)
 ):
     """Creates a new egress target within the user's active ngroup."""
-    if "admin" not in user.roles and not user.active_ngroup_id:
+    if not user.active_ngroup_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
     
     ngroup_id = UUID(user.active_ngroup_id)
@@ -30,20 +29,15 @@ async def create_egress_endpoint(
         return EgressResponse.model_validate(new_egress)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/", response_model=List[EgressResponse], dependencies=[Depends(require_privilege("egress:read"))])
 async def list_egresses_endpoint(request: Request, user: AuthUser = Depends(get_current_user)):
     """Retrieves all egress records for the user's active ngroup."""
-    if "admin" not in user.roles and not user.active_ngroup_id:
+    if not user.active_ngroup_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
 
     ngroup_id = UUID(user.active_ngroup_id)
-    try:
-        return await egress_utils.list_egresses(request, ngroup_id)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return await egress_utils.list_egresses(request, ngroup_id)
 
 @router.get("/{egress_id}", response_model=EgressResponse, dependencies=[Depends(require_privilege("egress:read"))])
 async def get_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser = Depends(get_current_user)):
@@ -52,21 +46,16 @@ async def get_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser 
         egress = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
         
-        # --- Robustly build the user_ngroup_ids set ---
-        user_ngroup_ids = set()
-        if user.ngroups:
-            if isinstance(user.ngroups[0], dict):
-                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-            else:
-                user_ngroup_ids = {str(ng) for ng in user.ngroups}
-
-        if not is_admin and str(egress['ngroup_id']) not in user_ngroup_ids:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+        # ---  Check against the user's ACTIVE ngroup_id ---
+        if not is_admin:
+            if not user.active_ngroup_id:
+                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required for this action.")
+            if str(egress['ngroup_id']) != user.active_ngroup_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+            
         return EgressResponse.model_validate(egress)
     except egress_utils.EgressNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.patch("/{egress_id}", response_model=EgressResponse, dependencies=[Depends(require_privilege("egress:update"))])
 async def update_egress_endpoint(
@@ -80,16 +69,12 @@ async def update_egress_endpoint(
         egress_to_update = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
         
-        # --- Robustly build the user_ngroup_ids set ---
-        user_ngroup_ids = set()
-        if user.ngroups:
-            if isinstance(user.ngroups[0], dict):
-                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-            else:
-                user_ngroup_ids = {str(ng) for ng in user.ngroups}
-        
-        if not is_admin and str(egress_to_update['ngroup_id']) not in user_ngroup_ids:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+        # ---  Check against the user's ACTIVE ngroup_id ---
+        if not is_admin:
+            if not user.active_ngroup_id:
+                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required for this action.")
+            if str(egress_to_update['ngroup_id']) != user.active_ngroup_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
         
         updated_egress = await egress_utils.update_egress(request, egress_id, egress_update)
         return EgressResponse.model_validate(updated_egress)
@@ -97,8 +82,6 @@ async def update_egress_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.delete("/{egress_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("egress:delete"))])
 async def delete_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser = Depends(get_current_user)):
@@ -107,21 +90,15 @@ async def delete_egress_endpoint(request: Request, egress_id: UUID, user: AuthUs
         egress_to_delete = await egress_utils.get_egress(request, egress_id)
         is_admin = "admin" in user.roles
         
-        # --- Robustly build the user_ngroup_ids set ---
-        user_ngroup_ids = set()
-        if user.ngroups:
-            if isinstance(user.ngroups[0], dict):
-                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-            else:
-                user_ngroup_ids = {str(ng) for ng in user.ngroups}
-        
-        if not is_admin and str(egress_to_delete['ngroup_id']) not in user_ngroup_ids:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+        # ---  Check against the user's ACTIVE ngroup_id ---
+        if not is_admin:
+            if not user.active_ngroup_id:
+                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required for this action.")
+            if str(egress_to_delete['ngroup_id']) != user.active_ngroup_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
 
         await egress_utils.delete_egress(request, egress_id)
     except egress_utils.EgressNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))

@@ -200,7 +200,7 @@ INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
 
 -- Jerrold's User
 INSERT INTO cueuser (id, email, name, cueusername)
-    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'fake2@email.com', 'Jerrold Williams', 'jwilliams');
+    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'williamsjr@ornl.gov', 'Jerrold Williams', 'jwilliams');
 INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
@@ -225,7 +225,7 @@ INSERT INTO egress (id, type, path, config, ngroup_id)
         'f8c2b6e3-d5b4-4e7a-8c1f-2a4d9e6b7c3a',
         's3',
         's3://ghrc-bucket',
-        '{"bucket": "ghrc-bucket", "region": "us-east-1"}',
+        '{"bucket": "ghrc-bucket", "region": "us-west-2"}',
         'f47ac10b-58cc-4372-a567-0e02b2c3d479'
     );
 

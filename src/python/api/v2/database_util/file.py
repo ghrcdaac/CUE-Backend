@@ -1,4 +1,4 @@
-# File: src/python/api/v2/database_util/file.py (Updated)
+# File: src/python/api/v2/database_util/file.py
 
 from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
@@ -8,11 +8,12 @@ from datetime import datetime, timezone
 
 logger = structlog.get_logger(__name__)
 
+# --- FUNCTION ADDED: Restored the function needed by the upload process ---
 async def create_file_and_status_records(
     conn: Connection, file_id: UUID, file_name: str, file_type: str, user_id: UUID,
     size_bytes: int, collection_id: UUID, collection_path: Optional[str], checksum: str
 ):
-    """Atomically creates a file and its initial file_status record in a transaction."""
+    """Atomically creates a file and its initial 'unscanned' file_status record in a transaction."""
     file_query = """
         INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, collection_path, edpub, checksum)
         VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, $8);
@@ -21,11 +22,13 @@ async def create_file_and_status_records(
         INSERT INTO file_status (id, status, upload_time)
         VALUES ($1, 'unscanned', $2);
     """
+    # These are executed within a transaction in the calling utils function
     await conn.execute(
         file_query, file_id, file_name, file_type, user_id, size_bytes,
         collection_id, collection_path, checksum
     )
     await conn.execute(status_query, file_id, datetime.now(timezone.utc))
+
 
 async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
     """Retrieves full file details by joining file and file_status tables."""
@@ -39,8 +42,8 @@ async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str
     """
     return await conn.fetchrow(query, file_id)
 
-async def list_files_paginated(conn: Connection, ngroup_id: UUID, limit: int, offset: int) -> List[Dict[str, Any]]:
-    """Lists a paginated set of files for a given ngroup."""
+async def find_files_by_name(conn: Connection, ngroup_id: UUID, file_name: str) -> List[Dict[str, Any]]:
+    """Retrieves files by name for a specific ngroup, joining with status."""
     query = """
         SELECT
             f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum,
@@ -48,38 +51,58 @@ async def list_files_paginated(conn: Connection, ngroup_id: UUID, limit: int, of
         FROM file f
         JOIN collection c ON f.collection_id = c.id
         LEFT JOIN file_status fs ON f.id = fs.id
-        WHERE c.ngroup_id = $1
-        ORDER BY fs.upload_time DESC
-        LIMIT $2 OFFSET $3;
+        WHERE c.ngroup_id = $1 AND f.name = $2
+        ORDER BY fs.upload_time DESC;
     """
-    return await conn.fetch(query, ngroup_id, limit, offset)
+    return await conn.fetch(query, ngroup_id, file_name)
 
-async def count_files_for_ngroup(conn: Connection, ngroup_id: UUID) -> int:
-    """Counts the total number of files in a given ngroup."""
-    query = """
+async def list_files_paginated(conn: Connection, ngroup_id: UUID, limit: int, offset: int, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Lists a paginated set of files for a given ngroup, optionally filtered by status."""
+    base_query = """
+        SELECT
+            f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum,
+            fs.status, fs.upload_time
+        FROM file f
+        JOIN collection c ON f.collection_id = c.id
+        LEFT JOIN file_status fs ON f.id = fs.id
+        WHERE c.ngroup_id = $1
+    """
+    params: list[Any] = [ngroup_id]
+    if status:
+        base_query += f" AND fs.status = ${len(params) + 1}"
+        params.append(status)
+
+    query = f"{base_query} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
+    params.extend([limit, offset])
+    
+    return await conn.fetch(query, *params)
+
+async def count_files_for_ngroup(conn: Connection, ngroup_id: UUID, status: Optional[str] = None) -> int:
+    """Counts the total number of files in a given ngroup, optionally filtered by status."""
+    base_query = """
         SELECT COUNT(f.id)
         FROM file f
         JOIN collection c ON f.collection_id = c.id
-        WHERE c.ngroup_id = $1;
     """
-    count = await conn.fetchval(query, ngroup_id)
+    where_clauses = ["c.ngroup_id = $1"]
+    params: list[Any] = [ngroup_id]
+    
+    if status:
+        join_clause = " JOIN file_status fs ON f.id = fs.id"
+        where_clauses.append(f"fs.status = ${len(params) + 1}")
+        params.append(status)
+        query = f"{base_query} {join_clause} WHERE {' AND '.join(where_clauses)}"
+    else:
+        query = f"{base_query} WHERE {' AND '.join(where_clauses)}"
+        
+    count = await conn.fetchval(query, *params)
     return count or 0
 
-async def update_file(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Updates an existing file record in the database."""
-    fields, values = list(update_data.keys()), list(update_data.values())
-    set_clause = ", ".join(f"{field} = ${i+1}" for i, field in enumerate(fields))
-    query = f"UPDATE file SET {set_clause} WHERE id = ${len(fields) + 1} RETURNING id;"
-    
-    updated_id = await conn.fetchval(query, *values, file_id)
-    return updated_id is not None
-
-
 async def delete_file(conn: Connection, file_id: UUID) -> bool:
-    """Deletes a file record. Related records in other tables are handled by ON DELETE CASCADE."""
+    """Deletes a file record. Assumes ON DELETE CASCADE is set for related tables."""
     try:
-        result = await conn.execute("DELETE FROM file WHERE id = $1", file_id)
-        return result.strip() == "DELETE 1"
+        deleted_id = await conn.fetchval("DELETE FROM file WHERE id = $1 RETURNING id", file_id)
+        return deleted_id is not None
     except ForeignKeyViolationError as e:
         logger.warning("db.file.delete.failed_fk", file_id=str(file_id), error=str(e))
-        raise ValueError("Cannot delete this file because it is still referenced by other records.") from e
+        raise ValueError("Cannot delete this file because it is still referenced.") from e

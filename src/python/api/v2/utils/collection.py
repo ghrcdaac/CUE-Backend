@@ -52,14 +52,18 @@ async def list_collections(request: Request, ngroup_id: UUID) -> List[Dict[str, 
         records = await collection_db.list_collections_by_ngroup(conn, ngroup_id)
     return [dict(r) for r in records]
 
-async def update_collection(request: Request, collection_id: UUID, collection_update: CollectionUpdate) -> Dict[str, Any]:
+
+async def update_collection(
+    request: Request, 
+    collection_id: UUID, 
+    collection_update: CollectionUpdate,
+    current_collection: Dict[str, Any] 
+) -> Dict[str, Any]:
     """Updates an existing collection record."""
     update_data = collection_update.model_dump(exclude_unset=True)
     if not update_data:
         raise ValueError("No update data provided.")
     
-    # This internal call must also be updated to pass the request object
-    current_collection = await get_collection(request, collection_id)
     ngroup_id = current_collection['ngroup_id']
     
     async with request.state.pool.acquire() as conn:

@@ -30,24 +30,24 @@ class UploadValidationError(Exception): pass
 def _get_s3_client():
     return boto3.client('s3', region_name=os.environ.get("AWS_REGION", "us-west-2"))
 
-# --- MODIFIED: Functions now accept the `request` object ---
-
 async def _validate_upload_permissions(request: Request, collection_name: str, user: AuthUser):
-    """
-    V2 helper to validate if a user can upload to a collection.
-    This function includes all checks from the original v1 implementation.
-    """
+    """V2 helper to validate if a user can upload to a collection."""
     async with request.state.pool.acquire() as conn:
         collection = await collection_db.get_collection_by_short_name(conn, collection_name)
         if not collection:
             raise UploadValidationError(f"Collection '{collection_name}' not found.")
         
-        # Admins can bypass the ngroup check
         if "admin" not in user.roles:
-            # Convert user.ngroups (list of strings) to a set for efficient lookup
-            user_ngroup_ids = {str(ng_id) for ng_id in user.ngroups}
+            # ---  Robustly build the user_ngroup_ids set ---
+            user_ngroup_ids = set()
+            if user.ngroups:
+                if isinstance(user.ngroups[0], dict):
+                    user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+                else:
+                    user_ngroup_ids = {str(ng) for ng in user.ngroups}
+            
             if str(collection['ngroup_id']) not in user_ngroup_ids:
-                 raise UploadValidationError("You do not have access to this collection's ngroup.")
+                raise UploadValidationError("You do not have access to this collection's ngroup.")
 
         if not collection['active']:
             raise UploadValidationError(f"Collection '{collection_name}' is not active and cannot accept uploads.")
@@ -67,7 +67,6 @@ async def prepare_single_file_upload(request: Request, params: PrepareUploadRequ
     await _validate_upload_permissions(request, params.collection_name, user)
     
     file_id = uuid4()
-
     s3_client = _get_s3_client()
     try:
         url = s3_client.generate_presigned_url(
@@ -93,7 +92,6 @@ async def complete_single_file_upload(
             )
     logger.info("upload.single.completed", file_id=str(params.file_id))
     return params.file_id
-
 # --- Multipart Upload Logic ---
 
 async def start_multipart_upload(request: Request, params: MultipartStartRequest, user: AuthUser) -> dict:

@@ -78,26 +78,26 @@ async def update_collection_endpoint(
 ):
     """Updates an existing collection."""
     try:
+        # First, get the collection we intend to update
         collection_to_update = await collection_utils.get_collection(request, collection_id)
+        
         is_admin = "admin" in user.roles
+        # A non-admin user can only update a collection within their currently active ngroup
+        if not is_admin and str(collection_to_update['ngroup_id']) != user.active_ngroup_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Collection is not in your active DAAC group.")
         
-        # --- Robustly build the user_ngroup_ids set ---
-        user_ngroup_ids = set()
-        if user.ngroups:
-            if isinstance(user.ngroups[0], dict):
-                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-            else:
-                user_ngroup_ids = {str(ng) for ng in user.ngroups}
-
-        if not is_admin and str(collection_to_update['ngroup_id']) not in user_ngroup_ids:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
-        
-        updated_collection = await collection_utils.update_collection(request, collection_id, collection_update)
+        # Pass the already-fetched collection to the update function to avoid a second DB call
+        updated_collection = await collection_utils.update_collection(
+            request, collection_id, collection_update, collection_to_update
+        )
         return CollectionResponse.model_validate(updated_collection)
+        
     except collection_utils.CollectionNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException as e:
+        raise e # Re-raise auth exceptions
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
