@@ -1,7 +1,7 @@
 # File: src/python/api/v2/type_util/collection.py
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 class CollectionBase(BaseModel):
@@ -31,3 +31,18 @@ class CollectionResponse(CollectionBase):
 
     class Config:
         from_attributes = True
+
+class PaginatedCollectionReturn(BaseModel):
+    total_count: int
+    collections: List[CollectionResponse]
+
+class CollectionFileCount(BaseModel):
+    id: UUID
+    name: str
+    file_count: int
+
+class CollectionFileResponse(BaseModel):
+    ngroup_id: UUID
+    page: int
+    total_count: int
+    files_by_count:List[CollectionFileCount]
