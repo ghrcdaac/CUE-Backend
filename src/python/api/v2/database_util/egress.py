@@ -44,8 +44,10 @@ async def update_egress(conn: Connection, egress_id: UUID, update_data: Dict[str
 async def delete_egress(conn: Connection, egress_id: UUID) -> bool:
     """Deletes an egress record from the database by its ID."""
     try:
-        result = await conn.execute("DELETE FROM egress WHERE id = $1", egress_id)
-        return result.strip() == "DELETE 1"
+        # --- Use RETURNING id to robustly check for successful deletion ---
+        result = await conn.fetchval("DELETE FROM egress WHERE id = $1 RETURNING id", egress_id)
+        # If the result is not None, the deletion was successful.
+        return result is not None
     except ForeignKeyViolationError as e:
         logger.warning("db.egress.delete.failed_fk", egress_id=str(egress_id), error=str(e))
         raise ValueError("Cannot delete this egress target because it is still linked to one or more collections.") from e

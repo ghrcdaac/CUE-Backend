@@ -1,7 +1,7 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/auth.py
 # Purpose: Provides all necessary OIDC authentication and user management endpoints.
-# --- MODIFIED to pass the request object down to the utility layer ---
+# --- MODIFIED to use the dependency-injected Keycloak client ---
 # ==============================================================================
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response
 from urllib.parse import urlencode
@@ -19,7 +19,7 @@ from v2.type_util.auth import (
 from v2.utils.auth import get_keycloak_client, KeycloakClient, get_user_login_status
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
-timeout = httpx.Timeout(30.0, connect=30.0)
+
 # --- Initial Login Flow ---
 
 @router.get("/login-url", response_model=LoginUrlResponse)
@@ -36,8 +36,7 @@ async def exchange_code(
     keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
     """
-    Handles the callback from Keycloak. Exchanges the authorization code for tokens
-    and returns them directly in the response body.
+    Handles the callback from Keycloak. Exchanges the authorization code for tokens.
     """
     try:
         token_data = await keycloak_client.exchange_code_for_tokens(request.code, request.redirect_uri)
@@ -47,28 +46,23 @@ async def exchange_code(
 
 # --- User Status and Token Management ---
 
-# --- MODIFIED: This endpoint now accepts the request object and passes it down ---
 @router.get("/status", response_model=UserStatusResponse)
 async def get_user_status(
-    request: Request, # <-- Added the request object
+    request: Request,
     claims: AuthenticatedUserClaims = Depends(get_authenticated_user_claims)
 ):
     """
     Checks if the authenticated user is registered, pending approval, or new.
-    This is the first endpoint the frontend should call after a user logs in.
     """
-    # Pass the request object to the utility function
-    status = await get_user_login_status(request, claims.id)
-    return UserStatusResponse(status=status)
+    status_result = await get_user_login_status(request, claims.id)
+    return UserStatusResponse(status=status_result)
 
 @router.get("/claims", response_model=UserClaimsResponse)
 async def get_user_claims_for_registration(
     claims: AuthenticatedUserClaims = Depends(get_authenticated_user_claims)
 ):
     """
-    For a user who has authenticated but is not yet registered in CUE,
-    this endpoint returns their basic claims from the token to pre-fill
-    the application form.
+    Returns basic claims from the token to pre-fill the application form.
     """
     return UserClaimsResponse(
         name=claims.name,
@@ -81,7 +75,7 @@ async def refresh_token(
     request: RefreshTokenRequest,
     keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
-    """Uses a refresh token from the request body to get a new access token."""
+    """Uses a refresh token to get a new access token."""
     try:
         new_tokens = await keycloak_client.refresh_access_token(request.refresh_token)
         return AccessTokenResponse(**new_tokens)
@@ -116,21 +110,17 @@ async def initiate_password_reset(
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail="Failed to initiate password reset.")
 
+# --- MODIFIED: This endpoint now uses a method on the injected Keycloak client ---
 @router.post("/introspect", response_model=Dict[str, Any])
 async def introspect_token(
     request: TokenIntrospectionRequest,
     keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
     """
-    Proxies a token introspection request to Keycloak. Useful for debugging.
+    Proxies a token introspection request to Keycloak using the shared client.
     """
-    introspection_endpoint = f"{keycloak_client.base_url}/protocol/openid-connect/token/introspect"
-    payload = {
-        "token": request.token,
-        "client_id": keycloak_client.admin_client_id,
-        "client_secret": keycloak_client.admin_client_secret,
-    }
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(introspection_endpoint, data=payload)
-        return response.json()
-
+    try:
+        introspection_data = await keycloak_client.introspect_token(request.token)
+        return introspection_data
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"Token introspection failed: {e.response.text}")

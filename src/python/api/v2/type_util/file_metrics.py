@@ -1,10 +1,10 @@
-# File: src/python/api/v2/type_util/file_metrics.py
+# File: src/python/api/v2/type_util/metrics.py
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Dict
 from uuid import UUID
 from datetime import date
-from .file import FileResponse # Import the rich FileResponse model
+from .file import FileResponse
 
 class MetricsQueryParameters(BaseModel):
     """Optional query parameters for filtering metric endpoints."""
@@ -32,19 +32,30 @@ class MetricsSummaryResponse(BaseModel):
     overall_count: OverallMetric
     status_counts: List[StatusCount]
 
-class PaginatedFileStatusResponse(BaseModel):
-    items: List[FileResponse] # Uses the rich FileResponse
-    total: int
-    page: int
-    page_size: int
+class CostSummaryResponse(BaseModel):
+    daily_cost: List[DailyMetric]
+    total_cost: OverallMetric
+    total_files: int
+    total_size_gb: float
 
-class CostMetric(BaseModel):
+class CostByCollectionItem(BaseModel):
     name: str
     size_gb: float
     cost: float
 
-class PaginatedCostResponse(BaseModel):
-    items: List[CostMetric]
+class PaginatedCostByCollectionResponse(BaseModel):
+    items: List[CostByCollectionItem]
+    total: int
+    page: int
+    page_size: int
+
+class CostByFileItem(BaseModel):
+    name: str
+    size_gb: float
+    cost: float
+
+class PaginatedCostByFileResponse(BaseModel):
+    items: List[CostByFileItem]
     total: int
     page: int
     page_size: int

@@ -18,7 +18,7 @@ class PrepareUploadResponse(BaseModel):
     file_id: UUID
     presigned_url: str
 
-# --- FIX: The CompleteUploadRequest now includes all necessary metadata ---
+# --- The CompleteUploadRequest now includes all necessary metadata ---
 class CompleteUploadRequest(BaseModel):
     """A single, consolidated model for the 'complete' step."""
     # ID from the prepare step
