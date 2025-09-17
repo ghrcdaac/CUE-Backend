@@ -9,10 +9,6 @@ variable "account_id" {
   type        = string
 }
 
-variable "cue_glue_job_role_arn" {
-  description = "IAM Role ARN for the CUE Glue Job."
-  type        = string
-}
 
 variable "db_user" {
   description = "Database username."
@@ -65,3 +61,7 @@ variable "availability_zone" {
   type        = string
 }
 
+variable "rds_cluster_identifier" {
+  description = "The identifier of the RDS cluster for IAM policy scoping."
+  type        = string
+}

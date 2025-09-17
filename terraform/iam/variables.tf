@@ -1,38 +1,35 @@
-# ./terraform/iam/variables.tf
+# ==============================================================================
+# File: terraform/iam/variables.tf (V2 Corrected)
+# Purpose: Defines the input variables for the IAM module.
+# ==============================================================================
 
 variable "region" {
-    type = string
+  description = "The AWS region where resources are deployed."
+  type        = string
 }
 
 variable "account_id" {
-    type = string
-}
-
-variable "cue_css_scan_sns_arn" {
-    type = string
+  description = "The AWS Account ID."
+  type        = string
 }
 
 variable "lambda_execution_policy_arn" {
-    type = string
-}
-
-# --- NEW: Variables for resources created in the lambda module ---
-variable "event_bus_arn" {
-  description = "The ARN of the EventBridge bus."
+  description = "The ARN for the basic AWSLambdaVPCAccessExecutionRole policy."
   type        = string
 }
 
-variable "email_sender_lambda_arn" {
-  description = "The ARN of the email_sender Lambda function."
+variable "s3_upload_bucket" {
+  description = "The name of the S3 bucket for file uploads."
   type        = string
 }
 
-variable "sqs_queue_arn" {
-  description = "The ARN of the main SQS queue for scan results."
+variable "cue_archive_bucket" {
+  description = "The S3 bucket for the Athena archive source."
   type        = string
 }
 
-variable "scan_event_lambda_arn" {
-  description = "The ARN of the cue_scan_event Lambda function."
+variable "cue_archive_results_bucket" {
+  description = "The S3 bucket for Athena query results."
   type        = string
 }
+

@@ -44,6 +44,7 @@ async def get_connection_pool(
     global _connection_pool_metrics
 
     pool = None  # Initialize pool to None outside the try block
+    ssl_mode = os.getenv("DB_SSL_MODE", "require")
     try:
         pool = await asyncpg.create_pool(
             database=os.getenv('PG_DB'),
@@ -55,7 +56,8 @@ async def get_connection_pool(
             max_size=max_size,
             max_queries=max_queries,
             max_inactive_connection_lifetime=max_inactive_connection_lifetime,
-            setup=setup
+            setup=setup,
+            ssl=ssl_mode
         )
         # Update total connections based on successful pool creation
         # Initial state: all connections are idle (available)

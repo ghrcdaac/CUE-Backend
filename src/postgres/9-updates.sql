@@ -119,3 +119,5 @@ BEGIN
 END $$;
 
 COMMIT;
+
+-- ALTER TABLE user_application ADD COLUMN user_id UUID;

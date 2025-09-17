@@ -1,5 +1,4 @@
-# --- src/python/event_lambdas/infected_logger/db.py ---
-import logging
+import structlog
 from typing import Dict, Any
 from uuid import UUID
 import json
@@ -7,7 +6,7 @@ import json
 from asyncpg import Connection
 from asyncpg.exceptions import PostgresError, ForeignKeyViolationError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 async def upsert_scan_status_in_database(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> bool:
     """
@@ -36,26 +35,27 @@ async def upsert_scan_status_in_database(conn: Connection, file_id: UUID, update
         result = await conn.fetchrow(upsert_query, *params)
         
         if not result:
-            logger.error(f"UPSERT operation for file ID {file_id} failed to return an ID.")
+            logger.error("db.upsert.failed", file_id=str(file_id), reason="Query failed to return an ID.")
             return False
         
-        logger.info(f"Successfully upserted file status for ID {file_id}.")
+        logger.info("db.upsert.success", file_id=str(file_id))
         return True
 
     except ForeignKeyViolationError as e:
         # This is an expected race condition if the Lambda runs before the API.
-        # Log it as a less severe WARNING and then re-raise the exception.
-        # SQS will see the failure and automatically retry the message later,
-        # by which time the main 'file' record should exist.
+        # Log it as a warning and then re-raise the exception.
+        # SQS will see the failure and automatically retry the message later.
         logger.warning(
-            f"Race condition detected for file ID {file_id}. The main file record does not exist yet. "
-            f"This is expected behavior and the message will be retried by SQS. Details: {e}"
+            "db.upsert.race_condition",
+            file_id=str(file_id),
+            detail="The main file record does not exist yet. This is expected behavior; SQS will retry.",
+            error=str(e)
         )
         raise # Re-raise to ensure SQS retries the message.
 
     except PostgresError as e:
-        logger.error(f"A database error occurred during UPSERT for {file_id}: {e}", exc_info=True)
+        logger.error("db.upsert.postgres_error", file_id=str(file_id), exc_info=True)
         raise
     except Exception as e:
-        logger.error(f"An unexpected error occurred during database operation for {file_id}: {e}", exc_info=True)
+        logger.error("db.upsert.unexpected_error", file_id=str(file_id), exc_info=True)
         raise

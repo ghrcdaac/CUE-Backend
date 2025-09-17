@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
-async def get_notification_details_for_file(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
+async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
     """
     Finds all details needed for an infected file notification, including:
     - The file name
@@ -71,3 +71,47 @@ async def get_notification_details_for_file(conn: Connection, file_id: UUID) -> 
     except Exception as e:
         logger.error(f"Error fetching notification details for file {file_id}: {e}", exc_info=True)
         return None
+
+async def get_new_application_details(conn: Connection, application_id: UUID) -> Optional[Dict[str, Any]]:
+    """
+    Fetches all details needed for a new application alert, including the emails
+    of all DAAC Managers in the application's ngroup.
+    """
+    DAAC_MANAGER_ROLE_ID = UUID('ef872fe7-92b9-45ec-ac19-80f4c478fd36')
+    query = """
+        WITH app_details AS (
+            SELECT
+                ua.name AS user_name,
+                ua.email AS user_email,
+                ua.username AS user_username,
+                ua.account_type,
+                ua.justification,
+                ua.ngroup_id,
+                g.long_name AS ngroup_name
+            FROM user_application ua
+            JOIN ngroup g ON ua.ngroup_id = g.id
+            WHERE ua.id = $1
+        )
+        SELECT
+            (SELECT user_name FROM app_details) AS user_name,
+            (SELECT user_email FROM app_details) AS user_email,
+            (SELECT user_username FROM app_details) AS user_username,
+            (SELECT account_type FROM app_details) AS account_type,
+            (SELECT justification FROM app_details) AS justification,
+            (SELECT ngroup_name FROM app_details) AS ngroup_name,
+            array_agg(u_managers.email) AS recipient_emails
+        FROM cueuser u_managers
+        JOIN cueuser_role ur ON u_managers.id = ur.cueuser_id
+        JOIN cueuser_ngroup ung ON u_managers.id = ung.cueuser_id
+        WHERE ur.role_id = $2 -- daac_manager role_id
+          AND ung.ngroup_id = (SELECT ngroup_id FROM app_details)
+        GROUP BY 1, 2, 3, 4, 5, 6;
+    """
+    record = await conn.fetchrow(query, application_id, DAAC_MANAGER_ROLE_ID)
+    return dict(record) if record else None
+
+async def get_approved_user_details(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
+    """Fetches the name and email for a newly approved user."""
+    query = "SELECT name AS user_name, email AS user_email FROM cueuser WHERE id = $1;"
+    record = await conn.fetchrow(query, user_id)
+    return dict(record) if record else None

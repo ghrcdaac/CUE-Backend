@@ -10,7 +10,7 @@ set -e # Exit immediately if a command exits with a non-zero status.
 
 # --- Input Validation ---
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <aws_account_id> <aws_region> <image_tag>"
+    echo "Usage: $0 <aws_account_id> <aws_region> <image_tag>" >&2
     exit 1
 fi
 
@@ -28,46 +28,65 @@ ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 REMOTE_IMAGE_NAME="${ECR_REGISTRY}/${REPO_NAME}:${IMAGE_TAG}"
 LOCAL_IMAGE_NAME="${REPO_NAME}:${IMAGE_TAG}"
 
-echo "--- Building API Docker Image ---"
-echo "Project Root: ${PROJECT_ROOT}"
-echo "Local Image: ${LOCAL_IMAGE_NAME}"
-echo "Remote Image: ${REMOTE_IMAGE_NAME}"
+echo "--- Building API Docker Image ---" >&2
+echo "Project Root: ${PROJECT_ROOT}" >&2
+echo "Local Image: ${LOCAL_IMAGE_NAME}" >&2
+echo "Remote Image: ${REMOTE_IMAGE_NAME}" >&2
 
 # --- ECR Login ---
-echo "Attempting to log in to ECR..."
+echo "Attempting to log in to ECR..." >&2
 aws ecr get-login-password --region "${AWS_REGION}" --profile cue-uat| docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 if [ $? -ne 0 ]; then
-    echo "ECR login failed. Please check your AWS credentials and region."
+    echo "ECR login failed. Please check your AWS credentials and region." >&2
     exit 1
 fi
-echo "ECR login successful."
+echo "ECR login successful." >&2
 
 # --- Docker Build ---
 # We run the build from the project root to ensure the Dockerfile context is correct.
 cd "${PROJECT_ROOT}" || exit
 
-echo "Building Docker image from Dockerfile.aws..."
+echo "Building Docker image from Dockerfile.aws..." >&2
 docker build --no-cache -t "${LOCAL_IMAGE_NAME}" -f Dockerfile.aws .
 if [ $? -ne 0 ]; then
-    echo "Docker build failed."
+    echo "Docker build failed." >&2
     exit 1
 fi
-echo "Docker build successful."
+echo "Docker build successful." >&2
 
 # --- Tag and Push ---
-echo "Tagging image for ECR push..."
+echo "Tagging image for ECR push..." >&2
 docker tag "${LOCAL_IMAGE_NAME}" "${REMOTE_IMAGE_NAME}"
 
-echo "Pushing image to ECR..."
+echo "Pushing image to ECR..." >&2
 docker push "${REMOTE_IMAGE_NAME}"
 if [ $? -ne 0 ]; then
-    echo "Docker push failed."
+    echo "Docker push failed." >&2
     exit 1
 fi
-echo "Image pushed successfully to ${REMOTE_IMAGE_NAME}"
+echo "Image pushed successfully to ${REMOTE_IMAGE_NAME}" >&2
 
-# --- Cleanup ---
-echo "Cleaning up local Docker images..."
+# Get the image digest of the image we just pushed.
+echo "Retrieving image digest from ECR..." >&2
+IMAGE_DIGEST=$(aws ecr describe-images --repository-name ${REPO_NAME} --image-ids imageTag=${IMAGE_TAG} --query 'imageDetails[0].imageDigest' --output text)
+
+if [ -z "${IMAGE_DIGEST}" ]; then
+    echo "Could not retrieve image digest from ECR." >&2
+    exit 1
+fi
+
+# Construct the full, unique URI using the digest.
+DIGEST_BASED_URI="${ECR_REGISTRY}/${REPO_NAME}@${IMAGE_DIGEST}"
+echo "ECR Image Digest URI: ${DIGEST_BASED_URI}" >&2
+
+# --- MOVED CLEANUP STEP ---
+# Clean up images before the final output to avoid interfering with stdout.
+echo "Cleaning up local Docker images..." >&2
 docker rmi "${LOCAL_IMAGE_NAME}" "${REMOTE_IMAGE_NAME}"
 
-echo "API build and push complete."
+echo "API build and push complete." >&2
+
+# --- FINAL, CLEAN OUTPUT ---
+# This is now the ONLY line that goes to standard output.
+# The `>&2` on all other echo commands sends them to standard error.
+echo "${DIGEST_BASED_URI}"
