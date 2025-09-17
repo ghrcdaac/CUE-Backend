@@ -189,7 +189,7 @@ INSERT INTO user_application (user_id, email, name, username, status, ngroup_id,
     );
 
 
--- Janani's account
+-- Janani's account  
 INSERT INTO cueuser (id, email, name, cueusername)
     VALUES ('905dc83f-3edd-485f-9f09-ab916edf75f2', 'janani.rangaraj@nasa.gov', 'Janani Rangaraj', 'jrangara');
 INSERT INTO cueuser_role (cueuser_id, role_id)
@@ -197,15 +197,38 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('905dc83f-3edd-485f-9f09-ab916edf75f2', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
+INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
+    VALUES (
+        '905dc83f-3edd-485f-9f09-ab916edf75f2',
+        'janani.rangaraj@nasa.gov',
+        'Janani Rangaraj',
+        'jrangara',
+        'approved', -- Set the status to 'approved'
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        'Initial seed administrator account.',
+        'daac'
+    );
+
 
 -- Jerrold's User
 INSERT INTO cueuser (id, email, name, cueusername)
-    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'williamsjr@ornl.gov', 'Jerrold Williams', 'jwilliams');
+    VALUES ('5b33babe-5f98-4ff5-91d1-025681741288', 'williamsjr@ornl.gov', 'Jerrold Williams', 'jwilliams');
 INSERT INTO cueuser_role (cueuser_id, role_id)
-    VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+    VALUES ('5b33babe-5f98-4ff5-91d1-025681741288', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-   VALUES ('98119390-40d1-70ef-0b6d-5e6c44294045', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+   VALUES ('5b33babe-5f98-4ff5-91d1-025681741288', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
+INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
+    VALUES (
+        '5b33babe-5f98-4ff5-91d1-025681741288',
+        'williamsjr@ornl.gov',
+        'Jerrold Williams',
+        'jrwill25',
+        'approved', -- Set the status to 'approved'
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        'Initial seed administrator account.',
+        'daac'
+    );
 
 
 -- Provider
