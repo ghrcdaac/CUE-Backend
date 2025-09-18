@@ -60,9 +60,9 @@ resource "aws_lambda_function" "cue_api" {
       CLIENT_SECRET    = var.client_secret
       POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
       POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "10")
-      ATHENA_DB_NAME="cue-sit-athena"
-      ATHENA_OUTPUT_BUCKET="cue-sit-athena"
-      ATHENA_RESULTS_BUCKET="cue-sit-athena"
+      ATHENA_DB_NAME="cue-uat-athena"
+      ATHENA_OUTPUT_BUCKET="cue-uat-athena"
+      ATHENA_RESULTS_BUCKET="cue-uat-athena"
       DB_SSL_MODE="require"
       API_ROOT_PATH = "/api"
       DEBUG = "True"
