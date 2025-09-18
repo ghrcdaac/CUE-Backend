@@ -150,9 +150,20 @@ variable "process_athena_query_role_arn" {
   type        = string
 }
 
+variable "file_transfer_role_arn" {
+  description = "IAM Role ARN for the File Transfer Lambda."
+  type        = string
+}
+
 # --- Archive Bucket ---
 variable "cue_archive_results_bucket" {
   description = "The S3 bucket for final Athena query results."
+  type        = string
+}
+
+# --- File Transfer ---
+variable cue_staging_bucket {
+  description = "The S3 bucket for clean scanned files" 
   type        = string
 }
 

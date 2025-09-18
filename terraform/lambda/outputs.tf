@@ -27,3 +27,12 @@ output "scan_event_lambda_arn" {
   value       = aws_lambda_function.cue_scan_event.arn
 }
 
+output "file_transfer_lambda_arn" {
+  description = "The ARN of the file transfer Lambda function"
+  value = aws_lambda_function.cue_file_transfer.arn
+}
+
+output "cue_file_transfer_sqs_queue_arn" {
+  description = "The ARN of the clean file sqs queue"
+  value = aws_sqs_queue.cue_file_transfer_queue.arn
+}
