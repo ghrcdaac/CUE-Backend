@@ -244,9 +244,6 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       PG_DB          = var.db_database
       PG_PASS        = var.db_password
       PG_PORT        = var.db_port
-      POOL_ID        = var.pool_id
-      CLIENT_ID      = var.client_id
-      CLIENT_SECRET  = var.client_secret
       STAGING_BUCKET = var.cue_staging_bucket
       LOG_LEVEL      = "INFO"
     }
