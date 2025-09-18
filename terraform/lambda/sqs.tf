@@ -50,7 +50,7 @@ resource "aws_sqs_queue_policy" "scan_results_queue_policy" {
 
 resource "aws_sqs_queue" "cue_file_transfer_queue" {
   name = "cue-file-transfer-queue"
-  visibility_timeout_seconds = 540 
+  visibility_timeout_seconds = 180 
 }
 #resource "aws_sqs_queue_policy" "cue_file_transfer_queue" {
   #queue_url = aws_sqs_queue.cue_file_transfer_queue.id
@@ -77,7 +77,7 @@ resource "aws_sqs_queue_redrive_policy" "cue_file_transfer_queue_redrive_policy"
   queue_url = aws_sqs_queue.cue_file_transfer_queue.id
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.cue_file_transfer_dlq.arn
-    maxReceiveCount     = 5 
+    maxReceiveCount     = 3 
   })
 }
 
