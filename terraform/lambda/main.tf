@@ -7,12 +7,12 @@
 # --- SNS Subscription ---
 # Subscribes the SQS queue to the external virus scanner's SNS topic.
 
-# resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
-#   topic_arn            = var.cue_css_scan_sns_arn
-#   protocol             = "sqs"
-#   endpoint             = aws_sqs_queue.scan_results_queue.arn
-#   raw_message_delivery = "true"
-# }
+ resource "aws_sns_topic_subscription" "cue_scan_event_sns_subscription" {
+   topic_arn            = var.cue_css_scan_sns_arn
+   protocol             = "sqs"
+   endpoint             = aws_sqs_queue.scan_results_queue.arn
+   raw_message_delivery = "true"
+ }
 
 # --- Lambda Code Packaging ---
 # These resources create the zip files from your source code directories.
@@ -101,6 +101,7 @@ resource "aws_lambda_function" "cue_scan_event" {
       PG_PASS        = var.db_password
       LOG_LEVEL      = "INFO"
       EVENT_BUS_NAME = aws_cloudwatch_event_bus.cue_app_bus.name
+      QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
     }
   }
 }
@@ -179,8 +180,8 @@ resource "aws_lambda_function" "notification_manager" {
 # }
 
 resource "aws_lambda_alias" "cue_api_live_alias" {
-  name             = "uat"
-  description      = "The uat alias for production traffic"
+  name             = "sit"
+  description      = "The sit alias for production traffic"
   function_name    = aws_lambda_function.cue_api.function_name
   function_version = aws_lambda_function.cue_api.version
 
@@ -243,9 +244,6 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       PG_DB          = var.db_database
       PG_PASS        = var.db_password
       PG_PORT        = var.db_port
-      POOL_ID        = var.pool_id
-      CLIENT_ID      = var.client_id
-      CLIENT_SECRET  = var.client_secret
       STAGING_BUCKET = var.cue_staging_bucket
       LOG_LEVEL      = "INFO"
     }
@@ -269,7 +267,7 @@ resource "aws_lambda_event_source_mapping" "file_transfer_queue_to_transfer_lamb
   event_source_arn = aws_sqs_queue.cue_file_transfer_queue.arn
   function_name = aws_lambda_function.cue_file_transfer.function_name
   batch_size = 100
-  maximum_batching_window_in_seconds = 300
+  maximum_batching_window_in_seconds = 0 
   function_response_types  = ["ReportBatchItemFailures"] 
 }
 

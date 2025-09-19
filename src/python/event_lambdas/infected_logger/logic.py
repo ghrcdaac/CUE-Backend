@@ -77,8 +77,8 @@ async def send_clean_file_message(file_id:UUID, collection_id:UUID):
         message_id = response.get("MessageId")
         logger.info("sqs.clean_queue.send_message.success", file_id=str(file_id), collection_id=str(collection_id), message_id=message_id)
     except Exception as e:
-        logger.info("sqs.clean_queue.send_message.failed", file_id=str(file_id), collection_id=str(collection_id))
-        raise
+        logger.info(f"sqs.clean_queue.send_message.failed {e}", file_id=str(file_id), collection_id=str(collection_id))
+        raise e
 
 async def process_scan_result(message: ScanResultMessage):
     """
