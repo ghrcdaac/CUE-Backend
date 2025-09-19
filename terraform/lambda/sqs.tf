@@ -47,3 +47,44 @@ resource "aws_sqs_queue_policy" "scan_results_queue_policy" {
     ]
   })
 }
+
+resource "aws_sqs_queue" "cue_file_transfer_queue" {
+  name = "cue-file-transfer-queue"
+  visibility_timeout_seconds = 180 
+}
+#resource "aws_sqs_queue_policy" "cue_file_transfer_queue" {
+  #queue_url = aws_sqs_queue.cue_file_transfer_queue.id
+
+  #policy = jsonencode({
+    #Version = "2012-10-17",
+    #Statement = [
+      #{
+        #Effect    = "Allow",
+        #Principal = aws_lambda_function.cue_file_transfer.arn,
+        #Action    = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"],
+        #Resource  = aws_sqs_queue.cue_file_transfer_queue.arn,
+      #}
+     #]
+  #})
+#}
+
+resource "aws_sqs_queue" "cue_file_transfer_dlq" {
+  name = "cue_file_transfer_dlq"
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue_redrive_policy" "cue_file_transfer_queue_redrive_policy" {
+  queue_url = aws_sqs_queue.cue_file_transfer_queue.id
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.cue_file_transfer_dlq.arn
+    maxReceiveCount     = 3 
+  })
+}
+
+resource "aws_sqs_queue_redrive_allow_policy" "file_transfer_redrive_allow_policy"{
+  queue_url = aws_sqs_queue.cue_file_transfer_dlq.id
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue",
+    sourceQueueArns   = [aws_sqs_queue.cue_file_transfer_queue.arn]
+  })
+}

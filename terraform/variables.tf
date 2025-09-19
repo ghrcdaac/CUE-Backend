@@ -74,6 +74,11 @@ variable "cue_archive_results_bucket" {
   type        = string
 }
 
+variable "cue_staging_bucket" {
+  description = "The name of the S3 bucket where clean are placed after scanning"
+  type        = string
+}
+
 # --- API & ECR ---
 variable "api_id" {
   description = "The ID of the pre-existing API Gateway."

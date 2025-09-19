@@ -28,8 +28,17 @@ output "process_athena_query_role_arn" {
   value       = aws_iam_role.process_athena_query_role.arn
 }
 
+output "file_transfer_role_arn" {
+  description = "ARN for the File Transfer Lambda Role"
+  value       = aws_iam_role.file_transfer_role.arn
+}
+
 output "db_proxy_iam_role_arn" {
   description = "ARN for the RDS Proxy IAM Role"
   value       = aws_iam_role.db_proxy_iam_role.arn
 }
 
+#output "notification_scheduler_role_arn" {
+  #description = "ARN for the notification_scheudler_role_arn"
+  #value       =  aws_iam_role.infected_notif_scheduler_role
+#}
