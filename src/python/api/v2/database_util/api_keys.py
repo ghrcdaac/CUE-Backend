@@ -8,19 +8,21 @@ logger = structlog.get_logger(__name__)
 
 async def store_api_key(
     conn: Connection, key_hash: str, prefix: str, name: str, scopes: List[str],
+    key_type: str,  # 'personal', 'managed_user', or 'proxy'
     user_id: Optional[UUID], created_by_user_id: UUID, proxy_user_name: Optional[str],
-    ngroup_id: Optional[UUID], expires_at: datetime, key_display_suffix: str 
+    ngroup_id: Optional[UUID], expires_at: datetime, key_display_suffix: str
 ) -> UUID:
     """Stores a new hashed API key in the database and returns its ID."""
     query = """
-        INSERT INTO api_key (key_hash, prefix, name, scopes, user_id, created_by_user_id, 
-                             proxy_user_name, ngroup_id, expires_at, key_display_suffix) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        INSERT INTO api_key (key_hash, prefix, name, scopes, key_type, user_id,
+                             created_by_user_id, proxy_user_name, ngroup_id,
+                             expires_at, key_display_suffix)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id;
     """
     return await conn.fetchval(
-        query, key_hash, prefix, name, scopes, user_id, created_by_user_id,
-        proxy_user_name, ngroup_id, expires_at, key_display_suffix 
+        query, key_hash, prefix, name, scopes, key_type, user_id, created_by_user_id,
+        proxy_user_name, ngroup_id, expires_at, key_display_suffix
     )
 
 async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dict[str, Any]]:
@@ -38,46 +40,57 @@ async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dic
 
 
 async def list_api_keys(
-    conn: Connection, user_id: UUID, ngroup_id_for_manager: Optional[UUID] = None
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
-    Lists API keys with refined privacy rules.
-    - Managers see proxy keys for their group and any keys they personally own.
-    - Regular users only see keys they personally own.
-    - Filters out revoked (soft-deleted) keys.
+    Lists API keys with strict role-based visibility, filtered by the active ngroup.
     """
     base_query = """
         SELECT
             ak.*,
             owner.name AS user_name,
             creator.name AS created_by_user_name
-        FROM
-            api_key ak
-        LEFT JOIN
-            cueuser owner ON ak.user_id = owner.id
-        LEFT JOIN
-            cueuser creator ON ak.created_by_user_id = creator.id
+        FROM api_key ak
+        LEFT JOIN cueuser owner ON ak.user_id = owner.id
+        LEFT JOIN cueuser creator ON ak.created_by_user_id = creator.id
     """
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    where_conditions = ["ak.revoked_at IS NULL"]
+
+    # This is the primary filtering logic for when a DAAC is selected in the UI.
+    # It applies to ALL users, including admins, enforcing the context.
+    if active_ngroup_id:
+        where_conditions.append("ak.ngroup_id = $1")
+        params.append(active_ngroup_id)
     
-    if ngroup_id_for_manager:
-        # For managers/admins, show proxy keys for their active group OR any key they own.
-        where_clause = """
-            WHERE
-              (
-                (ak.proxy_user_name IS NOT NULL AND ak.ngroup_id = $1)
-                OR (ak.user_id = $2)
-              )
-              AND ak.revoked_at IS NULL
-        """
-        params = (ngroup_id_for_manager, user_id)
+    # This is the logic for the default state when NO DAAC is selected.
     else:
-        # For regular users, only show keys they own.
-        where_clause = "WHERE ak.user_id = $1 AND ak.revoked_at IS NULL"
-        params = (user_id,)
-        
+        # Admins and Security users see all keys from all groups by default.
+        if 'admin' in user_roles or 'security' in user_roles:
+            pass  # No additional filter, they see everything.
+        else:
+            # For any other user (Manager, Staff, etc.), if no DAAC is selected,
+            # they see an empty list. This forces a DAAC context to be chosen.
+            where_conditions.append("1=0")  # A condition that is always false.
+
+    where_clause = f"WHERE {' AND '.join(where_conditions)}"
     order_clause = "ORDER BY ak.created_at DESC;"
     query = f"{base_query} {where_clause} {order_clause}"
+    
+    # NEW: Added logging to help debug why the list might be empty.
+    logger.info(
+        "api_keys.list.executing_query",
+        user_roles=list(user_roles),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None,
+        final_where_clause=where_clause
+    )
+
     return await conn.fetch(query, *params)
+
 
 async def get_api_key_by_id(conn: Connection, key_id: UUID) -> Optional[Dict[str, Any]]:
     """Retrieves a single API key by its ID."""
