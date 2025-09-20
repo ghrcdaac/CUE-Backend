@@ -83,10 +83,23 @@ async def get_user_profile(request: Request, user_id: UUID) -> Dict[str, Any]:
     
     return user_profile
 
-async def list_users(request: Request) -> List[Dict[str, Any]]:
-    """Retrieves a list of all users."""
+async def list_users(
+    request: Request,
+    current_user: AuthUser, # MODIFIED: Accept the full user object for role checks
+    active_ngroup_id: Optional[str] # MODIFIED: Accept the optional ngroup ID string
+) -> List[Dict[str, Any]]:
+    """Retrieves a list of all users, filtered by the active DAAC and user role."""
+    
+    # Convert string UUID from header to UUID object, or None
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
     async with request.state.pool.acquire() as conn:
-        users_data = await user_db.list_users(conn)
+        # MODIFIED: Call the new, more powerful list_users function
+        users_data = await user_db.list_users(
+            conn,
+            requesting_user=current_user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter
+        )
     return [_parse_user_data(user) for user in users_data]
 
 async def get_user_profile_by_username(request: Request, cueusername: str) -> Dict[str, Any]:

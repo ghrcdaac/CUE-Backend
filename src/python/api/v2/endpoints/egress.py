@@ -1,9 +1,9 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/egress.py (Corrected)
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
@@ -31,13 +31,18 @@ async def create_egress_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.get("/", response_model=List[EgressResponse], dependencies=[Depends(require_privilege("egress:read"))])
-async def list_egresses_endpoint(request: Request, user: AuthUser = Depends(get_current_user)):
-    """Retrieves all egress records for the user's active ngroup."""
-    if not user.active_ngroup_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
-
-    ngroup_id = UUID(user.active_ngroup_id)
-    return await egress_utils.list_egresses(request, ngroup_id)
+async def list_egresses_endpoint(
+    request: Request, 
+    user: AuthUser = Depends(get_current_user),
+    # MODIFIED: Read the active ngroup ID directly from the header
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+):
+    """Retrieves all egress records, filtered by the user's active ngroup from the header."""
+    try:
+        # MODIFIED: Pass the header value and the user object to the utility function
+        return await egress_utils.list_egresses(request, user, active_ngroup_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/{egress_id}", response_model=EgressResponse, dependencies=[Depends(require_privilege("egress:read"))])
 async def get_egress_endpoint(request: Request, egress_id: UUID, user: AuthUser = Depends(get_current_user)):

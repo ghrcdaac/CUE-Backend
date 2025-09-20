@@ -2,9 +2,9 @@
 # File: src/python/api/v2/endpoints/collection.py (Corrected)
 # --- MODIFIED to robustly handle the structure of user.ngroups ---
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header 
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
@@ -34,14 +34,19 @@ async def create_collection_endpoint(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/", response_model=List[CollectionResponse], dependencies=[Depends(require_privilege("collection:read"))])
-async def list_collections_endpoint(request: Request, user: AuthUser = Depends(get_current_user)):
-    """Retrieves all collections for the user's active ngroup."""
+async def list_collections_endpoint(
+    request: Request,
+    user: AuthUser = Depends(get_current_user),
+    #  Read the active ngroup ID directly from the header
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+):
+    """Retrieves all collections, filtered by the user's active ngroup from the header."""
     if "admin" not in user.roles and not user.active_ngroup_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
-
-    ngroup_id = UUID(user.active_ngroup_id)
+    
     try:
-        return await collection_utils.list_collections(request, ngroup_id)
+        # Pass the header value and the user object to the utility function
+        return await collection_utils.list_collections(request, user, active_ngroup_id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

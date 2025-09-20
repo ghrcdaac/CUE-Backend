@@ -45,24 +45,37 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
     """
     return await conn.fetchrow(query, user_id)
 
-async def list_users(conn: Connection) -> List[Dict[str, Any]]:
+async def list_users(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> List[Dict[str, Any]]:
     """
+    Fetches users, filtered by the active ngroup and user role.
+    - Admins/Security see all users in the selected DAAC, or all users if none is selected.
+    - Managers see only users within the selected DAAC.
+    """
+    logger.info(
+        "user.list.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
     
-    Fetches all users using efficient subqueries.
-    """
-    query = """
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    
+    # Base query uses efficient subqueries to aggregate related data
+    base_query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
             (
                 SELECT COALESCE(jsonb_agg(r.short_name), '[]'::jsonb)
-                FROM cueuser_role ur
-                JOIN role r ON ur.role_id = r.id
+                FROM cueuser_role ur JOIN role r ON ur.role_id = r.id
                 WHERE ur.cueuser_id = u.id
             ) AS roles,
             (
                 SELECT COALESCE(jsonb_agg(jsonb_build_object('id', g.id, 'short_name', g.short_name)), '[]'::jsonb)
-                FROM cueuser_ngroup ug
-                JOIN ngroup g ON ug.ngroup_id = g.id
+                FROM cueuser_ngroup ug JOIN ngroup g ON ug.ngroup_id = g.id
                 WHERE ug.cueuser_id = u.id
             ) AS ngroups,
             (
@@ -73,9 +86,27 @@ async def list_users(conn: Connection) -> List[Dict[str, Any]]:
                 WHERE ur.cueuser_id = u.id
             ) AS privileges
         FROM cueuser u
-        ORDER BY u.name;
     """
-    return await conn.fetch(query)
+    
+    # Use an EXISTS subquery for efficient filtering without disturbing the main query structure
+    where_conditions = []
+    if active_ngroup_id:
+        where_conditions.append(
+            "EXISTS (SELECT 1 FROM cueuser_ngroup ug WHERE ug.cueuser_id = u.id AND ug.ngroup_id = $1)"
+        )
+        params.append(active_ngroup_id)
+    else:
+        # If no DAAC is selected:
+        # Admins/Security can see all users across all DAACs.
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            # All other roles (e.g., managers) MUST select a DAAC to see any users.
+            # This is a secure default to prevent accidental data exposure.
+            where_conditions.append("FALSE")
+
+    where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+    query = f"{base_query} {where_clause} ORDER BY u.name;"
+    
+    return await conn.fetch(query, *params)
 
 async def get_user_by_username(conn: Connection, cueusername: str) -> Optional[Dict[str, Any]]:
     """Fetches a single user's core data by their unique username."""

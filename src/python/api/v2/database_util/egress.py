@@ -26,9 +26,39 @@ async def get_egress_by_id(conn: Connection, egress_id: UUID) -> Optional[Dict[s
     """Retrieves an egress record from the database by its ID."""
     return await conn.fetchrow("SELECT * FROM egress WHERE id = $1", egress_id)
 
-async def list_egresses_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all egress records for a specific ngroup."""
-    return await conn.fetch("SELECT * FROM egress WHERE ngroup_id = $1 ORDER BY type, path", ngroup_id)
+async def list_egresses(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves all egress records, filtered by the active ngroup and user role.
+    """
+    logger.info(
+        "egress.list.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+    
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all egress targets from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = "" # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its egress targets.
+            where_clause = "WHERE FALSE" # Return no rows
+            
+    query = f"SELECT * FROM egress {where_clause} ORDER BY type, path"
+    return await conn.fetch(query, *params)
 
 async def update_egress(conn: Connection, egress_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Updates an existing egress record in the database."""
