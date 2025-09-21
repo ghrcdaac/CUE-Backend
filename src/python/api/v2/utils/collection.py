@@ -3,7 +3,7 @@
 # --- MODIFIED to use the shared connection pool from the request state ---
 # ==============================================================================
 from uuid import UUID
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import structlog
 from fastapi import Request # <-- Import Request
 
@@ -46,11 +46,18 @@ async def get_collection(request: Request, collection_id: UUID) -> Dict[str, Any
         raise CollectionNotFoundError(f"Collection not found with ID: {collection_id}")
     return dict(collection)
 
-async def list_collections(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
+async def list_collections(request: Request, ngroup_id: UUID,  page:int, page_size:int) -> Tuple[List[Dict[str, Any]], int]:
     """Retrieves all collection records for a specific ngroup."""
     async with request.state.pool.acquire() as conn:
-        records = await collection_db.list_collections_by_ngroup(conn, ngroup_id)
-    return [dict(r) for r in records]
+        params = (ngroup_id,)
+        offset = (page - 1) * page_size
+        params = (ngroup_id, page_size, offset)
+        total_count = await collection_db.get_collection_count(conn, ngroup_id);
+        result = []
+        if total_count > 0:
+            records = await collection_db.list_collections_by_ngroup(conn, params)
+            result = [dict(r) for r in records]
+    return result,total_count
 
 async def update_collection(request: Request, collection_id: UUID, collection_update: CollectionUpdate) -> Dict[str, Any]:
     """Updates an existing collection record."""
@@ -88,3 +95,5 @@ async def delete_collection(request: Request, collection_id: UUID):
     if not success:
         raise CollectionNotFoundError(f"Collection not found with ID: {collection_id}")
     logger.info("collection.deleted", collection_id=str(collection_id))
+
+

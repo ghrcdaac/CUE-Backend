@@ -2,14 +2,14 @@
 # File: src/python/api/v2/endpoints/collection.py (Corrected)
 # --- MODIFIED to robustly handle the structure of user.ngroups ---
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from uuid import UUID
 from typing import List
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import collection as collection_utils
-from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse
+from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse, PaginatedCollectionReturn
 
 router = APIRouter(prefix="/collections", tags=["V2 - Collections"])
 
@@ -33,15 +33,23 @@ async def create_collection_endpoint(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.get("/", response_model=List[CollectionResponse], dependencies=[Depends(require_privilege("collection:read"))])
-async def list_collections_endpoint(request: Request, user: AuthUser = Depends(get_current_user)):
+@router.get("/", response_model=PaginatedCollectionReturn, dependencies=[Depends(require_privilege("collection:read"))])
+async def list_collections_endpoint(request: Request, user: AuthUser = Depends(get_current_user),
+                    page: int = Query(1, ge=1, description="Page number starting from 1."),
+                    page_size: int = Query(20, ge=1, le=100, description="Number of items per page.")
+    ):
     """Retrieves all collections for the user's active ngroup."""
     if "admin" not in user.roles and not user.active_ngroup_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
 
     ngroup_id = UUID(user.active_ngroup_id)
     try:
-        return await collection_utils.list_collections(request, ngroup_id)
+        # return await collection_utils.list_collections(request, ngroup_id)
+        collections, total_count = await collection_utils.list_collections(request, ngroup_id,page,page_size) # Pass ngroup
+        return {
+            "total_count": total_count,
+            "collections": collections
+        }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
