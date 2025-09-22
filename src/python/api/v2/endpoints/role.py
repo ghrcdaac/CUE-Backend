@@ -12,7 +12,7 @@ from v2.type_util.role import RoleCreate, RoleUpdate, RoleResponse
 
 router = APIRouter(prefix="/roles", tags=["V2 - Roles"])
 
-# --- MODIFIED: All endpoints now accept `request: Request` ---
+# --- All endpoints now accept `request: Request` ---
 
 @router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("role:create"))])

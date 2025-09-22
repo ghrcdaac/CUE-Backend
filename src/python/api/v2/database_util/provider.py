@@ -27,9 +27,39 @@ async def get_provider_by_id(conn: Connection, provider_id: UUID) -> Optional[Di
     """Retrieves a provider record from the database by its ID."""
     return await conn.fetchrow("SELECT * FROM provider WHERE id = $1", provider_id)
 
-async def list_providers_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all provider records for a specific ngroup."""
-    return await conn.fetch("SELECT * FROM provider WHERE ngroup_id = $1 ORDER BY short_name", ngroup_id)
+async def list_providers(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves all provider records, filtered by the active ngroup and user role.
+    """
+    logger.info(
+        "provider.list.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all providers from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = ""  # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its providers.
+            where_clause = "WHERE FALSE"  # Return no rows
+
+    query = f"SELECT * FROM provider {where_clause} ORDER BY short_name"
+    return await conn.fetch(query, *params)
 
 async def list_providers_for_form(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Retrieves a simplified list of providers (id, short_name) for a given ngroup."""

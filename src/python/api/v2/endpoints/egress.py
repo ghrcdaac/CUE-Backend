@@ -34,12 +34,12 @@ async def create_egress_endpoint(
 async def list_egresses_endpoint(
     request: Request, 
     user: AuthUser = Depends(get_current_user),
-    # MODIFIED: Read the active ngroup ID directly from the header
+    # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
 ):
     """Retrieves all egress records, filtered by the user's active ngroup from the header."""
     try:
-        # MODIFIED: Pass the header value and the user object to the utility function
+        # Pass the header value and the user object to the utility function
         return await egress_utils.list_egresses(request, user, active_ngroup_id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

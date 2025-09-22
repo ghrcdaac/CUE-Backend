@@ -1,28 +1,28 @@
-# ==============================================================================
-# File: src/python/event_lambdas/notification_manager/handler.py (Refactored)
-# Purpose: This Lambda now acts as a central dispatcher for multiple event types,
-# using the modern, consistent architecture.
-# ==============================================================================
 import asyncio
 import json
 import os
 import boto3
-import structlog # Use structlog
+import structlog
 from pathlib import Path
 from uuid import UUID
 
-# Import the new logging setup and DB connection method
 from core.logging_config import setup_logging
-from core.db import get_db_connection
+from core.db_pool import get_database_pool
 from db import (
     get_infected_file_details, 
     get_new_application_details, 
     get_approved_user_details
 )
 
-# Initialize logging at the start of the module . check
 setup_logging()
 logger = structlog.get_logger(__name__)
+
+
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError: 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
 lambda_client = boto3.client('lambda')
 
@@ -39,13 +39,12 @@ def load_template(template_name: str, context: dict) -> str:
         logger.error(f"template.load.failed", template=template_name, exc_info=True)
         return "Error: Could not generate email body."
 
-async def handle_infected_file(detail: dict):
+async def handle_infected_file(detail: dict, pool: asyncio.Pool):
     """Handles logic for the original infected file notification."""
     file_id = detail['key']
     logger.info("event.infected_file.received", file_id=file_id)
     
-    # Use the new connection-per-task pattern
-    async with get_db_connection() as conn:
+    async with pool.acquire() as conn:
         details = await get_infected_file_details(conn, file_id)
 
     if not details or not details.get('recipient_emails'):
@@ -57,12 +56,12 @@ async def handle_infected_file(detail: dict):
     body_text = f"An infected file was detected: {details.get('file_name')}"
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 
-async def handle_application_submitted(detail: dict):
+async def handle_application_submitted(detail: dict, pool: asyncio.Pool):
     """Handles sending a notification to admins about a new application."""
     app_id = UUID(detail["application_id"])
     logger.info("event.application_submitted.received", application_id=str(app_id))
     
-    async with get_db_connection() as conn:
+    async with pool.acquire() as conn:
         details = await get_new_application_details(conn, app_id)
         
     if not details or not details.get('recipient_emails'):
@@ -74,12 +73,12 @@ async def handle_application_submitted(detail: dict):
     body_text = f"A new user application from {details.get('user_name')} has been submitted."
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 
-async def handle_application_approved(detail: dict):
+async def handle_application_approved(detail: dict, pool: asyncio.Pool):
     """Handles sending a welcome email to a newly approved user."""
     user_id = UUID(detail["user_id"])
     logger.info("event.application_approved.received", user_id=str(user_id))
     
-    async with get_db_connection() as conn:
+    async with pool.acquire() as conn:
         details = await get_approved_user_details(conn, user_id)
         
     if not details:
@@ -107,11 +106,14 @@ async def invoke_email_sender(recipients: list, subject: str, body_html: str, bo
 
 async def async_handler(event, context):
     """Async handler to route events based on their detail-type."""
-    # This assumes the Lambda is triggered by EventBridge
+    pool = await get_database_pool()
+    if not pool:
+        logger.critical("db.pool.not_available.failing_invocation")
+        raise RuntimeError("Database connection pool is not available.")
+
     detail_type = event.get('detail-type')
     detail = event.get('detail', {})
 
-    # Bind AWS Lambda context to all logs for this invocation
     structlog.contextvars.bind_contextvars(
         aws_request_id=context.aws_request_id,
         function_name=context.function_name,
@@ -119,15 +121,20 @@ async def async_handler(event, context):
     )
 
     if detail_type == "InfectedFileFound":
-        await handle_infected_file(detail)
+        await handle_infected_file(detail, pool)
     elif detail_type == "UserApplicationSubmitted":
-        await handle_application_submitted(detail)
+        await handle_application_submitted(detail, pool)
     elif detail_type == "UserApplicationApproved":
-        await handle_application_approved(detail)
+        await handle_application_approved(detail, pool)
     else:
         logger.warning("event.unhandled_type")
 
 def handler(event, context):
     """Synchronous entrypoint for AWS Lambda."""
-    logger.info("event.received", full_event=event)
-    return asyncio.run(async_handler(event, context))
+    try:
+        logger.info("event.received", full_event=event)
+        loop.run_until_complete(async_handler(event, context))
+    except Exception:
+        logger.critical("lambda.handler.unhandled_exception", exc_info=True)
+        raise
+

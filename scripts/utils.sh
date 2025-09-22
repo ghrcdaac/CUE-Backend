@@ -53,6 +53,8 @@ build_common_dependencies() {
     mkdir -p "${core_target_dir}"
     cp "${DIR}/src/python/api/core/db.py" "${core_target_dir}/"
     cp "${DIR}/src/python/api/core/logging_config.py" "${core_target_dir}/"
+    cp "${DIR}/src/python/api/core/db_pool.py" "${core_target_dir}/"
+    cp "${DIR}/src/python/api/core/idfs_certs.json" "${core_target_dir}/"
     # Add an __init__.py to make 'core' a package, allowing `from core.db import ...`
     touch "${core_target_dir}/__init__.py"
      

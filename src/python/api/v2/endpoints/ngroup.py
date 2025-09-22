@@ -13,7 +13,7 @@ from v2.type_util.ngroup import NgroupCreate, NgroupUpdate, NgroupResponse, Ngro
 
 router = APIRouter(prefix="/ngroups", tags=["V2 - NGroups"])
 
-# --- MODIFIED: All endpoints now accept `request: Request` ---
+# --- All endpoints now accept `request: Request` ---
 
 @router.post("/", response_model=NgroupResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("admin"))])

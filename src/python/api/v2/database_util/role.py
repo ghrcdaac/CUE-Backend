@@ -1,7 +1,7 @@
 # ==============================================================================
 # File: src/python/api/v2/database_util/role.py (Final)
 # Purpose: Contains all raw SQL queries for role management.
-# New: Added list_all_privileges to support granting full access to admins.
+# Added list_all_privileges to support granting full access to admins.
 # ==============================================================================
 from asyncpg import Connection, UniqueViolationError, DataError
 from typing import List, Optional, Dict, Any

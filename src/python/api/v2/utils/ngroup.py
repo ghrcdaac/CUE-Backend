@@ -19,7 +19,7 @@ class NgroupNotFoundError(Exception):
         self.ngroup_id = ngroup_id
         super().__init__(f"Ngroup not found with ID: {ngroup_id}")
 
-# --- MODIFIED: Functions now accept the `request` object ---
+# --- Functions now accept the `request` object ---
 
 async def create_ngroup(request: Request, ngroup: NgroupCreate) -> Dict[str, Any]:
     """Creates a new ngroup record."""

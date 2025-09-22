@@ -38,7 +38,7 @@ class ApiKeyCreateRequest(BaseModel):
     def validate_owner_by_type(self):
         """Validator to ensure the correct fields are provided for the given key_type."""
         if self.key_type == 'personal':
-            # MODIFIED: A personal key MUST now be associated with a group.
+            # A personal key MUST now be associated with a group.
             if not self.ngroup_id:
                 raise ValueError("For 'personal' keys, the 'ngroup_id' is required.")
             if self.target_user_id or self.proxy_user_name:

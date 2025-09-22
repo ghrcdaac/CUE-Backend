@@ -1,8 +1,8 @@
 FROM public.ecr.aws/lambda/python:3.13
 
-# RUN dnf install -y gcc
-RUN dnf groupinstall -y "Development Tools" && \
-    dnf clean all
+RUN dnf install -y gcc
+# RUN dnf groupinstall -y "Development Tools" && \
+#     dnf clean all
 
 COPY ./src/python/api/requirements.txt .
 COPY ./src/python/api ./

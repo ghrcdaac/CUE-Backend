@@ -81,7 +81,7 @@ async def list_api_keys(
     order_clause = "ORDER BY ak.created_at DESC;"
     query = f"{base_query} {where_clause} {order_clause}"
     
-    # NEW: Added logging to help debug why the list might be empty.
+    # Added logging to help debug why the list might be empty.
     logger.info(
         "api_keys.list.executing_query",
         user_roles=list(user_roles),

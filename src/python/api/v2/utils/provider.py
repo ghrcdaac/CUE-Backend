@@ -4,6 +4,7 @@
 # ==============================================================================
 from uuid import UUID
 from typing import List, Optional, Dict, Any
+from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
 
@@ -26,7 +27,7 @@ async def create_provider(request: Request, provider: ProviderCreate) -> Dict[st
     """Creates a new provider record after validating dependencies."""
     # Validate that the point_of_contact user exists.
     try:
-        # --- MODIFIED: Pass the request object to the user utility function ---
+        # --- Pass the request object to the user utility function ---
         await cueuser_utils.get_user_profile(request, provider.point_of_contact)
     except cueuser_utils.UserNotFoundError as e:
         raise ValueError(f"Point of contact user with ID '{provider.point_of_contact}' not found.") from e
@@ -47,10 +48,23 @@ async def get_provider(request: Request, provider_id: UUID) -> Dict[str, Any]:
         raise ProviderNotFoundError(provider_id=provider_id)
     return dict(provider)
 
-async def list_providers(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all provider records for a specific ngroup."""
+async def list_providers(
+    request: Request,
+    user: AuthUser, # Accept the full user object for role checks
+    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
+) -> List[Dict[str, Any]]:
+    """Retrieves all provider records based on the user's roles and active ngroup."""
+
+    # Convert string UUID from header to UUID object, or None
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+
     async with request.state.pool.acquire() as conn:
-        records = await provider_db.list_providers_by_ngroup(conn, ngroup_id)
+        # Call the new, more powerful list_providers function
+        records = await provider_db.list_providers(
+            conn,
+            requesting_user=user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter
+        )
     return [dict(r) for r in records]
 
 async def list_providers_for_form(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
@@ -68,7 +82,7 @@ async def update_provider(request: Request, provider_id: UUID, provider_update: 
     # If point_of_contact is being updated, validate the new user exists.
     if "point_of_contact" in update_data:
         try:
-            # --- MODIFIED: Pass the request object to the user utility function ---
+            # --- Pass the request object to the user utility function ---
             await cueuser_utils.get_user_profile(request, update_data["point_of_contact"])
         except cueuser_utils.UserNotFoundError as e:
             raise ValueError(f"New point of contact user with ID '{update_data['point_of_contact']}' not found.") from e

@@ -18,7 +18,7 @@ class RoleNotFoundError(Exception):
     def __init__(self, identifier: Any):
         super().__init__(f"Role not found with identifier: {identifier}")
 
-# --- MODIFIED: Functions now accept the `request` object ---
+# --- Functions now accept the `request` object ---
 
 async def create_role(request: Request, role: RoleCreate) -> Dict[str, Any]:
     """Creates a new role record."""

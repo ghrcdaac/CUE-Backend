@@ -44,8 +44,8 @@ async def get_egress(request: Request, egress_id: UUID) -> Dict[str, Any]:
 
 async def list_egresses(
     request: Request,
-    user: AuthUser, # MODIFIED: Accept the full user object for role checks
-    active_ngroup_id: Optional[str] # MODIFIED: Accept the optional ngroup ID string
+    user: AuthUser, # Accept the full user object for role checks
+    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
 ) -> List[Dict[str, Any]]:
     """Retrieves all egress records based on the user's roles and active ngroup."""
     
@@ -53,7 +53,7 @@ async def list_egresses(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
-        # MODIFIED: Call the new, more powerful list_egresses function
+        # Call the new, more powerful list_egresses function
         records = await egress_db.list_egresses(
             conn,
             requesting_user=user.model_dump(),

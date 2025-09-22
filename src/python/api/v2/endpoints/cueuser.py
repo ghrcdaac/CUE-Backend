@@ -13,7 +13,7 @@ from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequ
 
 router = APIRouter(prefix="/cueusers", tags=["V2 - CUE Users"])
 
-# --- MODIFIED: All endpoints now accept `request: Request` ---
+# --- All endpoints now accept `request: Request` ---
 
 @router.get("/me", response_model=UserResponse)
 async def get_my_profile(request: Request, user: User = Depends(get_current_user)):
@@ -28,12 +28,12 @@ async def get_my_profile(request: Request, user: User = Depends(get_current_user
 async def list_users_endpoint(
     request: Request,
     user: User = Depends(get_current_user),
-    # MODIFIED: Read the active ngroup ID directly from the header
+    # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
 ):
     """Retrieves a list of all users, filtered by the active DAAC."""
     try:
-        # MODIFIED: Pass the header value and the current user to the utility function
+        # Pass the header value and the current user to the utility function
         users = await cueuser_utils.list_users(request, user, active_ngroup_id)
         return [UserResponse.model_validate(u) for u in users]
     except Exception as e:
