@@ -110,7 +110,7 @@ async def initiate_password_reset(
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail="Failed to initiate password reset.")
 
-# --- MODIFIED: This endpoint now uses a method on the injected Keycloak client ---
+# --- This endpoint now uses a method on the injected Keycloak client ---
 @router.post("/introspect", response_model=Dict[str, Any])
 async def introspect_token(
     request: TokenIntrospectionRequest,

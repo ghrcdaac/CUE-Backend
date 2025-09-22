@@ -40,26 +40,44 @@ async def get_pending_application_by_user_id(conn: Connection, user_id: UUID) ->
     logger.info("db.user_application.check_pending", user_id=str(user_id), application_found=(row is not None))
     return dict(row) if row else None
 
-async def list_user_applications(conn: Connection, ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
-    """Lists user applications, with optional filters for ngroup and status."""
-    base_query = "SELECT * FROM user_application"
-    conditions = []
+async def list_user_applications(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None,
+    status: Optional[ApplicationStatus] = None
+) -> List[Dict[str, Any]]:
+    """Lists user applications, filtered by the active ngroup and user role."""
+    logger.info(
+        "application.list.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None,
+        status=status.value if status else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
     params = []
-    
-    # --- CHANGE: Add explicit type casting for parameters ---
-    if ngroup_id:
-        params.append(ngroup_id)
+    conditions = []
+
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        params.append(active_ngroup_id)
         conditions.append(f"ngroup_id = ${len(params)}::uuid")
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all applications from all groups.
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see applications.
+            conditions.append("FALSE")
+
     if status:
         params.append(status.value)
         conditions.append(f"status = ${len(params)}::application_status")
-        
-    if conditions:
-        base_query += " WHERE " + " AND ".join(conditions)
+
+    where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+    query = f"SELECT * FROM user_application {where_clause} ORDER BY applied DESC;"
     
-    base_query += " ORDER BY applied DESC;"
-        
-    records = await conn.fetch(base_query, *params)
+    records = await conn.fetch(query, *params)
     return [dict(record) for record in records]
 
 async def update_application_status(conn: Connection, application_id: UUID, status: ApplicationStatus) -> Optional[Dict[str, Any]]:

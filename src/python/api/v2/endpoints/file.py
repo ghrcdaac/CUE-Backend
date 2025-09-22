@@ -1,7 +1,7 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/file.py (Complete & Corrected)
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
 from uuid import UUID
 from typing import List, Optional
 
@@ -18,39 +18,35 @@ router = APIRouter(prefix="/files", tags=["V2 - Files"])
 async def list_files_endpoint(
     request: Request,
     user: AuthUser = Depends(get_current_user),
+    # Read the active ngroup ID directly from the header
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     status: Optional[str] = Query(None, description="Filter files by status (e.g., 'infected', 'clean')."),
     page: int = Query(1, ge=1, description="Page number."),
     page_size: int = Query(50, ge=1, le=100, description="Items per page.")
 ):
     """
-    Lists files for the user's active ngroup with pagination.
+    Lists files for the user's selected ngroup with pagination.
     Optionally filters the list by file status.
     """
-    if not user.active_ngroup_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
-
-    ngroup_id_to_query = UUID(user.active_ngroup_id)
     try:
-        # --- FEATURE ADDED: Pass the optional status filter down to the util layer ---
-        items, total = await file_utils.list_files(request, ngroup_id_to_query, page, page_size, status)
+        # Pass the header value and user object down to the utility layer
+        items, total = await file_utils.list_files(request, user, active_ngroup_id, page, page_size, status)
         return PaginatedFileResponse(items=items, total=total, page=page, page_size=page_size)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-# --- FEATURE ADDED: Restored the 'find by name' endpoint from V1 ---
 @router.get("/find", response_model=List[FileResponse], dependencies=[Depends(require_privilege("file:read"))])
 async def find_files_by_name_endpoint(
     request: Request,
     name: str = Query(..., description="File name to search for."),
-    user: AuthUser = Depends(get_current_user)
+    user: AuthUser = Depends(get_current_user),
+    # Read the active ngroup ID directly from the header
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
 ):
-    """Finds file records by name within the active ngroup."""
-    if not user.active_ngroup_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Active ngroup header is required.")
-
-    ngroup_id = UUID(user.active_ngroup_id)
+    """Finds file records by name within the selected ngroup."""
     try:
-        return await file_utils.find_files_by_name(request, ngroup_id, name)
+        # Pass the header value and user object down to the utility layer
+        return await file_utils.find_files_by_name(request, user, active_ngroup_id, name)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error finding files: {e}")
 

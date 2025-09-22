@@ -3,7 +3,7 @@
 # --- MODIFIED to use the shared connection pool from the request state ---
 # ==============================================================================
 from uuid import UUID
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import structlog
 from fastapi import Request # <-- Import Request
 
@@ -12,6 +12,7 @@ from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
 from v2.database_util import egress as egress_db
 from v2.type_util.collection import CollectionCreate, CollectionUpdate
+from v2.type_util.auth import AuthUser
 
 logger = structlog.get_logger(__name__)
 
@@ -19,7 +20,7 @@ class CollectionNotFoundError(Exception):
     """Custom exception raised when a collection is not found."""
     pass
 
-# --- MODIFIED: Functions now accept the `request` object ---
+# --- Functions now accept the `request` object ---
 
 async def create_collection(request: Request, collection: CollectionCreate, ngroup_id: UUID) -> Dict[str, Any]:
     """Creates a new collection record after validating dependencies."""
@@ -46,10 +47,23 @@ async def get_collection(request: Request, collection_id: UUID) -> Dict[str, Any
         raise CollectionNotFoundError(f"Collection not found with ID: {collection_id}")
     return dict(collection)
 
-async def list_collections(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all collection records for a specific ngroup."""
+async def list_collections(
+    request: Request,
+    user: AuthUser, # Accept the full user object for role checks
+    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
+) -> List[Dict[str, Any]]:
+    """Retrieves all collection records based on the user's roles and active ngroup."""
+    
+    # Convert string UUID from header to UUID object, or None
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
     async with request.state.pool.acquire() as conn:
-        records = await collection_db.list_collections_by_ngroup(conn, ngroup_id)
+        # Call the new, more powerful list_collections function
+        records = await collection_db.list_collections(
+            conn, 
+            requesting_user=user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter
+        )
     return [dict(r) for r in records]
 
 

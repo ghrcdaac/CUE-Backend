@@ -2,11 +2,11 @@
 import json
 import boto3
 import asyncio
-import socket # Import the socket library for network testing
+import socket 
 import os
 import structlog
+import asyncpg
 
-from core.db import get_db_connection
 from db import upsert_scan_status_in_database, get_collection_id
 from model import ScanResultMessage, ScanResultDetailJSONEncoder
 from uuid import UUID
@@ -80,10 +80,10 @@ async def send_clean_file_message(file_id:UUID, collection_id:UUID):
         logger.info(f"sqs.clean_queue.send_message.failed {e}", file_id=str(file_id), collection_id=str(collection_id))
         raise e
 
-async def process_scan_result(message: ScanResultMessage):
+async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool):
     """
-    Processes a validated scan result message, upserts its status,
-    and publishes an event if infected.
+    Processes a validated scan result message, upserts its status using the
+    shared connection pool, and publishes an event if infected.
     """
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
@@ -101,7 +101,8 @@ async def process_scan_result(message: ScanResultMessage):
     
     logger.info("scan_result.processing", file_id=str(file_id), status=status)
     
-    async with get_db_connection() as conn:
+    # --- Use the shared pool to acquire a fast connection ---
+    async with db_pool.acquire() as conn:
         await upsert_scan_status_in_database(conn, file_id, update_data)
     
         if status == 'clean':

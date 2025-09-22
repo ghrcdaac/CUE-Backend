@@ -102,6 +102,8 @@ resource "aws_lambda_function" "cue_scan_event" {
       LOG_LEVEL      = "INFO"
       EVENT_BUS_NAME = aws_cloudwatch_event_bus.cue_app_bus.name
       QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
+      DB_SSL_MODE    = "require"
+      ENV = "production"
     }
   }
 }
@@ -132,6 +134,8 @@ resource "aws_lambda_function" "notification_manager" {
       EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
       FRONTEND_URL     = var.frontend_url
       LOG_LEVEL        = "INFO"
+      DB_SSL_MODE    = "require"
+      ENV = "production"
     }
   }
 }
@@ -179,13 +183,50 @@ resource "aws_lambda_function" "notification_manager" {
 #   }
 # }
 
+# 6. File Transfer Lambda
+resource  "aws_lambda_function" "cue_file_transfer"{
+  filename         = "../artifacts/file-transfer-lambda.zip"
+  function_name    = "cue_file_transfer"
+  role             = var.file_transfer_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  source_code_hash = filesha256("../artifacts/file-transfer-lambda.zip")
+  timeout          = 180
+  # Increase Memory for More CPU Power ---
+  # Increased from the default of 128MB to 1024MB. This provides more
+  # CPU, which is critical for I/O-heavy tasks like file transfers.
+  memory_size      = 1024
+  publish          = true
+
+  environment {
+    variables = {
+      PG_USER        = var.db_user
+      PG_HOST        = var.db_proxy_host
+      PG_DB          = var.db_database
+      PG_PASS        = var.db_password
+      PG_PORT        = var.db_port
+      STAGING_BUCKET = var.cue_staging_bucket
+      LOG_LEVEL      = "INFO"
+      DB_SSL_MODE    = "require"
+      ENV = "production"
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
+
+
 resource "aws_lambda_alias" "cue_api_live_alias" {
-  name             = "sit"
-  description      = "The sit alias for production traffic"
+  name             = "live"
+  description      = "The live alias for production traffic"
   function_name    = aws_lambda_function.cue_api.function_name
   function_version = aws_lambda_function.cue_api.version
 
-  # --- CRITICAL FIX ---
+
   # This block explicitly tells Terraform that we want NO weighted routing.
   # This resolves the "stuck" alias state by giving the AWS API a clear
   # instruction, allowing the update to succeed.
@@ -227,31 +268,30 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
   depends_on = [aws_lambda_provisioned_concurrency_config.cue_api_pc]
 }
 
-# 6. File Transfer Lambda
-resource  "aws_lambda_function" "cue_file_transfer"{
-  filename         = "../artifacts/file-transfer-lambda.zip"
-  function_name    = "cue_file_transfer"
-  role             = var.file_transfer_role_arn
-  handler          = "handler.handler"
-  runtime          = "python3.13"
-  architectures    = ["x86_64"]
-  source_code_hash = filesha256("../artifacts/file-transfer-lambda.zip")
-  timeout          = 180
-  environment {
-    variables = {
-      PG_USER        = var.db_user
-      PG_HOST        = var.db_proxy_host
-      PG_DB          = var.db_database
-      PG_PASS        = var.db_password
-      PG_PORT        = var.db_port
-      STAGING_BUCKET = var.cue_staging_bucket
-      LOG_LEVEL      = "INFO"
-    }
-  }
 
-  vpc_config {
-    subnet_ids         = var.subnet_ids
-    security_group_ids = var.security_group_ids
+# Add Provisioned Concurrency for the File Transfer Lambda ---
+# This keeps one instance of the Lambda "warm" at all times, eliminating
+# cold start delays and ensuring the fastest possible response time.
+
+resource "aws_lambda_alias" "cue_file_transfer_live_alias" {
+  name             = "uat"
+  description      = "The uat alias for the file transfer function"
+  function_name    = aws_lambda_function.cue_file_transfer.function_name
+  function_version = aws_lambda_function.cue_file_transfer.version
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_lambda_provisioned_concurrency_config" "file_transfer_pc" {
+  function_name                     = aws_lambda_function.cue_file_transfer.function_name
+  provisioned_concurrent_executions = 1
+  qualifier                         = aws_lambda_alias.cue_file_transfer_live_alias.name
+   depends_on = [aws_lambda_alias.cue_file_transfer_live_alias]
+
+  provisioner "local-exec" {
+    command = "aws lambda wait function-updated --function-name ${self.function_name} --qualifier ${self.qualifier}"
   }
 }
 
@@ -265,10 +305,13 @@ resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
 
 resource "aws_lambda_event_source_mapping" "file_transfer_queue_to_transfer_lambda" {
   event_source_arn = aws_sqs_queue.cue_file_transfer_queue.arn
-  function_name = aws_lambda_function.cue_file_transfer.function_name
-  batch_size = 100
+  function_name    = aws_lambda_alias.cue_file_transfer_live_alias.arn
+  batch_size       = 10
   maximum_batching_window_in_seconds = 0 
-  function_response_types  = ["ReportBatchItemFailures"] 
+  function_response_types  = ["ReportBatchItemFailures"]
+  scaling_config {
+    maximum_concurrency = 50
+  }
 }
 
 # --- Lambda Permissions ---

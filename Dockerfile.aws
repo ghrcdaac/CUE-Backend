@@ -1,11 +1,13 @@
 FROM public.ecr.aws/lambda/python:3.13
 
 RUN dnf install -y gcc
+# RUN dnf groupinstall -y "Development Tools" && \
+#     dnf clean all
 
 COPY ./src/python/api/requirements.txt .
 COPY ./src/python/api ./
 COPY ./src/python/lambda_utils ./lambda_utils
 
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["main.handler"]

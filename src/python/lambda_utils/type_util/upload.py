@@ -15,7 +15,7 @@ class UploadURLResponse(BaseModel):
     fields: Dict[str, str] 
     s3_key: str 
 
-# NEW: For confirming single upload after client uploads to S3
+# For confirming single upload after client uploads to S3
 class ConfirmSingleUploadPayload(BaseModel):
     s3_key: str 
     file_name: str 

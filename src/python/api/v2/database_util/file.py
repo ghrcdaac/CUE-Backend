@@ -42,59 +42,101 @@ async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str
     """
     return await conn.fetchrow(query, file_id)
 
-async def find_files_by_name(conn: Connection, ngroup_id: UUID, file_name: str) -> List[Dict[str, Any]]:
-    """Retrieves files by name for a specific ngroup, joining with status."""
-    query = """
-        SELECT
-            f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum,
-            fs.status, fs.upload_time
-        FROM file f
-        JOIN collection c ON f.collection_id = c.id
-        LEFT JOIN file_status fs ON f.id = fs.id
-        WHERE c.ngroup_id = $1 AND f.name = $2
-        ORDER BY fs.upload_time DESC;
-    """
-    return await conn.fetch(query, ngroup_id, file_name)
-
-async def list_files_paginated(conn: Connection, ngroup_id: UUID, limit: int, offset: int, status: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Lists a paginated set of files for a given ngroup, optionally filtered by status."""
+async def find_files_by_name(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID],
+    file_name: str
+) -> List[Dict[str, Any]]:
+    """Retrieves files by name, filtered by the active ngroup and user role."""
+    user_roles = set(requesting_user.get('roles', []))
+    params: list[Any] = [file_name]
+    
     base_query = """
-        SELECT
-            f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum,
-            fs.status, fs.upload_time
+        SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum, fs.status, fs.upload_time
         FROM file f
         JOIN collection c ON f.collection_id = c.id
         LEFT JOIN file_status fs ON f.id = fs.id
-        WHERE c.ngroup_id = $1
     """
-    params: list[Any] = [ngroup_id]
-    if status:
-        base_query += f" AND fs.status = ${len(params) + 1}"
-        params.append(status)
+    where_conditions = ["f.name = $1"]
 
-    query = f"{base_query} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
+    if active_ngroup_id:
+        params.append(active_ngroup_id)
+        where_conditions.append(f"c.ngroup_id = ${len(params)}")
+    else:
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            where_conditions.append("FALSE")
+
+    query = f"{base_query} WHERE {' AND '.join(where_conditions)} ORDER BY fs.upload_time DESC;"
+    return await conn.fetch(query, *params)
+
+
+async def list_files_paginated(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID],
+    limit: int,
+    offset: int,
+    status: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Lists a paginated set of files, filtered by the active ngroup and user role."""
+    user_roles = set(requesting_user.get('roles', []))
+    params: list[Any] = []
+    
+    base_query = """
+        SELECT f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum, fs.status, fs.upload_time
+        FROM file f
+        JOIN collection c ON f.collection_id = c.id
+        LEFT JOIN file_status fs ON f.id = fs.id
+    """
+    where_conditions = []
+
+    if active_ngroup_id:
+        params.append(active_ngroup_id)
+        where_conditions.append(f"c.ngroup_id = ${len(params)}")
+    else:
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            where_conditions.append("FALSE")
+
+    if status:
+        params.append(status)
+        where_conditions.append(f"fs.status = ${len(params)}")
+        
+    where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+    query = f"{base_query} {where_clause} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
     params.extend([limit, offset])
     
     return await conn.fetch(query, *params)
 
-async def count_files_for_ngroup(conn: Connection, ngroup_id: UUID, status: Optional[str] = None) -> int:
-    """Counts the total number of files in a given ngroup, optionally filtered by status."""
-    base_query = """
-        SELECT COUNT(f.id)
-        FROM file f
-        JOIN collection c ON f.collection_id = c.id
-    """
-    where_clauses = ["c.ngroup_id = $1"]
-    params: list[Any] = [ngroup_id]
-    
-    if status:
-        join_clause = " JOIN file_status fs ON f.id = fs.id"
-        where_clauses.append(f"fs.status = ${len(params) + 1}")
-        params.append(status)
-        query = f"{base_query} {join_clause} WHERE {' AND '.join(where_clauses)}"
+
+async def count_files_for_ngroup(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID],
+    status: Optional[str] = None
+) -> int:
+    """Counts files, filtered by the active ngroup and user role."""
+    user_roles = set(requesting_user.get('roles', []))
+    params: list[Any] = []
+
+    base_query = "SELECT COUNT(f.id) FROM file f JOIN collection c ON f.collection_id = c.id"
+    join_clause = " LEFT JOIN file_status fs ON f.id = fs.id" if status else ""
+    where_conditions = []
+
+    if active_ngroup_id:
+        params.append(active_ngroup_id)
+        where_conditions.append(f"c.ngroup_id = ${len(params)}")
     else:
-        query = f"{base_query} WHERE {' AND '.join(where_clauses)}"
-        
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            where_conditions.append("FALSE")
+
+    if status:
+        params.append(status)
+        where_conditions.append(f"fs.status = ${len(params)}")
+
+    where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+    query = f"{base_query}{join_clause} {where_clause}"
+    
     count = await conn.fetchval(query, *params)
     return count or 0
 

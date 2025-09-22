@@ -32,9 +32,39 @@ async def get_collection_by_short_name(conn: Connection, short_name: str) -> Opt
     return await conn.fetchrow("SELECT * FROM collection WHERE short_name = $1", short_name)
 
 
-async def list_collections_by_ngroup(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all collection records for a specific ngroup."""
-    return await conn.fetch("SELECT * FROM collection WHERE ngroup_id = $1 ORDER BY short_name", ngroup_id)
+async def list_collections(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves all collection records, filtered by the active ngroup and user role.
+    """
+    logger.info(
+        "collection.list.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+    
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all collections from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = "" # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its collections.
+            where_clause = "WHERE FALSE" # Return no rows
+            
+    query = f"SELECT * FROM collection {where_clause} ORDER BY short_name"
+    return await conn.fetch(query, *params)
 
 async def update_collection(conn: Connection, collection_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Updates an existing collection record in the database."""

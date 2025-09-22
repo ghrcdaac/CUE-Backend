@@ -22,6 +22,7 @@ DROP TABLE IF EXISTS cueuser_role CASCADE;
 DROP TABLE IF EXISTS role_privilege CASCADE;
 DROP TABLE IF EXISTS privilege CASCADE;
 DROP TABLE IF EXISTS api_key CASCADE;
+DROP TABLE IF EXISTS api_key_type CASCADE;
 DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE; 
@@ -82,6 +83,8 @@ CREATE TABLE IF NOT EXISTS role (
     UNIQUE (long_name)
 );
 
+CREATE TYPE api_key_type AS ENUM ('personal', 'managed_user', 'proxy');
+
 CREATE TABLE IF NOT EXISTS api_key (
     id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
     key_hash VARCHAR NOT NULL,
@@ -89,7 +92,8 @@ CREATE TABLE IF NOT EXISTS api_key (
     name VARCHAR(255) NOT NULL,
     scopes VARCHAR[] NOT NULL,
     key_display_suffix VARCHAR(4) NULL,
-    
+    key_type api_key_type NOT NULL,
+
     -- "Created For"
     user_id UUID NULL, 
     proxy_user_name VARCHAR(255) NULL,
@@ -97,7 +101,7 @@ CREATE TABLE IF NOT EXISTS api_key (
     -- "Created By"
     created_by_user_id UUID NOT NULL,
 
-    -- Group association (can now be used for both user and proxy keys)
+    -- Group association
     ngroup_id UUID NULL,
 
     -- Timestamps & Status
@@ -113,10 +117,11 @@ CREATE TABLE IF NOT EXISTS api_key (
     FOREIGN KEY (created_by_user_id) REFERENCES cueuser(id) ON DELETE CASCADE,
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id) ON DELETE SET NULL,
 
-
+    -- The rule for 'personal' keys now correctly allows an ngroup_id.
     CONSTRAINT chk_key_owner CHECK (
-        (user_id IS NOT NULL AND proxy_user_name IS NULL) OR
-        (user_id IS NULL AND proxy_user_name IS NOT NULL)
+        (key_type = 'personal' AND user_id IS NOT NULL AND proxy_user_name IS NULL AND ngroup_id IS NOT NULL) OR
+        (key_type = 'managed_user' AND user_id IS NOT NULL AND proxy_user_name IS NULL AND ngroup_id IS NOT NULL) OR
+        (key_type = 'proxy' AND user_id IS NULL AND proxy_user_name IS NOT NULL AND ngroup_id IS NOT NULL)
     )
 );
 

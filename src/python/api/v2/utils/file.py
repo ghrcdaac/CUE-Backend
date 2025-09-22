@@ -2,6 +2,7 @@
 
 from uuid import UUID
 from typing import List, Dict, Any, Tuple, Optional
+from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
 import json
@@ -32,18 +33,54 @@ async def get_file_details(request: Request, file_id: UUID) -> Dict[str, Any]:
         raise FileNotFoundError(f"File not found with ID: {file_id}")
     return _process_record(dict(file_data))
 
-async def find_files_by_name(request: Request, ngroup_id: UUID, file_name: str) -> List[Dict[str, Any]]:
+async def find_files_by_name(
+    request: Request,
+    user: AuthUser, # Accept user object
+    active_ngroup_id: Optional[str], # Accept ngroup ID
+    file_name: str
+) -> List[Dict[str, Any]]:
     """Finds files by name within a specific ngroup."""
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
     async with request.state.pool.acquire() as conn:
-        records = await file_db.find_files_by_name(conn, ngroup_id, file_name)
+        # Call the new, more powerful database function
+        records = await file_db.find_files_by_name(
+            conn,
+            requesting_user=user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter,
+            file_name=file_name
+        )
     return [_process_record(dict(r)) for r in records]
 
-async def list_files(request: Request, ngroup_id: UUID, page: int, page_size: int, status: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+async def list_files(
+    request: Request,
+    user: AuthUser, # Accept user object
+    active_ngroup_id: Optional[str], # Accept ngroup ID
+    page: int,
+    page_size: int,
+    status: Optional[str] = None
+) -> Tuple[List[Dict[str, Any]], int]:
     """Retrieves a paginated list of files for a specific ngroup, optionally by status."""
     offset = (page - 1) * page_size
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
     async with request.state.pool.acquire() as conn:
-        total = await file_db.count_files_for_ngroup(conn, ngroup_id, status)
-        files = await file_db.list_files_paginated(conn, ngroup_id, page_size, offset, status)
+        # Pass user and ngroup ID to both database functions
+        user_dump = user.model_dump()
+        total = await file_db.count_files_for_ngroup(
+            conn,
+            requesting_user=user_dump,
+            active_ngroup_id=ngroup_id_to_filter,
+            status=status
+        )
+        files = await file_db.list_files_paginated(
+            conn,
+            requesting_user=user_dump,
+            active_ngroup_id=ngroup_id_to_filter,
+            limit=page_size,
+            offset=offset,
+            status=status
+        )
     return [_process_record(dict(f)) for f in files], total
 
 async def update_file(request: Request, file_id: UUID, file_update: FileUpdateRequest) -> Dict[str, Any]:

@@ -3,7 +3,8 @@
 
 # ==============================================================================
 from uuid import UUID
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
 import json
@@ -41,10 +42,23 @@ async def get_egress(request: Request, egress_id: UUID) -> Dict[str, Any]:
         raise EgressNotFoundError(f"Egress target not found with ID: {egress_id}")
     return _process_record(dict(egress))
 
-async def list_egresses(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
-    """Retrieves all egress records for a specific ngroup."""
+async def list_egresses(
+    request: Request,
+    user: AuthUser, # Accept the full user object for role checks
+    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
+) -> List[Dict[str, Any]]:
+    """Retrieves all egress records based on the user's roles and active ngroup."""
+    
+    # Convert string UUID from header to UUID object, or None
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
     async with request.state.pool.acquire() as conn:
-        records = await egress_db.list_egresses_by_ngroup(conn, ngroup_id)
+        # Call the new, more powerful list_egresses function
+        records = await egress_db.list_egresses(
+            conn,
+            requesting_user=user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter
+        )
     return [_process_record(dict(r)) for r in records]
 
 async def update_egress(request: Request, egress_id: UUID, egress_update: EgressUpdate) -> Dict[str, Any]:

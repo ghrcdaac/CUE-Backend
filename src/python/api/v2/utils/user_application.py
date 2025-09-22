@@ -54,10 +54,25 @@ async def get_application(request: Request, application_id: UUID) -> Dict[str, A
         raise ApplicationNotFoundError("Application not found.")
     return app
 
-async def list_applications(request: Request, ngroup_id: Optional[UUID] = None, status: Optional[ApplicationStatus] = None) -> List[Dict[str, Any]]:
-    """Lists all applications based on optional filters."""
+async def list_applications(
+    request: Request,
+    user: User, # Accept the full user object for role checks
+    active_ngroup_id: Optional[str] = None, # Accept the optional ngroup ID string
+    status: Optional[ApplicationStatus] = None
+) -> List[Dict[str, Any]]:
+    """Lists all applications based on user roles and optional filters."""
+
+    # Convert string UUID from header to UUID object, or None
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+
     async with request.state.pool.acquire() as conn:
-        return await app_db.list_user_applications(conn, ngroup_id, status)
+        # Call the new, more powerful list_user_applications function
+        return await app_db.list_user_applications(
+            conn,
+            requesting_user=user.model_dump(),
+            active_ngroup_id=ngroup_id_to_filter,
+            status=status
+        )
 
 async def approve_application(request: Request, application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
     """
@@ -114,7 +129,7 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
                 
                 await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
 
-        # --- MODIFIED: Pass the request object to the user utility function ---
+        # --- Pass the request object to the user utility function ---
         new_user_profile = await get_user_profile(request, user_id)
 
         # --- Publish event to notify the user of their approval ---

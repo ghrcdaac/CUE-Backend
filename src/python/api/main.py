@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     http_init_start = time.time()
     logger.info("http.client.initializing")
     try:
-        app.state.http_client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0))
+        app.state.http_client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=10.0))
         logger.info("http.client.initialized_successfully", duration_ms=round((time.time() - http_init_start) * 1000, 2))
     except Exception:
         logger.critical("http.client.initialization_failed", exc_info=True)
