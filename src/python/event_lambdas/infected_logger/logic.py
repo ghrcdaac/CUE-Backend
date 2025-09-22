@@ -87,8 +87,17 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
     """
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
-    scan_results = json.dumps(
-        message.model_dump(by_alias=True).get("scanResults"),
+    
+    # If a file is infected, we must store the ENTIRE message payload in the
+    # database for a complete audit trail. For other statuses, the limited
+    # scanResults field is sufficient.
+    if status == 'infected':
+        scan_results_payload = message.model_dump(by_alias=True)
+    else:
+        scan_results_payload = message.model_dump(by_alias=True).get("scanResults")
+
+    scan_results_json = json.dumps(
+        scan_results_payload,
         cls=ScanResultDetailJSONEncoder
     )
 
@@ -96,12 +105,11 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
         "status": status,
         "scan_start": message.date_scanned,
         "scan_end": message.date_scanned,
-        "scan_results": scan_results
+        "scan_results": scan_results_json 
     }
     
     logger.info("scan_result.processing", file_id=str(file_id), status=status)
     
-    # --- Use the shared pool to acquire a fast connection ---
     async with db_pool.acquire() as conn:
         await upsert_scan_status_in_database(conn, file_id, update_data)
     

@@ -12,7 +12,7 @@ from v2.type_util.file_metrics import (
 
 router = APIRouter(prefix="/file-metrics", tags=["V2 - File Metrics"])
 
-# --- ALL endpoints now read the 'x-active-ngroup-id' header ---
+# --- MODIFIED: All endpoints now pass the user and header to the V2 utility functions ---
 
 @router.get("/summary", response_model=MetricsSummaryResponse, dependencies=[Depends(require_privilege("metrics:read"))])
 async def get_metrics_summary_endpoint(
@@ -75,6 +75,7 @@ async def get_status_counts_endpoint(
     """Retrieves the count of files for each status for the selected ngroup."""
     return await metrics_utils.get_status_counts(request, user, active_ngroup_id, filters)
 
+# --- V1 Cost endpoints are now mapped to the new V2 utility functions ---
 @router.get("/cost-summary", response_model=CostSummaryResponse, dependencies=[Depends(require_privilege("metrics:read"))])
 async def get_cost_summary_endpoint(
     request: Request,
@@ -82,8 +83,8 @@ async def get_cost_summary_endpoint(
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     filters: MetricsQueryParameters = Depends()
 ):
-    """Retrieves cost summary metrics for the selected ngroup."""
-    return await metrics_utils.get_cost_summary(request, user, active_ngroup_id, filters)
+    """Retrieves cost summary metrics for the selected ngroup, calculated in-app."""
+    return await metrics_utils.get_summary_cost(request, user, active_ngroup_id, filters)
 
 @router.get("/cost-by-collection", response_model=PaginatedCostByCollectionResponse, dependencies=[Depends(require_privilege("metrics:read"))])
 async def get_cost_by_collection_endpoint(
@@ -94,7 +95,7 @@ async def get_cost_by_collection_endpoint(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100)
 ):
-    """Retrieves paginated cost by collection for the selected ngroup."""
+    """Retrieves paginated cost by collection for the selected ngroup, calculated in-app."""
     items, total = await metrics_utils.get_cost_by_collection(request, user, active_ngroup_id, filters, page, page_size)
     return PaginatedCostByCollectionResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -107,6 +108,7 @@ async def get_cost_by_file_endpoint(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100)
 ):
-    """Retrieves paginated cost by file for the selected ngroup."""
+    """Retrieves paginated cost by file for the selected ngroup, calculated in-app."""
     items, total = await metrics_utils.get_cost_by_file(request, user, active_ngroup_id, filters, page, page_size)
     return PaginatedCostByFileResponse(items=items, total=total, page=page, page_size=page_size)
+
