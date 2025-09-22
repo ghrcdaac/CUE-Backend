@@ -58,6 +58,11 @@ variable "cue_css_scan_sns_arn" {
   type        = string
 }
 
+# variable "cue_cost_explorer_role_name"{
+#   description = "The name for the external cost explorer role"
+#   type        = string
+# }
+
 # --- S3 Buckets ---
 variable "s3_upload_bucket" {
   description = "The name of the S3 bucket where files are initially uploaded."

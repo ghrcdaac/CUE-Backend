@@ -8,11 +8,15 @@ from uuid import UUID
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
+from core.db import get_db_connection
 from db import (
     get_infected_file_details, 
     get_new_application_details, 
-    get_approved_user_details
+    get_approved_user_details,
+    get_infected_scheduled_file_details,
+    block_providers_uploading_infected_files,
 )
+from logic import process_notification
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -55,6 +59,27 @@ async def handle_infected_file(detail: dict, pool: asyncio.Pool):
     body_html = load_template("infected_file_template.html", {**detail, **details})
     body_text = f"An infected file was detected: {details.get('file_name')}"
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
+
+async def handle_infected_files_scheduled(detail: dict):
+    logger.info("event.scheduled_infected_files.received", detail=detail)
+    notification_details = None
+    hours = 1
+    infected_file_threshold = 5 
+
+    async with get_db_connection() as conn:
+        notification_details = await get_infected_scheduled_file_details(conn, hours)
+        blocked_providers = await block_providers_uploading_infected_files(conn, hours, infected_file_threshold)
+
+    if not notification_details:
+        logger.info("No infected file notifications to send")
+        return None
+
+    for ngroup_id, infected_file_details in notification_details.items():
+        logger.info(f"processing notification for ngroup: {ngroup_id}")
+        blocked_provider_details = blocked_providers.get(ngroup_id, {})
+        subject, html_details, body_text = await process_notification(infected_file_details, blocked_provider_details)
+        body_html = load_template("infected_files_template.html", html_details)
+        await invoke_email_sender(infected_file_details['recipient_emails'], subject, body_html, body_text)
 
 async def handle_application_submitted(detail: dict, pool: asyncio.Pool):
     """Handles sending a notification to admins about a new application."""
@@ -122,6 +147,8 @@ async def async_handler(event, context):
 
     if detail_type == "InfectedFileFound":
         await handle_infected_file(detail, pool)
+    elif detail_type == "ScheduledInfectedFileNotification":
+        await handle_infected_files_scheduled(detail)
     elif detail_type == "UserApplicationSubmitted":
         await handle_application_submitted(detail, pool)
     elif detail_type == "UserApplicationApproved":

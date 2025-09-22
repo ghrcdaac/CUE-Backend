@@ -38,3 +38,6 @@ variable "cue_staging_bucket" {
   type        = string
 }
 
+# variable "cue_cost_explorer_role_name" {
+#  description = "Name for the cost explorer role"
+# }

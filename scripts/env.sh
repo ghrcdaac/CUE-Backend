@@ -29,6 +29,7 @@ export bamboo_CUE_CSS_SCAN_SNS_ARN="arn:aws:sns:us-west-2:123456789012:your-cue-
 export bamboo_LAMBDA_EXECUTION_POLICY_ARN="arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 export bamboo_API_ID="yourApiGatewayRestApiId"
 export bamboo_API_DOCKER_URI="123456789012.dkr.ecr.us-west-2.amazonaws.com/your-api-image:latest"
+export bamboo_CUE_COST_EXPLORER_ROLE_NAME="yourCUECostExplorerRoleName"
 
 # --- S3 Buckets ---
 export bamboo_S3_UPLOAD_BUCKET="your-file-upload-bucket-name"

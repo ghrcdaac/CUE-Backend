@@ -38,16 +38,16 @@ data "aws_iam_policy_document" "glue_assume_role_policy" {
   }
 }
 
-#data "aws_iam_policy_document" "eventbridge_scheduler_assume_role" { 
-  #statement {
-    #effect  = "Allow"
-    #actions = ["sts:AssumeRole"]
-    #principals {
-      #type        = "Service"
-      #identifiers = ["scheduler.amazonaws.com"]
-    #}
-  #}
-#}
+data "aws_iam_policy_document" "eventbridge_scheduler_assume_role" { 
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
 
 # --- Permission Policies for Lambda Roles ---
 
@@ -148,10 +148,44 @@ data "aws_iam_policy_document" "glue_job_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "glue:GetConnection",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeVpcEndpoints",
+      "ec2:DescribeRouteTables",
       "ec2:CreateNetworkInterface",
+      "ec2:DeleteNetworkInterface",				
       "ec2:DescribeNetworkInterfaces",
-      "ec2:DeleteNetworkInterface"
+      "ec2:DescribeVpcAttribute"
+    ]
+    resources = ["*"]
+  }
+  statement{
+    effect = "Allow"
+    actions = [
+      "ec2:CreateTags",
+      "ec2:DeleteTags"
+    ]
+    resources = [
+      "arn:aws:ec2:*:*:network-interface/*",
+      "arn:aws:ec2:*:*:security-group/*",
+      "arn:aws:ec2:*:*:instance/*"
+    ]
+  }
+  statement{
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters"
+    ]
+    resources = ["*"]
+  }
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:DeleteObject"
     ]
     resources = ["*"]
   }
@@ -180,10 +214,10 @@ data "aws_iam_policy_document" "glue_crawler_policy" {
 
 # --- Policy for EventBridge Scheduler ---
 
-#data "aws_iam_policy_document" "infected_notif_scheduler_policy" {
-  #statement {
-    #effect = "Allow"
-    #actions = ["lambda:InvokeFunction"]
-    #resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
-  #}
-#}
+data "aws_iam_policy_document" "notification_manager_scheduler_policy" {
+  statement {
+    effect = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
+  }
+}

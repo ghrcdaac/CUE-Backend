@@ -42,35 +42,50 @@ resource "aws_cloudwatch_event_rule" "athena_query_state_change_rule" {
 }
 
 # Target for the Athena rule: the process_athena_query Lambda
-# resource "aws_cloudwatch_event_target" "process_athena_query_target" {
-#   rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
-#   target_id = "TriggerAthenaQueryProcessor"
-#   arn       = aws_lambda_function.process_athena_query.arn
+resource "aws_cloudwatch_event_target" "process_athena_query_target" {
+  rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
+  target_id = "TriggerAthenaQueryProcessor"
+  arn       = aws_lambda_function.process_athena_query.arn
+}
+
+# Scheduled Rule for cost update lambda
+# resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
+#   name                = "CUECostUpdateLambdaSchedule"
+#   description         = "Schedule to run update cost lambda"
+#   schedule_expression = "cron(0 1 * * ? *)"  
 # }
 
-#resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
-  #name = "cue_infected_file_notification_scheduler"
-  #flexible_time_window {
-    #mode = "OFF"
-  #}
-  #schedule_expression = "cron(0 * * * ? *)"
-  #target {
-    #role_arn = var.notification_scheduler_role_arn 
-    #arn = aws_lambda_function.notification_manager.arn
-    #input = jsonencode({
-          #"detail-type": "ScheduledInfectedFileNotification"
-        #})
-    #retry_policy {
-      #maximum_event_age_in_seconds = 3600
-      #maximum_retry_attempts = 3
-    #}
-  #}
-#}
+# Target for scheduled cost update lambda rule
+# resource "aws_cloudwatch_event_target" "cost_update_target" {
+#   rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
+#   target_id = "CostUpdate"
+#   arn       = aws_lambda_function.cue_cost_update.arn
+# }
 
-#resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
-  #statement_id  = "AllowExecutionFromEventBridgeScheduler"
-  #action        = "lambda:InvokeFunction"
-  #function_name = aws_lambda_function.notification_manager.function_name
-  #principal     = "scheduler.amazonaws.com"
-  #source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
-#}
+# Schedule for notification manager to send consolidated infected file notifications
+resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
+  name = "cue_infected_file_notification_scheduler"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(0 * * * ? *)"
+  target {
+    role_arn = var.notification_manger_scheduler_role_arn 
+    arn = aws_lambda_function.notification_manager.arn
+    input = jsonencode({
+          "detail-type": "ScheduledInfectedFileNotification"
+        })
+    retry_policy {
+      maximum_event_age_in_seconds = 3600
+      maximum_retry_attempts = 3
+    }
+  }
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
+  statement_id  = "AllowExecutionFromEventBridgeScheduler"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notification_manager.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
+}

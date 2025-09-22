@@ -12,10 +12,10 @@ output "event_bus_arn" {
   value       = aws_cloudwatch_event_bus.cue_app_bus.arn
 }
 
-# output "process_athena_query_lambda_arn" {
-#   description = "The ARN of the process_athena_query Lambda function."
-#   value       = aws_lambda_function.process_athena_query.arn
-# }
+output "process_athena_query_lambda_arn" {
+  description = "The ARN of the process_athena_query Lambda function."
+  value       = aws_lambda_function.process_athena_query.arn
+}
 
 output "email_sender_lambda_arn" {
   description = "The ARN of the email_sender Lambda function."

@@ -17,20 +17,6 @@ data "aws_iam_policy_document" "glue_assume_role_policy" {
 
 # --- Permissions Policy for the Glue Job ---
 data "aws_iam_policy_document" "cue_glue_job_policy" {
-  # VPC Networking Permissions
-  statement {
-    effect = "Allow"
-    actions = [
-      "ec2:DescribeSubnets",
-      "ec2:DescribeSecurityGroups",
-      "ec2:CreateNetworkInterface",
-      "ec2:DeleteNetworkInterface",
-      "ec2:DescribeNetworkInterfaces",
-      "ec2:DescribeVpcAttribute"
-    ]
-    resources = ["*"]
-  }
-
   # RDS Database Access
   statement {
     effect    = "Allow"
@@ -71,4 +57,3 @@ data "aws_iam_policy_document" "cue_glue_job_policy" {
     resources = ["arn:aws:logs:*:*:/aws-glue/jobs/*"]
   }
 }
-

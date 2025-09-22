@@ -33,12 +33,17 @@ output "file_transfer_role_arn" {
   value       = aws_iam_role.file_transfer_role.arn
 }
 
+#output "cost_update_role_arn" {
+  #description = "ARN for the Cost Update Lambda Role"
+  #value = data.aws_iam_role.cue_cost_explorer_role.arn
+#}
+
 output "db_proxy_iam_role_arn" {
   description = "ARN for the RDS Proxy IAM Role"
   value       = aws_iam_role.db_proxy_iam_role.arn
 }
 
-#output "notification_scheduler_role_arn" {
-  #description = "ARN for the notification_scheudler_role_arn"
-  #value       =  aws_iam_role.infected_notif_scheduler_role
-#}
+output "notification_manager_scheduler_role_arn" {
+  description = "ARN for the notification_scheduler_role_arn"
+  value       =  aws_iam_role.notification_manager_scheduler_role.arn
+}
