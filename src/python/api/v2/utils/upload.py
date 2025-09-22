@@ -82,13 +82,15 @@ async def prepare_single_file_upload(request: Request, params: PrepareUploadRequ
 async def complete_single_file_upload(
     request: Request, params: CompleteUploadRequest, user: AuthUser
 ) -> UUID:
+    ip_address = {"ip_address": request.client.host}
     async with request.state.pool.acquire() as conn:
         collection = await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
             await file_db.create_file_and_status_records(
                 conn=conn, file_id=params.file_id, file_name=params.file_name,
                 file_type=params.content_type, user_id=user.id, size_bytes=params.file_size_bytes,
-                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum
+                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum,
+                ip_address=ip_address 
             )
     logger.info("upload.single.completed", file_id=str(params.file_id))
     return params.file_id
@@ -126,6 +128,7 @@ async def get_multipart_presigned_url(params: MultipartGetPartUrlRequest) -> dic
 async def complete_multipart_upload(request: Request, params: MultipartCompleteRequest, user: AuthUser) -> UUID:
     s3_client = _get_s3_client()
     file_id = params.file_id
+    ip_address = {"ip_address": request.client.host}
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
     
     try:
@@ -141,9 +144,11 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
         collection = await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
             await file_db.create_file_and_status_records(
+
                 conn=conn, file_id=file_id, file_name=params.file_name,
                 file_type=params.content_type, user_id=user.id, size_bytes=params.final_file_size,
-                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum
+                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum,
+                ip_address=ip_address
             )
     logger.info("upload.multipart.completed", file_id=str(file_id))
     return file_id

@@ -3,6 +3,7 @@
 from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
 from uuid import UUID
+import json
 import structlog
 from datetime import datetime, timezone
 
@@ -11,7 +12,7 @@ logger = structlog.get_logger(__name__)
 # --- FUNCTION ADDED: Restored the function needed by the upload process ---
 async def create_file_and_status_records(
     conn: Connection, file_id: UUID, file_name: str, file_type: str, user_id: UUID,
-    size_bytes: int, collection_id: UUID, collection_path: Optional[str], checksum: str
+    size_bytes: int, collection_id: UUID, collection_path: Optional[str], checksum: str, ip_address: Dict 
 ):
     """Atomically creates a file and its initial 'unscanned' file_status record in a transaction."""
     file_query = """
@@ -19,15 +20,15 @@ async def create_file_and_status_records(
         VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, $8);
     """
     status_query = """
-        INSERT INTO file_status (id, status, upload_time)
-        VALUES ($1, 'unscanned', $2);
+        INSERT INTO file_status (id, status, upload_time, scan_results)
+        VALUES ($1, 'unscanned', $2, $3::jsonb);
     """
     # These are executed within a transaction in the calling utils function
     await conn.execute(
         file_query, file_id, file_name, file_type, user_id, size_bytes,
         collection_id, collection_path, checksum
     )
-    await conn.execute(status_query, file_id, datetime.now(timezone.utc))
+    await conn.execute(status_query, file_id, datetime.now(timezone.utc), json.dumps(ip_address))
 
 
 async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
