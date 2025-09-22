@@ -38,7 +38,6 @@ async def list_collections_by_ngroup(conn: Connection, params: Tuple) -> List[Di
         SELECT id, ngroup_id, egress_id, short_name, provider_id, active
         FROM collection
         WHERE ngroup_id = $1  -- Filter by ngroup_id
-        WHERE ngroup_id = $1
         ORDER BY short_name asc
         LIMIT $2 OFFSET $3
     """
