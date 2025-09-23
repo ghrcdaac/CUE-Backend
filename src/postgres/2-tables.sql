@@ -231,6 +231,7 @@ CREATE TABLE IF NOT EXISTS user_application (
 );
 
 CREATE TYPE file_status_type AS ENUM (
+    'uploading',
     'unscanned',
     'clean',
     'infected',

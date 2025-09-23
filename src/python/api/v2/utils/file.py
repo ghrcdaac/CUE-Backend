@@ -16,22 +16,36 @@ class FileNotFoundError(Exception):
     pass
 
 def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to parse JSON fields from a database record."""
-    if record and record.get('scan_results') and isinstance(record['scan_results'], str):
+    """
+    Helper to parse JSON fields and normalize scan_results to always be an array.
+    """
+    if not record:
+        return None
+    processed_record = dict(record)
+    scan_results = processed_record.get('scan_results')
+    
+    if scan_results and isinstance(scan_results, str):
         try:
-            record['scan_results'] = json.loads(record['scan_results'])
+            scan_results = json.loads(scan_results)
         except json.JSONDecodeError:
-            logger.warning("file.process.json_decode_error", file_id=record.get('id'))
-            record['scan_results'] = {"error": "Invalid JSON in database"}
-    return record
+            logger.warning("file.process.json_decode_error", file_id=processed_record.get('id'))
+            scan_results = [{"error": "Invalid JSON in database"}]
+    
+    if isinstance(scan_results, dict):
+        processed_record['scan_results'] = [scan_results]
+    elif isinstance(scan_results, list):
+        processed_record['scan_results'] = scan_results
+    else:
+        processed_record['scan_results'] = None
+        
+    return processed_record
 
 async def get_file_details(request: Request, file_id: UUID) -> Dict[str, Any]:
-    """Retrieves full details for a single file."""
     async with request.state.pool.acquire() as conn:
         file_data = await file_db.get_file_details(conn, file_id)
     if not file_data:
         raise FileNotFoundError(f"File not found with ID: {file_id}")
-    return _process_record(dict(file_data))
+    return _process_record(file_data)
 
 async def find_files_by_name(
     request: Request,
@@ -54,8 +68,8 @@ async def find_files_by_name(
 
 async def list_files(
     request: Request,
-    user: AuthUser, # Accept user object
-    active_ngroup_id: Optional[str], # Accept ngroup ID
+    user: AuthUser,
+    active_ngroup_id: Optional[str],
     page: int,
     page_size: int,
     status: Optional[str] = None
@@ -65,7 +79,6 @@ async def list_files(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
-        # Pass user and ngroup ID to both database functions
         user_dump = user.model_dump()
         total = await file_db.count_files_for_ngroup(
             conn,
@@ -81,7 +94,7 @@ async def list_files(
             offset=offset,
             status=status
         )
-    return [_process_record(dict(f)) for f in files], total
+    return [_process_record(f) for f in files], total
 
 async def update_file(request: Request, file_id: UUID, file_update: FileUpdateRequest) -> Dict[str, Any]:
     """Updates a file's descriptive metadata."""
@@ -94,11 +107,10 @@ async def update_file(request: Request, file_id: UUID, file_update: FileUpdateRe
             success = await file_db.update_file(conn, file_id, update_data)
             if not success:
                 raise FileNotFoundError(f"File not found with ID: {file_id}")
-            # Fetch the updated record to return the full object
             updated_file_data = await file_db.get_file_details(conn, file_id)
 
     logger.info("file.updated", file_id=str(file_id), changes=update_data)
-    return _process_record(dict(updated_file_data))
+    return _process_record(updated_file_data)
 
 async def delete_file(request: Request, file_id: UUID):
     """Deletes a file record."""

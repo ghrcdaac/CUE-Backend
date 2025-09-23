@@ -1,12 +1,9 @@
-# File: src/python/api/v2/type_util/file.py (Updated)
-
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
 
 class FileResponse(BaseModel):
-    """A rich response model for a file, combining file and file_status data."""
     id: UUID
     name: str
     type: str
@@ -20,7 +17,7 @@ class FileResponse(BaseModel):
     scan_start: Optional[datetime] = None
     scan_end: Optional[datetime] = None
     egress_start: Optional[datetime] = None
-    scan_results: Optional[Dict] = None
+    scan_results: Optional[List[Dict[str, Any]]] = None
 
     class Config:
         from_attributes = True
@@ -32,6 +29,5 @@ class PaginatedFileResponse(BaseModel):
     page_size: int
 
 class FileUpdateRequest(BaseModel):
-    """Model for updating a file's descriptive metadata."""
     name: Optional[str] = Field(None, min_length=1)
     collection_path: Optional[str] = None

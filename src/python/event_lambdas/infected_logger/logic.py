@@ -88,24 +88,21 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
     
-    # If a file is infected, we must store the ENTIRE message payload in the
-    # database for a complete audit trail. For other statuses, the limited
-    # scanResults field is sufficient.
-    if status == 'infected':
-        scan_results_payload = message.model_dump(by_alias=True)
-    else:
-        scan_results_payload = message.model_dump(by_alias=True).get("scanResults")
 
-    scan_results_json = json.dumps(
-        scan_results_payload,
-        cls=ScanResultDetailJSONEncoder
-    )
+    if status == 'infected':
+        # For infected files, serialize the ENTIRE message object for a full audit trail.
+        scan_results_json = message.model_dump_json(by_alias=True)
+    else:
+        # For other statuses, serialize only the 'scanResults' array.
+        # We first get the list of dicts, then dump it to a JSON string using the custom encoder.
+        scan_results_list = message.model_dump(by_alias=True).get("scanResults")
+        scan_results_json = json.dumps(scan_results_list, cls=ScanResultDetailJSONEncoder)
 
     update_data = {
         "status": status,
         "scan_start": message.date_scanned,
         "scan_end": message.date_scanned,
-        "scan_results": scan_results_json 
+        "scan_results": scan_results_json
     }
     
     logger.info("scan_result.processing", file_id=str(file_id), status=status)
