@@ -2,65 +2,62 @@ from uuid import UUID
 from typing import Dict, Any, List, Tuple, Optional
 from fastapi import Request
 import structlog
+from decimal import Decimal, getcontext
+from math import ceil
 
 from v2.type_util.auth import AuthUser
 from v2.database_util import file_metrics as metrics_db
 from v2.type_util.file_metrics import MetricsQueryParameters
 
 logger = structlog.get_logger(__name__)
-BYTES_TO_GB = 1 / (1024**3)
+BYTES_TO_GB = Decimal(1 / (1024**3))
+getcontext().rounding = "ROUND_UP"
 
-# --- ALL utility functions now accept 'user' and 'active_ngroup_id' ---
+# Constants for V1-style cost calculation
+AWS_COST_PER_BYTE = Decimal("0.00000000001") # Example value
+SCAN_COST_PER_SECOND = Decimal("0.00005")    # Example value
 
-async def get_daily_volume(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> List[Dict[str, Any]]:
+def format_to_gb(size_in_bytes: int) -> Decimal:
+    """Helper to convert bytes to GB as a Decimal."""
+    return (Decimal(size_in_bytes or 0) * BYTES_TO_GB).quantize(Decimal("0.00"))
+
+# --- Standard V2 Metrics (no cost calculation) ---
+async def get_daily_volume(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> List[Dict[str, Any]]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_daily_volume(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
-    return [{"day": row['day'].date(), "value": float(row['value'] or 0) * BYTES_TO_GB} for row in data]
+    return [{"day": row['day'].date(), "value": float(format_to_gb(row['value']))} for row in data]
 
-async def get_daily_count(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> List[Dict[str, Any]]:
+async def get_daily_count(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> List[Dict[str, Any]]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_daily_count(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
     return [{"day": row['day'].date(), "value": int(row['value'] or 0)} for row in data]
 
-async def get_overall_volume(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> Dict[str, Any]:
+async def get_overall_volume(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_overall_volume(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
-    return {"value": float(data or 0) * BYTES_TO_GB}
+    return {"value": float(format_to_gb(data))}
 
-async def get_overall_count(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> Dict[str, Any]:
+async def get_overall_count(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_overall_count(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
     return {"value": int(data or 0)}
 
-async def get_status_counts(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> List[Dict[str, Any]]:
+async def get_status_counts(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> List[Dict[str, Any]]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_status_counts(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
     return [{"status": row['status'], "count": int(row['count'] or 0)} for row in data]
 
-async def get_metrics_summary(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> Dict[str, Any]:
-    """Calculates and aggregates all file metrics for the selected group."""
+async def get_metrics_summary(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     daily_volume = await get_daily_volume(request, user, active_ngroup_id, filters)
     daily_count = await get_daily_count(request, user, active_ngroup_id, filters)
     overall_volume = await get_overall_volume(request, user, active_ngroup_id, filters)
@@ -72,48 +69,72 @@ async def get_metrics_summary(
         "status_counts": status_counts,
     }
 
-async def get_cost_summary(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters
-) -> Dict[str, Any]:
+# --- V1-style Cost Calculation Logic ---
+async def get_summary_cost(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     filter_dict = filters.model_dump(exclude_unset=True)
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    user_dump = user.model_dump()
+    
     async with request.state.pool.acquire() as conn:
-        data = await metrics_db.get_cost_summary_data(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
+        daily_metrics = await metrics_db.get_daily_metrics_for_cost_calc(conn, user_dump, ngroup_id_to_filter, filter_dict)
+
+    daily_cost, total_cost_val, total_files, total_size_bytes = [], Decimal(0), 0, 0
+    for record in daily_metrics:
+        size = Decimal(record.get("size", 0))
+        scan_duration = Decimal(record.get("scan_duration", 0))
+        cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
+        daily_cost.append({"day": record["date"].date(), "value": float(cost.quantize(Decimal("0.01")))})
+        total_cost_val += cost
+        total_files += record.get("file_count", 0)
+        total_size_bytes += size
+
     return {
-        "daily_cost": [{"day": row['day'].date(), "value": float(row['value'] or 0)} for row in data['daily_cost']],
-        "total_cost": {"value": float(data['total_cost'] or 0)},
-        "total_files": int(data['total_files'] or 0),
-        "total_size_gb": float(data['total_size_bytes'] or 0) * BYTES_TO_GB
+        "daily_cost": daily_cost,
+        "total_cost": {"value": float(total_cost_val.quantize(Decimal("0.01")))},
+        "total_files": total_files,
+        "total_size_gb": float(format_to_gb(total_size_bytes))
     }
 
-async def get_cost_by_collection(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters, page: int, page_size: int
-) -> Tuple[List[Dict[str, Any]], int]:
+async def get_cost_by_collection(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters, page: int, page_size: int) -> Tuple[List[Dict[str, Any]], int]:
     filter_dict = filters.model_dump(exclude_unset=True)
     offset = (page - 1) * page_size
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     user_dump = user.model_dump()
-    async with request.state.pool.acquire() as conn:
-        total = await metrics_db.count_cost_by_collection(conn, user_dump, ngroup_id_to_filter, filter_dict)
-        items = await metrics_db.get_cost_by_collection(conn, user_dump, ngroup_id_to_filter, filter_dict, page_size, offset)
     
-    formatted_items = [{
-        "name": item['name'], "size_gb": float(item['size_bytes'] or 0) * BYTES_TO_GB, "cost": float(item['cost'] or 0)
-    } for item in items]
-    return formatted_items, total
+    async with request.state.pool.acquire() as conn:
+        total = await metrics_db.count_collection_metrics(conn, user_dump, ngroup_id_to_filter, filter_dict)
+        items = await metrics_db.get_collection_metrics_for_cost_calc(conn, user_dump, ngroup_id_to_filter, filter_dict, page_size, offset)
 
-async def get_cost_by_file(
-    request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters, page: int, page_size: int
-) -> Tuple[List[Dict[str, Any]], int]:
+    collection_cost = []
+    for record in items:
+        size = Decimal(record.get('size', 0))
+        scan_duration = Decimal(record.get('scan_duration', 0))
+        cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
+        collection_cost.append({
+            "name": record.get("name"),
+            "size_gb": float(format_to_gb(size)),
+            "cost": float(cost.quantize(Decimal("0.01")))
+        })
+    return collection_cost, total
+
+async def get_cost_by_file(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters, page: int, page_size: int) -> Tuple[List[Dict[str, Any]], int]:
     filter_dict = filters.model_dump(exclude_unset=True)
     offset = (page - 1) * page_size
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     user_dump = user.model_dump()
-    async with request.state.pool.acquire() as conn:
-        total = await metrics_db.count_cost_by_file(conn, user_dump, ngroup_id_to_filter, filter_dict)
-        items = await metrics_db.get_cost_by_file(conn, user_dump, ngroup_id_to_filter, filter_dict, page_size, offset)
 
-    formatted_items = [{
-        "name": item['name'], "size_gb": float(item['size_bytes'] or 0) * BYTES_TO_GB, "cost": float(item['cost'] or 0)
-    } for item in items]
-    return formatted_items, total
+    async with request.state.pool.acquire() as conn:
+        total = await metrics_db.count_file_metrics(conn, user_dump, ngroup_id_to_filter, filter_dict)
+        items = await metrics_db.get_file_metrics_for_cost_calc(conn, user_dump, ngroup_id_to_filter, filter_dict, page_size, offset)
+
+    file_cost = []
+    for record in items:
+        size = Decimal(record.get('size', 0))
+        scan_duration = Decimal(record.get('scan_duration', 0))
+        cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
+        file_cost.append({
+            "name": record.get("name"),
+            "size_gb": float(format_to_gb(size)),
+            "cost": float(cost.quantize(Decimal("0.01")))
+        })
+    return file_cost, total

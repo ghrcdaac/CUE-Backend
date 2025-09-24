@@ -121,3 +121,5 @@ END $$;
 COMMIT;
 
 -- ALTER TABLE user_application ADD COLUMN user_id UUID;
+
+-- ALTER TYPE file_status_type ADD VALUE 'uploading' BEFORE 'unscanned';

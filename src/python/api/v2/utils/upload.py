@@ -7,9 +7,8 @@ import boto3
 from botocore.exceptions import ClientError
 from uuid import UUID, uuid4
 import structlog
-from fastapi import Request # <-- Import Request
+from fastapi import Request
 
-# --- REMOVED: from core.db import get_db_connection ---
 from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
 from v2.database_util import file as file_db
@@ -64,46 +63,46 @@ async def _validate_upload_permissions(request: Request, collection_name: str, u
 # --- Single File Upload Logic ---
 
 async def prepare_single_file_upload(request: Request, params: PrepareUploadRequest, user: AuthUser) -> dict:
-    await _validate_upload_permissions(request, params.collection_name, user)
-    
+    collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
+    
+    async with request.state.pool.acquire() as conn:
+        async with conn.transaction():
+            await file_db.create_preliminary_file_records(conn, file_id, user.id, collection['id'])
+
     s3_client = _get_s3_client()
     try:
-        url = s3_client.generate_presigned_url(
-            'put_object',
-            Params={'Bucket': S3_BUCKET_NAME, 'Key': str(file_id), 'ContentType': params.content_type},
-            ExpiresIn=PRESIGNED_URL_EXPIRATION
-        )
+        url = s3_client.generate_presigned_url('put_object', Params={'Bucket': S3_BUCKET_NAME, 'Key': str(file_id), 'ContentType': params.content_type}, ExpiresIn=PRESIGNED_URL_EXPIRATION)
         return {"file_id": file_id, "presigned_url": url}
     except ClientError as e:
         logger.error("s3.presigned_url.failed", error=str(e))
         raise S3ClientError("Could not generate upload URL.") from e
 
-async def complete_single_file_upload(
-    request: Request, params: CompleteUploadRequest, user: AuthUser
-) -> UUID:
+async def complete_single_file_upload(request: Request, params: CompleteUploadRequest, user: AuthUser) -> UUID:
     async with request.state.pool.acquire() as conn:
         collection = await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
-            await file_db.create_file_and_status_records(
+            await file_db.update_final_file_details(
                 conn=conn, file_id=params.file_id, file_name=params.file_name,
-                file_type=params.content_type, user_id=user.id, size_bytes=params.file_size_bytes,
-                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum
+                file_type=params.content_type, size_bytes=params.file_size_bytes,
+                collection_path=params.collection_path, checksum=params.checksum
             )
     logger.info("upload.single.completed", file_id=str(params.file_id))
     return params.file_id
+
 # --- Multipart Upload Logic ---
 
 async def start_multipart_upload(request: Request, params: MultipartStartRequest, user: AuthUser) -> dict:
-    await _validate_upload_permissions(request, params.collection_name, user)
-
+    collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
+
+    async with request.state.pool.acquire() as conn:
+        async with conn.transaction():
+            await file_db.create_preliminary_file_records(conn, file_id, user.id, collection['id'])
 
     s3_client = _get_s3_client()
     try:
-        response = s3_client.create_multipart_upload(
-            Bucket=S3_BUCKET_NAME, Key=str(file_id), ContentType=params.content_type,
-        )
+        response = s3_client.create_multipart_upload(Bucket=S3_BUCKET_NAME, Key=str(file_id), ContentType=params.content_type)
         return {"file_id": file_id, "upload_id": response['UploadId']}
     except ClientError as e:
         logger.error("s3.multipart_start.failed", error=str(e))
@@ -129,21 +128,16 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
     
     try:
-        s3_client.complete_multipart_upload(
-            Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id,
-            MultipartUpload={'Parts': formatted_parts}
-        )
+        s3_client.complete_multipart_upload(Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id, MultipartUpload={'Parts': formatted_parts})
     except ClientError as e:
-        logger.error("s3.multipart_complete.failed", error=str(e))
         raise S3ClientError(f"Failed to complete S3 multipart upload: {e.response['Error']['Code']}") from e
 
     async with request.state.pool.acquire() as conn:
-        collection = await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
-            await file_db.create_file_and_status_records(
+            await file_db.update_final_file_details(
                 conn=conn, file_id=file_id, file_name=params.file_name,
-                file_type=params.content_type, user_id=user.id, size_bytes=params.final_file_size,
-                collection_id=collection['id'], collection_path=params.collection_path, checksum=params.checksum
+                file_type=params.content_type, size_bytes=params.final_file_size,
+                collection_path=params.collection_path, checksum=params.checksum
             )
     logger.info("upload.multipart.completed", file_id=str(file_id))
     return file_id
