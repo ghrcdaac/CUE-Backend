@@ -245,17 +245,6 @@ INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of
         '6259ccb9-a4a3-4136-9822-56d87988d24b'
     );
 
-    INSERT INTO provider (id, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason)
-    VALUES (
-        'd3f9c1a7-4b8e-4c6b-9a2f-1e7d5a8c9b3d',
-        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-        'test_provider',
-        'Test Provider',
-        FALSE,
-        '6259ccb9-a4a3-4136-9822-56d87988d24b',
-        'suspended'
-    );
-
 -- Egress
 INSERT INTO egress (id, type, path, config, ngroup_id)
     VALUES (
