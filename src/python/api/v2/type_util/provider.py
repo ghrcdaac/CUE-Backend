@@ -31,6 +31,7 @@ class ProviderResponse(ProviderBase):
     id: UUID
     ngroup_id: UUID
     point_of_contact: UUID
+    reason:  Optional[str] = None
 
     class Config:
         from_attributes = True

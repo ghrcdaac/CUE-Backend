@@ -33,9 +33,11 @@ async def create_provider(request: Request, provider: ProviderCreate) -> Dict[st
         raise ValueError(f"Point of contact user with ID '{provider.point_of_contact}' not found.") from e
 
     async with request.state.pool.acquire() as conn:
+        if provider.can_upload == True:
+            provider.reason = None
         new_provider = await provider_db.create_provider(
             conn, provider.ngroup_id, provider.short_name, provider.long_name,
-            provider.can_upload, provider.point_of_contact
+            provider.can_upload, provider.point_of_contact, provider.reason
         )
     logger.info("provider.created", provider_id=str(new_provider['id']))
     return dict(new_provider)
