@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS provider (
     long_name VARCHAR NOT NULL,
     can_upload BOOLEAN NOT NULL DEFAULT FALSE,
     point_of_contact UUID NOT NULL,
+    reason VARCHAR,
     PRIMARY KEY (id),
     FOREIGN KEY (point_of_contact) REFERENCES cueuser(id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),

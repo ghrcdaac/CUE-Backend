@@ -86,6 +86,9 @@ async def update_provider(request: Request, provider_id: UUID, provider_update: 
             await cueuser_utils.get_user_profile(request, update_data["point_of_contact"])
         except cueuser_utils.UserNotFoundError as e:
             raise ValueError(f"New point of contact user with ID '{update_data['point_of_contact']}' not found.") from e
+    
+    if 'can_upload' in update_data and update_data['can_upload'] == True:
+        update_data['reason'] = None
 
     async with request.state.pool.acquire() as conn:
         updated_provider = await provider_db.update_provider(conn, provider_id, update_data)

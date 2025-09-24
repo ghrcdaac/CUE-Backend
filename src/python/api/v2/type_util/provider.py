@@ -11,6 +11,7 @@ class ProviderBase(BaseModel):
     short_name: str
     long_name: str
     can_upload: bool = False
+    reason : Optional[str] = None
 
 class ProviderCreate(ProviderBase):
     """Model for creating a new provider."""
@@ -23,6 +24,7 @@ class ProviderUpdate(BaseModel):
     long_name: Optional[str] = None
     can_upload: Optional[bool] = None
     point_of_contact: Optional[UUID] = None
+    reason: Optional[str] = None
 
 class ProviderResponse(ProviderBase):
     """Model for returning a full provider object from the API."""

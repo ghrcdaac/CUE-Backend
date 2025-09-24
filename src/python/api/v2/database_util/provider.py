@@ -7,10 +7,10 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-async def create_provider(conn: Connection, ngroup_id: UUID, short_name: str, long_name: str, can_upload: bool, point_of_contact: UUID) -> Dict[str, Any]:
+async def create_provider(conn: Connection, ngroup_id: UUID, short_name: str, long_name: str, can_upload: bool, point_of_contact: UUID, reason: str) -> Dict[str, Any]:
     """Inserts a new provider record into the database."""
     query = """
-        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact)
+        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact, reason)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *;
     """
