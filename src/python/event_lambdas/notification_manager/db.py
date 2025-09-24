@@ -1,4 +1,3 @@
-# ./src/python/event_lambdas/notification_manager/db.py
 import logging
 from uuid import UUID
 from asyncpg import Connection
@@ -8,64 +7,49 @@ logger = logging.getLogger(__name__)
 
 async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
     """
-    Finds all details needed for an infected file notification, including:
-    - The file name
-    - The name of the user who uploaded it
-    - The short_name of the collection it was uploaded to
-    - A list of email addresses for all 'daac_manager' users in the uploader's group.
-
-    Args:
-        conn: An active asyncpg database connection.
-        file_id: The ID of the infected file.
-
-    Returns:
-        A dictionary containing the details, or None if the file is not found.
+    Finds all details for an infected file notification, including the emails of all
+    'admin', 'security', 'daac_manager', and 'daac_staff' users in the file's group.
     """
-    # This role ID for 'daac_manager' should ideally come from a config/env var.
-    DAAC_MANAGER_ROLE_ID = UUID('ef872fe7-92b9-45ec-ac19-80f4c478fd36')
 
-    # This single query is more efficient than multiple separate lookups.
+    RECIPIENT_ROLES = ['admin', 'security', 'daac_manager', 'daac_staff']
+
     query = """
-        WITH uploader_details AS (
-            -- Step 1: Get all file, uploader, and collection details in one go
+        WITH file_context AS (
+            -- Step 1: Get the file's details and the ngroup it belongs to.
             SELECT
                 f.name AS file_name,
                 u.name AS uploader_name,
-                c.short_name AS collection_name, -- CORRECTED: Changed c.name to c.short_name
-                ung.ngroup_id
+                c.short_name AS collection_name,
+                c.ngroup_id
             FROM file f
             JOIN cueuser u ON f.cueuser_uploaded = u.id
             JOIN collection c ON f.collection_id = c.id
-            JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
             WHERE f.id = $1
             LIMIT 1
         )
-        -- Step 2: Aggregate the emails of all DAAC managers in that ngroup
+        -- Step 2: Aggregate the emails of all users who have one of the recipient roles AND are in that ngroup.
         SELECT
-            (SELECT file_name FROM uploader_details) AS file_name,
-            (SELECT uploader_name FROM uploader_details) AS uploader_name,
-            (SELECT collection_name FROM uploader_details) AS collection_name,
-            array_agg(u_managers.email) AS recipient_emails
-        FROM cueuser u_managers
-        JOIN cueuser_role ur ON u_managers.id = ur.cueuser_id
-        JOIN cueuser_ngroup ung ON u_managers.id = ung.cueuser_id
-        WHERE ur.role_id = $2 -- daac_manager role_id
-          AND ung.ngroup_id = (SELECT ngroup_id FROM uploader_details)
-        GROUP BY
-            (SELECT file_name FROM uploader_details),
-            (SELECT uploader_name FROM uploader_details),
-            (SELECT collection_name FROM uploader_details);
+            (SELECT file_name FROM file_context) AS file_name,
+            (SELECT uploader_name FROM file_context) AS uploader_name,
+            (SELECT collection_name FROM file_context) AS collection_name,
+            array_agg(DISTINCT u_recipients.email) AS recipient_emails
+        FROM cueuser u_recipients
+        JOIN cueuser_role ur ON u_recipients.id = ur.cueuser_id
+        JOIN role r ON ur.role_id = r.id
+        JOIN cueuser_ngroup ung ON u_recipients.id = ung.cueuser_id
+        WHERE r.short_name = ANY($2::text[]) -- Check if role is in our list
+          AND ung.ngroup_id = (SELECT ngroup_id FROM file_context)
+        GROUP BY 1, 2, 3;
     """
     try:
-        record = await conn.fetchrow(query, file_id, DAAC_MANAGER_ROLE_ID)
+        record = await conn.fetchrow(query, file_id, RECIPIENT_ROLES)
         
         if not record or not record['recipient_emails']:
             logger.warning(f"No notification details or recipients found for file {file_id}.")
             return None
         
-        # Convert the row to a dictionary for easy use.
         notification_details = dict(record)
-        logger.info(f"Found {len(notification_details.get('recipient_emails', []))} DAAC Manager(s) for file {file_id}.")
+        logger.info(f"Found {len(notification_details.get('recipient_emails', []))} recipient(s) for file {file_id}.")
         return notification_details
 
     except Exception as e:
@@ -74,10 +58,12 @@ async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional
 
 async def get_new_application_details(conn: Connection, application_id: UUID) -> Optional[Dict[str, Any]]:
     """
-    Fetches all details needed for a new application alert, including the emails
-    of all DAAC Managers in the application's ngroup.
+    Fetches details for a new application alert, including the emails of all
+    DAAC Managers AND Admins in the application's ngroup.
     """
-    DAAC_MANAGER_ROLE_ID = UUID('ef872fe7-92b9-45ec-ac19-80f4c478fd36')
+
+    RECIPIENT_ROLES = ['daac_manager', 'admin']
+    
     query = """
         WITH app_details AS (
             SELECT
@@ -99,15 +85,16 @@ async def get_new_application_details(conn: Connection, application_id: UUID) ->
             (SELECT account_type FROM app_details) AS account_type,
             (SELECT justification FROM app_details) AS justification,
             (SELECT ngroup_name FROM app_details) AS ngroup_name,
-            array_agg(u_managers.email) AS recipient_emails
-        FROM cueuser u_managers
-        JOIN cueuser_role ur ON u_managers.id = ur.cueuser_id
-        JOIN cueuser_ngroup ung ON u_managers.id = ung.cueuser_id
-        WHERE ur.role_id = $2 -- daac_manager role_id
+            array_agg(DISTINCT u_recipients.email) AS recipient_emails
+        FROM cueuser u_recipients
+        JOIN cueuser_role ur ON u_recipients.id = ur.cueuser_id
+        JOIN role r ON ur.role_id = r.id
+        JOIN cueuser_ngroup ung ON u_recipients.id = ung.cueuser_id
+        WHERE r.short_name = ANY($2::text[]) -- Check for both 'daac_manager' and 'admin'
           AND ung.ngroup_id = (SELECT ngroup_id FROM app_details)
         GROUP BY 1, 2, 3, 4, 5, 6;
     """
-    record = await conn.fetchrow(query, application_id, DAAC_MANAGER_ROLE_ID)
+    record = await conn.fetchrow(query, application_id, RECIPIENT_ROLES)
     return dict(record) if record else None
 
 async def get_approved_user_details(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:

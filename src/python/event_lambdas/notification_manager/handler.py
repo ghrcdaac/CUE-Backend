@@ -5,6 +5,7 @@ import boto3
 import structlog
 from pathlib import Path
 from uuid import UUID
+import asyncpg
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
@@ -39,24 +40,39 @@ def load_template(template_name: str, context: dict) -> str:
         logger.error(f"template.load.failed", template=template_name, exc_info=True)
         return "Error: Could not generate email body."
 
-async def handle_infected_file(detail: dict, pool: asyncio.Pool):
+async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
     """Handles logic for the original infected file notification."""
-    file_id = detail['key']
-    logger.info("event.infected_file.received", file_id=file_id)
+    file_id = UUID(detail['key'])
+    logger.info("event.infected_file.received", file_id=str(file_id))
     
     async with pool.acquire() as conn:
-        details = await get_infected_file_details(conn, file_id)
+        db_details = await get_infected_file_details(conn, file_id)
 
-    if not details or not details.get('recipient_emails'):
-        logger.warning("notification.recipients.not_found", alert_type="infected_file", file_id=file_id)
+    if not db_details or not db_details.get('recipient_emails'):
+        logger.warning("notification.recipients.not_found", alert_type="infected_file", file_id=str(file_id))
         return
     
-    subject = f"CUE Security Alert: Infected File Detected - {details.get('file_name', file_id)}"
-    body_html = load_template("infected_file_template.html", {**detail, **details})
-    body_text = f"An infected file was detected: {details.get('file_name')}"
-    await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
+    scan_results = detail.get('scanResults', [])
+    virus_names = ", ".join(
+        finding['virusName'][0] for finding in scan_results if finding.get('virusName')
+    ) or "N/A"
 
-async def handle_application_submitted(detail: dict, pool: asyncio.Pool):
+    template_context = {
+        "file_id": detail.get('key'),
+        "file_name": db_details.get('file_name', 'N/A'),
+        "uploader_name": db_details.get('uploader_name', 'N/A'),
+        "collection_name": db_details.get('collection_name', 'N/A'),
+        "date_scanned": detail.get('dateScanned', 'N/A'),
+        "scan_result": detail.get('result', 'N/A'),
+        "virus_names": virus_names
+    }
+    
+    subject = f"CUE Security Alert: Infected File Detected - {db_details.get('file_name', str(file_id))}"
+    body_html = load_template("infected_file_template.html", template_context)
+    body_text = f"An infected file was detected: {db_details.get('file_name')}"
+    await invoke_email_sender(db_details['recipient_emails'], subject, body_html, body_text)
+
+async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
     """Handles sending a notification to admins about a new application."""
     app_id = UUID(detail["application_id"])
     logger.info("event.application_submitted.received", application_id=str(app_id))
@@ -73,7 +89,7 @@ async def handle_application_submitted(detail: dict, pool: asyncio.Pool):
     body_text = f"A new user application from {details.get('user_name')} has been submitted."
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 
-async def handle_application_approved(detail: dict, pool: asyncio.Pool):
+async def handle_application_approved(detail: dict, pool: asyncpg.Pool):
     """Handles sending a welcome email to a newly approved user."""
     user_id = UUID(detail["user_id"])
     logger.info("event.application_approved.received", user_id=str(user_id))

@@ -37,7 +37,7 @@ async def _validate_upload_permissions(request: Request, collection_name: str, u
             raise UploadValidationError(f"Collection '{collection_name}' not found.")
         
         if "admin" not in user.roles:
-            # ---  Robustly build the user_ngroup_ids set ---
+            
             user_ngroup_ids = set()
             if user.ngroups:
                 if isinstance(user.ngroups[0], dict):

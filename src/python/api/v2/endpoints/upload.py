@@ -30,7 +30,7 @@ async def prepare_single_upload(
 ):
     """Step 1 (Single File): Prepare for upload, get a presigned URL."""
     try:
-        # --- CORRECTED: Explicitly create the Pydantic response model ---
+        
         response_data = await upload_utils.prepare_single_file_upload(request, params, user)
         return PrepareUploadResponse(**response_data)
     except (ValueError, upload_utils.UploadValidationError) as e:
@@ -70,7 +70,7 @@ async def multipart_start(
 ):
     """Step 1 (Multipart): Start a multipart upload."""
     try:
-        # --- CONSISTENCY: Applied the same explicit creation pattern ---
+        
         response_data = await upload_utils.start_multipart_upload(request, params, user)
         return MultipartStartResponse(**response_data)
     except (ValueError, upload_utils.UploadValidationError, upload_utils.S3ClientError) as e:
@@ -85,7 +85,7 @@ async def multipart_get_part_url(
 ):
     """Step 2 (Multipart): Get a presigned URL for a single part."""
     try:
-        # --- CONSISTENCY: Applied the same explicit creation pattern ---
+       
         response_data = await upload_utils.get_multipart_presigned_url(params)
         return MultipartGetPartUrlResponse(**response_data)
     except upload_utils.S3ClientError as e:
