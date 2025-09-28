@@ -30,33 +30,40 @@ def _get_s3_client():
     return boto3.client('s3', region_name=os.environ.get("AWS_REGION", "us-west-2"))
 
 async def _validate_upload_permissions(request: Request, collection_name: str, user: AuthUser):
-    """V2 helper to validate if a user can upload to a collection."""
+    """V2 helper to validate if a user can upload to a collection, with detailed error reasons."""
     async with request.state.pool.acquire() as conn:
         collection = await collection_db.get_collection_by_short_name(conn, collection_name)
         if not collection:
-            raise UploadValidationError(f"Collection '{collection_name}' not found.")
+            raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' does not exist.")
         
-        if "admin" not in user.roles:
+        # Admins have universal access and bypass group/provider checks.
+        if "admin" in user.roles:
+            return collection
             
-            user_ngroup_ids = set()
-            if user.ngroups:
-                if isinstance(user.ngroups[0], dict):
-                    user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-                else:
-                    user_ngroup_ids = {str(ng) for ng in user.ngroups}
-            
-            if str(collection['ngroup_id']) not in user_ngroup_ids:
-                raise UploadValidationError("You do not have access to this collection's ngroup.")
+        # Check 1: User's group permissions
+        user_ngroup_ids = set()
+        if user.ngroups:
+            # This handles both list-of-dicts and list-of-strings for ngroups
+            if isinstance(user.ngroups[0], dict):
+                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+            else:
+                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+        
+        if str(collection['ngroup_id']) not in user_ngroup_ids:
+            raise UploadValidationError(f"Upload Denied: Your API key is not authorized for the DAAC group associated with collection '{collection_name}'.")
 
+        # Check 2: Collection status
         if not collection['active']:
-            raise UploadValidationError(f"Collection '{collection_name}' is not active and cannot accept uploads.")
+            raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' is inactive and cannot accept new files.")
 
+        # Check 3: Provider status
         provider = await provider_db.get_provider_by_id(conn, collection['provider_id'])
         if not provider:
-            raise UploadValidationError(f"Configuration error: Provider for collection '{collection_name}' not found.")
+            # This is an internal configuration error, not a user permission issue.
+            raise UploadValidationError(f"Upload Configuration Error: The provider associated with collection '{collection_name}' could not be found.")
         
         if not provider['can_upload']:
-            raise UploadValidationError(f"Provider '{provider['short_name']}' is not configured to allow uploads.")
+            raise UploadValidationError(f"Upload Denied: The provider '{provider['short_name']}' for collection '{collection_name}' is not configured to allow uploads.")
             
     return collection
 
