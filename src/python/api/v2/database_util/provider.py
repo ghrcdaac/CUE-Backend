@@ -7,15 +7,15 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-async def create_provider(conn: Connection, ngroup_id: UUID, short_name: str, long_name: str, can_upload: bool, point_of_contact: UUID) -> Dict[str, Any]:
+async def create_provider(conn: Connection, ngroup_id: UUID, short_name: str, long_name: str, can_upload: bool, point_of_contact: UUID, reason: str) -> Dict[str, Any]:
     """Inserts a new provider record into the database."""
     query = """
-        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact, reason)
+        VALUES ($1, $2, $3, $4, $5,$6)
         RETURNING *;
     """
     try:
-        return await conn.fetchrow(query, ngroup_id, short_name, long_name, can_upload, point_of_contact)
+        return await conn.fetchrow(query, ngroup_id, short_name, long_name, can_upload, point_of_contact,reason)
     except UniqueViolationError as e:
         logger.error("db.provider.create.failed_unique", error=str(e))
         raise ValueError("A provider with the same short_name or long_name already exists.") from e
