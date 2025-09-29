@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS role CASCADE;
 DROP TABLE IF EXISTS ngroup CASCADE;
 DROP TABLE IF EXISTS cueuser_auth CASCADE; 
 DROP TABLE IF EXISTS cueuser CASCADE;
+DROP TABLE IF EXISTS notification CASCADE;
 
 
 -- ==============================================================================
@@ -259,6 +260,29 @@ CREATE TABLE IF NOT EXISTS cost_metric (
     FOREIGN KEY (file_id) REFERENCES file(id) ON DELETE CASCADE
 );
 
+CREATE TYPE report_frequency AS ENUM (
+    'daily',       
+    'weekly',           
+    'biweekly',        
+    'monthly',    
+    'none'    
+);
+
+Create TYPE report_type as ENUM (
+    'infected_file'
+);
+
+CREATE TABLE IF NOT EXISTS notification (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cueuser_id UUID NOT NULL,
+    report_type report_type NOT NULL,  -- infected, clean, failed, etc.
+    frequency report_frequency NOT NULL,   -- daily, weekly, biweekly, monthly, none 
+    created_time TIMESTAMP DEFAULT now(),
+    updated_time TIMESTAMP DEFAULT now(),
+    FOREIGN KEY (cueuser_id) REFERENCES cueuser(id),
+    UNIQUE (cueuser_id, report_type)
+);
+
 -- ==============================================================================
 -- Performance Indexes
 -- ==============================================================================
@@ -281,3 +305,4 @@ CREATE INDEX IF NOT EXISTS idx_user_application_ngroup_status ON user_applicatio
 CREATE INDEX IF NOT EXISTS idx_file_collection_id ON file(collection_id);
 CREATE INDEX IF NOT EXISTS idx_collection_provider_id ON collection(provider_id);
 CREATE INDEX IF NOT EXISTS idx_provider_ngroup_id ON provider(ngroup_id);
+CREATE UNIQUE INDEX user_id ON notification (cueuser_id, id);
