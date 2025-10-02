@@ -81,9 +81,9 @@ async def get_summary_cost(request: Request, user: AuthUser, active_ngroup_id: O
     daily_cost, total_cost_val, total_files, total_size_bytes = [], Decimal(0), 0, 0
     for record in daily_metrics:
         size = Decimal(record.get("size", 0))
-        scan_duration = Decimal(record.get("scan_duration", 0))
+        scan_duration = Decimal(record.get('scan_duration', 0)) if record.get('scan_duration') else Decimal(0)
         cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
-        daily_cost.append({"day": record["date"].date(), "value": float(cost.quantize(Decimal("0.01")))})
+        daily_cost.append({"day": record["date"], "value": float(cost.quantize(Decimal("0.01")))})
         total_cost_val += cost
         total_files += record.get("file_count", 0)
         total_size_bytes += size
@@ -108,7 +108,7 @@ async def get_cost_by_collection(request: Request, user: AuthUser, active_ngroup
     collection_cost = []
     for record in items:
         size = Decimal(record.get('size', 0))
-        scan_duration = Decimal(record.get('scan_duration', 0))
+        scan_duration = Decimal(record.get('scan_duration', 0)) if record.get('scan_duration') else Decimal(0)
         cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
         collection_cost.append({
             "name": record.get("name"),
@@ -130,7 +130,7 @@ async def get_cost_by_file(request: Request, user: AuthUser, active_ngroup_id: O
     file_cost = []
     for record in items:
         size = Decimal(record.get('size', 0))
-        scan_duration = Decimal(record.get('scan_duration', 0))
+        scan_duration = Decimal(record.get('scan_duration', 0)) if record.get('scan_duration') else Decimal(0)
         cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
         file_cost.append({
             "name": record.get("name"),
