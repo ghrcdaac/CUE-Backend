@@ -10,6 +10,11 @@ resource "aws_iam_role" "cue_glue_job_role" {
   assume_role_policy = data.aws_iam_policy_document.glue_assume_role_policy.json
 }
 
+resource "aws_iam_role_policy_attachment" "glue_service_role_attachment" {
+  role       = aws_iam_role.cue_glue_job_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+
 resource "aws_iam_role_policy" "cue_glue_job_policy" {
   name   = "CUEGlueJobPolicy-v2"
   role   = aws_iam_role.cue_glue_job_role.id
@@ -24,6 +29,7 @@ resource "aws_s3_object" "glue_job_script" {
   key          = "scripts/age_off_metrics_job.py"
   source       = "../src/python/glue_jobs/age_off_metrics_job.py"
   content_type = "text/x-python"
+  etag         = filemd5("../src/python/glue_jobs/age_off_metrics_job.py")
 }
 
 # This defines the Glue job that archives old metrics.
@@ -43,15 +49,15 @@ resource "aws_glue_job" "cue_age_off_metrics_job" {
   }
 
   default_arguments = {
-    "--DB_HOST"                   = var.db_host
-    "--DB_PORT"                   = var.db_port
-    "--DB_DATABASE"               = var.db_database
-    "--DB_USER"                   = var.db_user
-    "--DB_PASSWORD"               = var.db_password
+    "--PG_HOST"                   = var.db_proxy_host
+    "--PG_PORT"                   = var.db_port
+    "--PG_DB"                     = var.db_database
+    "--PG_USER"                   = var.db_user
+    "--PG_PASS"                   = var.db_password
     "--SSM_PARAM_NAME"            = var.metric_retention_period_name
     "--ARCHIVE_BUCKET"            = var.cue_archive_bucket
     "--library-set"               = "analytics"
-    "--additional-python-modules" = "psycopg2-binary"
+    "--additional-python-modules" = "asyncpg,structlog"
   }
 }
 
@@ -69,7 +75,7 @@ resource "aws_glue_trigger" "age_off_metrics_trigger" {
 # This defines the VPC connection for the Glue job to access the database.
 resource "aws_glue_connection" "cue_db_connection" {
   connection_properties = {
-    JDBC_CONNECTION_URL = "jdbc:postgresql://${var.db_host}:${var.db_port}/${var.db_database}"
+    JDBC_CONNECTION_URL = "jdbc:postgresql://${var.db_proxy_host}:${var.db_port}/${var.db_database}"
     PASSWORD            = var.db_password
     USERNAME            = var.db_user
   }

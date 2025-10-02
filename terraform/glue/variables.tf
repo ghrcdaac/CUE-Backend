@@ -15,7 +15,7 @@ variable "db_user" {
   type        = string
 }
 
-variable "db_host" {
+variable "db_proxy_host" {
   description = "Database host endpoint."
   type        = string
 }
