@@ -23,13 +23,13 @@ class NotificationNotFoundError(Exception):
 async def create_notification(request: Request, user: AuthUser, notifications: List[Notification]) -> List[Dict[str, Any]]:
     """Creates a new notification record for a user."""
     async with request.state.pool.acquire() as conn:
-        cueuser_id = user['id']
+        requesting_user=user.model_dump()
         record = await notification_db.create_notification(
             conn,
-            cueuser_id,
+            requesting_user,
             tuple(notifications)
         )
-    logger.info("notification.created", cueuser_id=str(cueuser_id))
+    logger.info("notification.created for", cueuser_id=requesting_user.get('first_name', ''))
     return dict(record)
 
 async def get_notification(request: Request, notification_id: UUID) -> Dict[str, Any]:
@@ -40,10 +40,11 @@ async def get_notification(request: Request, notification_id: UUID) -> Dict[str,
         raise NotificationNotFoundError(notification_id)
     return dict(record)
 
-async def list_notifications_by_user(request: Request, cueuser_id: UUID) -> List[Dict[str, Any]]:
+async def list_notifications_by_user(request: Request, user: AuthUser) -> List[Dict[str, Any]]:
     """Retrieve all notifications for a given user."""
     async with request.state.pool.acquire() as conn:
-        records = await notification_db.list_notifications_by_user(conn, cueuser_id)
+        requesting_user=user.model_dump()
+        records = await notification_db.list_notifications_by_user(conn, requesting_user)
     return [dict(r) for r in records]
 
 async def update_notification(

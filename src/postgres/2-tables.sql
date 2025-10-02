@@ -262,20 +262,19 @@ CREATE TABLE IF NOT EXISTS cost_metric (
 
 CREATE TYPE report_frequency AS ENUM (
     'daily',       
-    'weekly',           
-    'biweekly',        
+    'weekly',                 
     'monthly',    
     'none'    
 );
 
 Create TYPE report_type as ENUM (
-    'infected_file'
+    'metrics'
 );
 
 CREATE TABLE IF NOT EXISTS notification (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cueuser_id UUID NOT NULL,
-    report_type report_type NOT NULL,  -- infected, clean, failed, etc.
+    report_type report_type NOT NULL,  -- infected, clean, failed, metrics.
     frequency report_frequency NOT NULL,   -- daily, weekly, biweekly, monthly, none 
     created_time TIMESTAMP DEFAULT now(),
     updated_time TIMESTAMP DEFAULT now(),

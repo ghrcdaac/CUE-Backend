@@ -43,9 +43,9 @@ async def get_notification_by_id(conn: Connection, notification_id: UUID) -> Opt
     """Retrieves a notification record from the database by its ID."""
     return await conn.fetchrow("SELECT * FROM notification WHERE id = $1", notification_id)
 
-async def list_notifications_by_user(conn: Connection, cueuser_id: UUID) -> List[Dict[str, Any]]:
+async def list_notifications_by_user(conn: Connection, requesting_user: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Retrieves all notifications for a given user."""
-    return await conn.fetch("SELECT * FROM notification WHERE cueuser_id = $1 ORDER BY created_time DESC", cueuser_id)
+    return await conn.fetch("SELECT * FROM notification WHERE cueuser_id = $1 ORDER BY created_time DESC", requesting_user.get('id', 0))
 
 async def update_notification(
     conn: Connection,
