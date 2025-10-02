@@ -20,7 +20,7 @@ async def upsert_scan_status_in_database(conn: Connection, file_id: UUID, update
             status = EXCLUDED.status,
             scan_start = EXCLUDED.scan_start,
             scan_end = EXCLUDED.scan_end,
-            scan_results = EXCLUDED.scan_results
+            scan_results = COALESCE(file_status.scan_results, '[]'::jsonb) || EXCLUDED.scan_results
         RETURNING id;
     """
     try:
