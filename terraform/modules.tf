@@ -14,6 +14,8 @@ module "iam_role" {
   cue_archive_bucket           = var.cue_archive_bucket
   cue_archive_results_bucket   = var.cue_archive_results_bucket
   cue_staging_bucket           = var.cue_staging_bucket
+  cue_cost_explorer_role_name  = var.cue_cost_explorer_role_name
+  css_cost_explorer_role_arn   = var.css_cost_explorer_role_arn
 }
 
 module "lambda_functions" {
@@ -44,6 +46,10 @@ module "lambda_functions" {
   email_sender_role_arn          = module.iam_role.email_sender_role_arn
   process_athena_query_role_arn  = module.iam_role.process_athena_query_role_arn
   file_transfer_role_arn         = module.iam_role.file_transfer_role_arn  
+  cost_update_role_arn           = module.iam_role.cost_update_role_arn
+  css_cost_explorer_role_arn     = var.css_cost_explorer_role_arn
+  notification_manager_scheduler_role_arn = module.iam_role.notification_manager_scheduler_role_arn
+
 
   # --- Database variables (connecting to the RDS Proxy) ---
   db_proxy_host                  = module.rds.db_proxy_host
@@ -85,7 +91,7 @@ module "glue" {
   # --- Pass in required variables ---
   region                       = var.region
   account_id                   = var.account_id
-  db_host                      = module.rds.db_host 
+  db_proxy_host                = module.rds.db_host 
   db_port                      = module.rds.db_port
   db_database                  = module.rds.db_database
   db_user                      = module.rds.db_user

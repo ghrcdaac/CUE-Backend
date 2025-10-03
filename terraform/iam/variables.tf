@@ -38,3 +38,12 @@ variable "cue_staging_bucket" {
   type        = string
 }
 
+variable "cue_cost_explorer_role_name" {
+  description = "IAM Role name for the external cost explorer role"
+  type        = string
+}
+
+variable "css_cost_explorer_role_arn" {
+  description = "IAM Role ARN for the external css cost explorer role "
+  type        = string
+}
