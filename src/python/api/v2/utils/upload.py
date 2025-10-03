@@ -87,12 +87,14 @@ async def prepare_single_file_upload(request: Request, params: PrepareUploadRequ
 
 async def complete_single_file_upload(request: Request, params: CompleteUploadRequest, user: AuthUser) -> UUID:
     async with request.state.pool.acquire() as conn:
+        ip_address = {"ip_address": request.client.host}
         collection = await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
             await file_db.update_final_file_details(
                 conn=conn, file_id=params.file_id, file_name=params.file_name,
                 file_type=params.content_type, size_bytes=params.file_size_bytes,
-                collection_path=params.collection_path, checksum=params.checksum
+                collection_path=params.collection_path, checksum=params.checksum,
+                ip_address=ip_address
             )
     logger.info("upload.single.completed", file_id=str(params.file_id))
     return params.file_id
@@ -133,6 +135,7 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
     s3_client = _get_s3_client()
     file_id = params.file_id
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
+    ip_address = {"ip_address": request.client.host}
     
     try:
         s3_client.complete_multipart_upload(Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id, MultipartUpload={'Parts': formatted_parts})
@@ -144,7 +147,8 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
             await file_db.update_final_file_details(
                 conn=conn, file_id=file_id, file_name=params.file_name,
                 file_type=params.content_type, size_bytes=params.final_file_size,
-                collection_path=params.collection_path, checksum=params.checksum
+                collection_path=params.collection_path, checksum=params.checksum,
+                ip_address=ip_address
             )
     logger.info("upload.multipart.completed", file_id=str(file_id))
     return file_id

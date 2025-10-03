@@ -85,7 +85,7 @@ module "glue" {
   # --- Pass in required variables ---
   region                       = var.region
   account_id                   = var.account_id
-  db_host                      = module.rds.db_host 
+  db_proxy_host                = module.rds.db_proxy_host 
   db_port                      = module.rds.db_port
   db_database                  = module.rds.db_database
   db_user                      = module.rds.db_user

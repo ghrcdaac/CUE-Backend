@@ -1,6 +1,7 @@
 from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
 from uuid import UUID
+import json
 import structlog
 from datetime import datetime, timezone
 
@@ -25,7 +26,7 @@ async def create_preliminary_file_records(conn: Connection, file_id: UUID, user_
 
 async def update_final_file_details(
     conn: Connection, file_id: UUID, file_name: str, file_type: str,
-    size_bytes: int, collection_path: Optional[str], checksum: str
+    size_bytes: int, collection_path: Optional[str], checksum: str, ip_address: Dict
 ):
     """
     Updates the placeholder file record with final metadata and conditionally transitions
@@ -43,10 +44,10 @@ async def update_final_file_details(
 
     status_update_query = """
         UPDATE file_status
-        SET status = 'unscanned'
+        SET status = 'unscanned', scan_results = $2::jsonb
         WHERE id = $1 AND status = 'uploading';
     """
-    await conn.execute(status_update_query, file_id)
+    await conn.execute(status_update_query, file_id, json.dumps(ip_address))
 
 async def update_file(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> bool:
     """Dynamically builds and executes an UPDATE statement for a file."""
