@@ -1,4 +1,4 @@
-# File: src/python/api/v2/type_util/metrics.py
+# File: src/python/api/v2/type_util/file_metrics.py
 
 from pydantic import BaseModel
 from typing import Optional, List, Dict
@@ -14,12 +14,14 @@ class MetricsQueryParameters(BaseModel):
     collection_id: Optional[UUID] = None
     provider_id: Optional[UUID] = None
 
+
 class DailyMetric(BaseModel):
     day: date
-    value: float
+    value: int
+
 
 class OverallMetric(BaseModel):
-    value: float
+    value: int
 
 class StatusCount(BaseModel):
     status: str
@@ -32,15 +34,25 @@ class MetricsSummaryResponse(BaseModel):
     overall_count: OverallMetric
     status_counts: List[StatusCount]
 
+
+class DailyCostMetric(BaseModel):
+    day: date
+    value: float
+
+class OverallCostMetric(BaseModel):
+    value: float
+
+
+
 class CostSummaryResponse(BaseModel):
-    daily_cost: List[DailyMetric]
-    total_cost: OverallMetric
+    daily_cost: List[DailyCostMetric]
+    total_cost: OverallCostMetric
     total_files: int
-    total_size_gb: float
+    total_size_bytes: int
 
 class CostByCollectionItem(BaseModel):
     name: str
-    size_gb: float
+    size_bytes: int
     cost: float
 
 class PaginatedCostByCollectionResponse(BaseModel):
@@ -51,7 +63,7 @@ class PaginatedCostByCollectionResponse(BaseModel):
 
 class CostByFileItem(BaseModel):
     name: str
-    size_gb: float
+    size_bytes: int
     cost: float
 
 class PaginatedCostByFileResponse(BaseModel):

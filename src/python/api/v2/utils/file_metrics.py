@@ -1,3 +1,5 @@
+# File: src/python/api/v2/utils/file_metrics.py
+
 from uuid import UUID
 from typing import Dict, Any, List, Tuple, Optional
 from fastapi import Request
@@ -10,16 +12,13 @@ from v2.database_util import file_metrics as metrics_db
 from v2.type_util.file_metrics import MetricsQueryParameters
 
 logger = structlog.get_logger(__name__)
-BYTES_TO_GB = Decimal(1 / (1024**3))
+
 getcontext().rounding = "ROUND_UP"
 
 # Constants for V1-style cost calculation
-AWS_COST_PER_BYTE = Decimal("0.00000000001") # Example value
-SCAN_COST_PER_SECOND = Decimal("0.00005")    # Example value
+AWS_COST_PER_BYTE = Decimal("0.00000000001") 
+SCAN_COST_PER_SECOND = Decimal("0.00005")      
 
-def format_to_gb(size_in_bytes: int) -> Decimal:
-    """Helper to convert bytes to GB as a Decimal."""
-    return (Decimal(size_in_bytes or 0) * BYTES_TO_GB).quantize(Decimal("0.00"))
 
 # --- Standard V2 Metrics (no cost calculation) ---
 async def get_daily_volume(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> List[Dict[str, Any]]:
@@ -27,7 +26,7 @@ async def get_daily_volume(request: Request, user: AuthUser, active_ngroup_id: O
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_daily_volume(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
-    return [{"day": row['day'].date(), "value": float(format_to_gb(row['value']))} for row in data]
+    return [{"day": row['day'].date(), "value": int(row['value'] or 0)} for row in data]
 
 async def get_daily_count(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> List[Dict[str, Any]]:
     filter_dict = filters.model_dump(exclude_unset=True)
@@ -41,7 +40,8 @@ async def get_overall_volume(request: Request, user: AuthUser, active_ngroup_id:
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     async with request.state.pool.acquire() as conn:
         data = await metrics_db.get_overall_volume(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
-    return {"value": float(format_to_gb(data))}
+    return {"value": int(data or 0)}
+
 
 async def get_overall_count(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     filter_dict = filters.model_dump(exclude_unset=True)
@@ -69,6 +69,7 @@ async def get_metrics_summary(request: Request, user: AuthUser, active_ngroup_id
         "status_counts": status_counts,
     }
 
+
 # --- V1-style Cost Calculation Logic ---
 async def get_summary_cost(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
     filter_dict = filters.model_dump(exclude_unset=True)
@@ -86,13 +87,13 @@ async def get_summary_cost(request: Request, user: AuthUser, active_ngroup_id: O
         daily_cost.append({"day": record["date"], "value": float(cost.quantize(Decimal("0.01")))})
         total_cost_val += cost
         total_files += record.get("file_count", 0)
-        total_size_bytes += size
+        total_size_bytes += int(size) 
 
     return {
         "daily_cost": daily_cost,
         "total_cost": {"value": float(total_cost_val.quantize(Decimal("0.01")))},
         "total_files": total_files,
-        "total_size_gb": float(format_to_gb(total_size_bytes))
+        "total_size_bytes": total_size_bytes
     }
 
 async def get_cost_by_collection(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters, page: int, page_size: int) -> Tuple[List[Dict[str, Any]], int]:
@@ -112,7 +113,7 @@ async def get_cost_by_collection(request: Request, user: AuthUser, active_ngroup
         cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
         collection_cost.append({
             "name": record.get("name"),
-            "size_gb": float(format_to_gb(size)),
+            "size_bytes": int(size),
             "cost": float(cost.quantize(Decimal("0.01")))
         })
     return collection_cost, total
@@ -134,7 +135,7 @@ async def get_cost_by_file(request: Request, user: AuthUser, active_ngroup_id: O
         cost = (size * AWS_COST_PER_BYTE) + (scan_duration * SCAN_COST_PER_SECOND)
         file_cost.append({
             "name": record.get("name"),
-            "size_gb": float(format_to_gb(size)),
+            "size_bytes": int(size),
             "cost": float(cost.quantize(Decimal("0.01")))
         })
     return file_cost, total
