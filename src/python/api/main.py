@@ -197,7 +197,7 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
-app.include_router(api_router_v1, prefix="/v1", tags=["v1"])
+# app.include_router(api_router_v1, prefix="/v1", tags=["v1"])
 app.include_router(api_router_v2, prefix="/v2", tags=["v2"])
 
 handler = Mangum(app)

@@ -9,6 +9,7 @@ INSERT INTO privilege (id, privilege) VALUES
     ('a1a1a1a1-0000-0000-0000-000000000006', 'user:assign_ngroup'),
     ('a1a1a1a1-0000-0000-0000-000000000007', 'user:suspend'),
     ('a1a1a1a1-0000-0000-0000-000000000008', 'user:reinstate'),
+    ('a1a1a1a1-0000-0000-0000-0000000000045', 'user:page'),
     ('a1a1a1a1-0000-0000-0000-000000000009', 'application:read'),
     ('a1a1a1a1-0000-0000-0000-000000000010', 'application:approve'),
     ('a1a1a1a1-0000-0000-0000-000000000011', 'provider:create'),
@@ -59,6 +60,11 @@ INSERT INTO role_privilege (role_id, privilege_id) SELECT 'c924d0d3-55af-49f3-be
 
 -- Security
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:page')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'provider:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'egress:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:suspend')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:reinstate')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'file:read_all')),
@@ -75,6 +81,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'application:approve')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:create')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:read')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:page')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:update')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:delete')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'user:assign_role')),
@@ -106,6 +113,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
 
 -- DAAC Staff
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'user:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'provider:create')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'provider:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'provider:update')),
@@ -130,6 +138,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
 
 -- DAAC Observer
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
+    ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'user:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'provider:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'collection:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'egress:read')),
@@ -139,6 +148,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
 
 -- Provider
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'user:read')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'provider:read')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'file:upload')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'file:read')),
@@ -154,6 +164,8 @@ INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('f2c806ff-0362-41c8-b67e-1c589ef5b728', 'EDPub', 'Earthdata Pub');
 INSERT INTO ngroup (id, short_name, long_name) VALUES
 ('0259fb55-1146-4461-ade2-57504e0c3ace', 'ESDIS Security', 'ESDIS Security');
+INSERT INTO ngroup (id, short_name, long_name) VALUES ('1675f412-7468-4cd4-adb0-20b08236079b', 'CUE', 'Cloud Upload Environment');
+
 
 -- Cueuser
 
@@ -176,8 +188,8 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
-INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
 
 INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
     VALUES (
@@ -190,6 +202,31 @@ INSERT INTO user_application (user_id, email, name, username, status, ngroup_id,
         'Initial seed administrator account.',
         'daac'
     );
+
+
+INSERT INTO cueuser (id, email, name, cueusername)
+    VALUES ('bf63f3ef-7a2b-4742-8b1f-74429c57d460', 'navaneeth026@gmail.com', 'Navaneeth R Selvaraj', 'navaneeth026@gmail.com');
+INSERT INTO cueuser_role (cueuser_id, role_id)
+    VALUES ('bf63f3ef-7a2b-4742-8b1f-74429c57d460', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('bf63f3ef-7a2b-4742-8b1f-74429c57d460', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('bf63f3ef-7a2b-4742-8b1f-74429c57d460', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
+
+INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
+    VALUES (
+        'bf63f3ef-7a2b-4742-8b1f-74429c57d460',
+        'navaneeth026@gmail.com',
+        'Navaneeth Rangaswamy Selvaraj',
+        'navaneeth026@gmail.com',
+        'approved', -- Set the status to 'approved'
+        'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        'Initial seed administrator account.',
+        'daac'
+    );
+
+
+
 
 
 -- Janani's account  

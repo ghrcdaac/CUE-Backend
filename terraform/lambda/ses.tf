@@ -25,6 +25,15 @@ data "aws_iam_policy_document" "email_sender_policy" {
     # SES requires a wildcard resource for this action.
     resources = ["*"]
   }
+  statement {
+    effect = "Allow"
+    actions = [
+      "ec2:CreateNetworkInterface",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DeleteNetworkInterface"
+    ]
+    resources = ["*"]
+  }
 }
 
 
@@ -54,8 +63,13 @@ resource "aws_lambda_function" "email_sender" {
   runtime          = "python3.13" # Updated runtime
   architectures    = ["x86_64"]   # Added architecture
 
-  timeout     = 30
+  timeout     = 60
   memory_size = 128
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
 
   environment {
     variables = {
@@ -64,6 +78,7 @@ resource "aws_lambda_function" "email_sender" {
       CONFIGURATION_SET_NAME = var.ses_configuration_set_name
       SES_REGION             = var.ses_region
       LOG_LEVEL              = "INFO"
+      REDEPLOY_TRIGGER = "1"
     }
   }
 }

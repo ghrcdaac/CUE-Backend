@@ -67,6 +67,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
+      REDEPLOY_TRIGGER = "2"
     }
   }
 
@@ -104,6 +105,7 @@ resource "aws_lambda_function" "cue_scan_event" {
       QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
       DB_SSL_MODE    = "require"
       ENV = "production"
+      REDEPLOY_TRIGGER = "1"
     }
   }
 }
@@ -117,7 +119,7 @@ resource "aws_lambda_function" "notification_manager" {
   handler          = "handler.handler"
   runtime          = "python3.13"
   architectures    = ["x86_64"]
-  timeout          = 60
+  timeout          = 120
 
   vpc_config {
     subnet_ids         = var.subnet_ids
@@ -136,6 +138,7 @@ resource "aws_lambda_function" "notification_manager" {
       LOG_LEVEL        = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
+      REDEPLOY_TRIGGER = "1"
     }
   }
 }
@@ -210,6 +213,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       LOG_LEVEL      = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
+      REDEPLOY_TRIGGER = "1"
     }
   }
 
