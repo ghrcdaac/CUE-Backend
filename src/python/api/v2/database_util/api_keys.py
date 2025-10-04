@@ -34,7 +34,7 @@ async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dic
         UPDATE api_key
         SET last_used_at = NOW()
         WHERE key_hash = $1 AND is_active = TRUE AND expires_at > NOW()
-        RETURNING user_id, proxy_user_name, ngroup_id, scopes;
+        RETURNING user_id, proxy_user_name, ngroup_id, scopes, created_by_user_id;
     """
     return await conn.fetchrow(query, key_hash)
 

@@ -174,7 +174,7 @@ class APIKeyBearer(HTTPBearer):
                 # Build a synthetic user object for the proxy.
                 # The most important part is setting the 'ngroups' correctly.
                 proxy_user = AuthUser(
-                    id=uuid.uuid4(), # A temporary, non-persistent ID
+                    id=key_data.get("created_by_user_id"), # Use the creator's ID
                     name=proxy_name,
                     email=f"{proxy_name.lower().replace(' ', '_')}@proxy.internal",
                     roles=["proxy"],
