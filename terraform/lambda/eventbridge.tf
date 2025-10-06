@@ -66,7 +66,7 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   flexible_time_window {
     mode = "OFF"
   }
-  schedule_expression = "cron(0 * * * ? *)"
+  schedule_expression = "cron(*/30 * * * ? *)"
   target {
     role_arn = var.notification_manager_scheduler_role_arn
     arn = aws_lambda_function.notification_manager.arn
@@ -79,7 +79,7 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
         "\\u003e", ">"
     )
     retry_policy {
-      maximum_event_age_in_seconds = 3600
+      maximum_event_age_in_seconds = 1800
       maximum_retry_attempts = 3
     }
   }

@@ -5,6 +5,7 @@ import boto3
 import structlog
 from pathlib import Path
 from uuid import UUID
+from datetime import timedelta
 import asyncpg
 
 from core.logging_config import setup_logging
@@ -78,12 +79,12 @@ async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
 async def handle_infected_files_scheduled(detail: dict, pool):
     logger.info("event.scheduled_infected_files.received", detail=detail)
     notification_details = None
-    hours = 1
+    time_threshold = timedelta(minutes=30)
     infected_file_threshold = 5 
 
     async with pool.acquire() as conn:
-        notification_details = await get_infected_scheduled_file_details(conn, hours)
-        blocked_providers = await block_providers_uploading_infected_files(conn, hours, infected_file_threshold)
+        notification_details = await get_infected_scheduled_file_details(conn, time_threshold)
+        blocked_providers = await block_providers_uploading_infected_files(conn, time_threshold, infected_file_threshold)
 
     if not notification_details:
         logger.info("No infected file notifications to send")
@@ -160,9 +161,9 @@ async def async_handler(event, context):
         event_type=detail_type
     )
 
-    if detail_type == "InfectedFileFound":
-        await handle_infected_file(detail, pool)
-    elif detail_type == "ScheduledInfectedFileFound":
+    #if detail_type == "InfectedFileFound":
+    #    await handle_infected_file(detail, pool)
+    if detail_type == "ScheduledInfectedFileFound":
         await handle_infected_files_scheduled(detail, pool)
     elif detail_type == "UserApplicationSubmitted":
         await handle_application_submitted(detail, pool)

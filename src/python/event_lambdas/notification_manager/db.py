@@ -3,6 +3,7 @@ import json
 from uuid import UUID
 from asyncpg import Connection
 from typing import Dict, Any, Optional, List
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional
         logger.error(f"Error fetching notification details for file {file_id}: {e}", exc_info=True)
         return None
 
-async def get_infected_scheduled_file_details(conn: Connection, hours: int) -> Optional[Dict[UUID, Any]]:
+async def get_infected_scheduled_file_details(conn: Connection, time_threshold: timedelta) -> Optional[Dict[UUID, Any]]:
     """
     Finds all file details needed for an infected file notification, including:
     - The file name
@@ -100,12 +101,12 @@ async def get_infected_scheduled_file_details(conn: Connection, hours: int) -> O
                 JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
                 JOIN file_status fs ON f.id = fs.id
                 JOIN recipient_emails re on re.ngroup_id = ung.ngroup_id
-            WHERE fs.status = 'infected' AND fs.upload_time >= NOW() - (INTERVAL '1 hour' * $2)
+            WHERE fs.status = 'infected' AND fs.upload_time >= (NOW() - $2::INTERVAL)
             GROUP BY user_ngroup,re.short_name,re.recipient_emails 
     """
     RECIPIENT_ROLES = ["admin", "security", "daac_manager", "daac_staff"] 
     try:
-        records = await conn.fetch(query, RECIPIENT_ROLES, hours)
+        records = await conn.fetch(query, *(RECIPIENT_ROLES, time_threshold))
         if not records:
             logger.info("No infected file details")
             return None
@@ -122,7 +123,7 @@ async def get_infected_scheduled_file_details(conn: Connection, hours: int) -> O
         logger.error(f"Error fetching notification details :{e}", exc_info=True)
         return None
 
-async def block_providers_uploading_infected_files(conn: Connection, hours: int, infected_file_threshold:int) -> Dict[UUID, Dict[UUID,Any]]:
+async def block_providers_uploading_infected_files(conn: Connection, time_threshold: timedelta, infected_file_threshold:int) -> Dict[UUID, Dict[UUID,Any]]:
     """
     Finds all providers that have uploaded infected files equal to or greater than the threshold with the given hours
     Then blocks these providers from uploading.
@@ -143,7 +144,7 @@ async def block_providers_uploading_infected_files(conn: Connection, hours: int,
             JOIN file_status fs ON f.id = fs.id
             JOIN cueuser_provider up ON f.cueuser_uploaded = up.cueuser_id
             JOIN provider p ON p.id = up.provider_id 
-            WHERE fs.status = 'infected' AND fs.upload_time >= NOW() - ((INTERVAL '1 hour')* $1)
+            WHERE fs.status = 'infected' AND fs.upload_time >= (NOW() - $1::INTERVAL)
             GROUP BY p.id
             HAVING (count(f.id) >= $2)
         )
@@ -160,7 +161,7 @@ async def block_providers_uploading_infected_files(conn: Connection, hours: int,
     """ 
     # This query gets details grouped by ngroup_id of providers that have uploaded infected files over the threshold
     try:
-        params = (hours, infected_file_threshold)
+        params = (time_threshold, infected_file_threshold)
         records = await conn.fetch(query, *params)
         if not records:
             logger.info("No users to block")
