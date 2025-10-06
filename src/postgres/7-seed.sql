@@ -190,10 +190,10 @@ INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
-INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
-INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
-   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '1675f412-7468-4cd4-adb0-20b08236079b');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '1675f412-7468-4cd4-adb0-20b08236079b');
 
 INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
     VALUES (

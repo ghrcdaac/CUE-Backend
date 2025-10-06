@@ -1,5 +1,6 @@
+# ==============================================================================
 # File: src/python/api/v2/type_util/upload.py
-
+# ==============================================================================
 from pydantic import BaseModel, Field, PositiveInt
 from typing import Optional, List, Dict
 from uuid import UUID
@@ -18,22 +19,10 @@ class PrepareUploadResponse(BaseModel):
     file_id: UUID
     presigned_url: str
 
-# --- The CompleteUploadRequest now includes all necessary metadata ---
 class CompleteUploadRequest(BaseModel):
-    """A single, consolidated model for the 'complete' step."""
-    # ID from the prepare step
-    file_id: UUID
-    
-    # All original metadata from the prepare step, needed for validation and DB creation
-    collection_name: str
-    file_name: str
-    file_size_bytes: PositiveInt
-    checksum: str
-    collection_path: Optional[str] = None
-    content_type: str = "application/octet-stream"
-    
-    # ETag from the S3 upload response
-    s3_etag: str
+    """A simplified, lightweight model for the 'complete' step."""
+    file_id: UUID = Field(..., description="The file_id from the 'prepare' response.")
+    s3_etag: str = Field(..., description="The ETag from the successful S3 upload response header.")
 
 # --- Multipart Upload ---
 
@@ -42,6 +31,8 @@ class MultipartStartRequest(BaseModel):
     file_name: str
     content_type: str = "application/octet-stream"
     collection_path: Optional[str] = None
+    checksum: Optional[str] = Field(None, description="The file's final checksum, if known in advance.")
+    final_file_size: Optional[PositiveInt] = Field(None, description="The file's final size in bytes, if known in advance.")
 
 class MultipartStartResponse(BaseModel):
     file_id: UUID
@@ -78,5 +69,4 @@ class MultipartAbortRequest(BaseModel):
 
 class UploadSuccessResponse(BaseModel):
     file_id: UUID
-    status: str
-    message: str
+

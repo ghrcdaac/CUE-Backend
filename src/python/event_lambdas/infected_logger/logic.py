@@ -1,4 +1,3 @@
-# --- src/python/event_lambdas/infected_logger/logic.py ---
 import json
 import boto3
 import asyncio
@@ -7,7 +6,7 @@ import os
 import structlog
 import asyncpg
 
-from db import upsert_scan_status_in_database, get_collection_id
+from db import process_scan_result_in_database
 from model import ScanResultMessage, ScanResultDetailJSONEncoder
 from uuid import UUID
 
@@ -64,8 +63,7 @@ async def publish_infected_file_event(scan_details: ScanResultMessage):
         logger.info("eventbridge.publish.success", file_id=str(scan_details.key))
     except Exception as e:
         logger.error("eventbridge.publish.failed", file_id=str(scan_details.key), exc_info=True)
-        # We don't re-raise here, because the DB update has already succeeded.
-        # A monitoring system should alert on these logs.
+
 
 async def send_clean_file_message(file_id:UUID, collection_id:UUID):
     """Send a message to the clean file SQS queue"""
@@ -82,19 +80,15 @@ async def send_clean_file_message(file_id:UUID, collection_id:UUID):
 
 async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool):
     """
-    Processes a validated scan result message, upserts its status using the
-    shared connection pool, and publishes an event if infected.
+    Processes a validated scan result message, updates the database using a safe
+    state machine, and triggers downstream actions.
     """
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
     
-
     if status == 'infected':
-        # For infected files, serialize the ENTIRE message object for a full audit trail.
         scan_results_json = message.model_dump_json(by_alias=True)
     else:
-        # For other statuses, serialize only the 'scanResults' array.
-        # We first get the list of dicts, then dump it to a JSON string using the custom encoder.
         scan_results_list = message.model_dump(by_alias=True).get("scanResults")
         scan_results_json = json.dumps(scan_results_list, cls=ScanResultDetailJSONEncoder)
 
@@ -108,11 +102,10 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
     logger.info("scan_result.processing", file_id=str(file_id), status=status)
     
     async with db_pool.acquire() as conn:
-        await upsert_scan_status_in_database(conn, file_id, update_data)
+        collection_id, final_status = await process_scan_result_in_database(conn, file_id, update_data)
     
-        if status == 'clean':
-            collection_id = await get_collection_id(conn, file_id)
-            await send_clean_file_message(file_id, collection_id)
-
-    if status == 'infected':
+    # Trigger downstream actions based on the final, confirmed status from the database.
+    if final_status == 'clean' and collection_id:
+        await send_clean_file_message(file_id, collection_id)
+    elif final_status == 'infected':
         await publish_infected_file_event(message)

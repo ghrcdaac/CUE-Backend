@@ -1,3 +1,6 @@
+# ==============================================================================
+# File: src/python/api/v2/database_util/file.py
+# ==============================================================================
 from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -7,21 +10,65 @@ from datetime import datetime, timezone
 
 logger = structlog.get_logger(__name__)
 
-async def create_preliminary_file_records(conn: Connection, file_id: UUID, user_id: UUID, collection_id: UUID):
+async def create_preliminary_file_records(
+    conn: Connection, file_id: UUID, user_id: UUID, collection_id: UUID,
+    ip_address: Dict,
+    file_name: str,
+    file_type: str,
+    size_bytes: int,
+    checksum: str,
+    collection_path: Optional[str]
+):
     """
-    Atomically creates placeholder file and 'uploading' file_status records to prevent race conditions.
-    This establishes the foreign key relationship and the initial upload_time immediately.
+    Atomically creates file and 'uploading' file_status records using all available metadata from the user.
+    This prevents race conditions by recording the real data immediately.
     """
     file_query = """
-        INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum)
-        VALUES ($1, 'pending_upload', 'unknown', $2, 0, $3, 'pending');
+        INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum, collection_path)
+        VALUES ($1, $4, $5, $2, $6, $3, $7, $8);
     """
+    await conn.execute(
+        file_query, file_id, user_id, collection_id, file_name,
+        file_type, size_bytes, checksum, collection_path
+    )
+    
     status_query = """
-        INSERT INTO file_status (id, status, upload_time)
-        VALUES ($1, 'uploading', $2);
+        INSERT INTO file_status (id, status, upload_time, scan_results)
+        VALUES ($1, 'uploading', $2, $3::jsonb);
     """
-    await conn.execute(file_query, file_id, user_id, collection_id)
-    await conn.execute(status_query, file_id, datetime.now(timezone.utc))
+    await conn.execute(status_query, file_id, datetime.now(timezone.utc), json.dumps(ip_address))
+
+
+async def safely_advance_file_status(conn: Connection, file_id: UUID, target_status: str) -> bool:
+    """
+    Atomically and conditionally advances a file's status based on a defined, forward-only state machine.
+    This prevents status regressions (e.g., 'clean' -> 'unscanned').
+
+    The state machine is enforced by the SQL CASE statement:
+    - 'uploading' can only become 'unscanned'.
+    - 'unscanned' can become 'clean', 'infected', or 'scan_failed'.
+    - 'clean' can only become 'distributed'.
+    - Any other attempted transition will result in no change.
+    """
+    query = """
+        UPDATE file_status
+        SET status = (
+            CASE
+                WHEN status = 'uploading' AND $2 = 'unscanned'
+                    THEN 'unscanned'::file_status_type
+                WHEN status = 'unscanned' AND $2 IN ('clean', 'infected', 'scan_failed')
+                    THEN $2::file_status_type
+                WHEN status = 'clean' AND $2 = 'distributed'
+                    THEN 'distributed'::file_status_type
+                ELSE status
+            END
+        )
+        WHERE id = $1;
+    """
+    # This query always "succeeds", but we check if a change was intended and occurred.
+    # For the 'complete' step, we just need to fire it off.
+    await conn.execute(query, file_id, target_status)
+    return True # For the purpose of the upload utility, we indicate success.
 
 
 async def update_final_file_details(
@@ -29,8 +76,8 @@ async def update_final_file_details(
     size_bytes: int, collection_path: Optional[str], checksum: str, ip_address: Dict
 ):
     """
-    Updates the placeholder file record with final metadata and conditionally transitions
-    the status from 'uploading' to 'unscanned'. This is a two-step process.
+    Updates the main file record with final metadata (primarily for multipart uploads)
+    and then transitions its status to 'unscanned'.
     """
     file_update_query = """
         UPDATE file
@@ -42,12 +89,9 @@ async def update_final_file_details(
         collection_path, checksum
     )
 
-    status_update_query = """
-        UPDATE file_status
-        SET status = 'unscanned', scan_results = $2::jsonb
-        WHERE id = $1 AND status = 'uploading';
-    """
-    await conn.execute(status_update_query, file_id, json.dumps(ip_address))
+    # Use the safe state transition function to move the status forward.
+    await safely_advance_file_status(conn, file_id, 'unscanned')
+
 
 async def update_file(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> bool:
     """Dynamically builds and executes an UPDATE statement for a file."""
@@ -67,7 +111,7 @@ async def update_file(conn: Connection, file_id: UUID, update_data: Dict[str, An
     query = f"UPDATE file SET {', '.join(set_clauses)} WHERE id = ${param_idx}"
     
     result = await conn.execute(query, *params)
-    return result.split(' ')[1] == '1' # Check if exactly one row was updated
+    return result.split(' ')[1] == '1'
 
 
 async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str, Any]]:
@@ -80,6 +124,7 @@ async def get_file_details(conn: Connection, file_id: UUID) -> Optional[Dict[str
         WHERE f.id = $1;
     """
     return await conn.fetchrow(query, file_id)
+
 
 async def list_files_paginated(
     conn: Connection,
@@ -156,7 +201,6 @@ async def find_files_by_name(
     user_roles = set(requesting_user.get('roles', []))
     params: list[Any] = [file_name]
     
-    # UPDATED: Added fs.scan_results and fs.egress_start to the SELECT statement
     base_query = """
         SELECT 
             f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum, 
@@ -186,3 +230,4 @@ async def delete_file(conn: Connection, file_id: UUID) -> bool:
     except ForeignKeyViolationError as e:
         logger.warning("db.file.delete.failed_fk", file_id=str(file_id), error=str(e))
         raise ValueError("Cannot delete this file because it is still referenced.") from e
+

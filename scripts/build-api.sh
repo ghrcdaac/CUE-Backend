@@ -35,7 +35,7 @@ echo "Remote Image: ${REMOTE_IMAGE_NAME}" >&2
 
 # --- ECR Login ---
 echo "Attempting to log in to ECR..." >&2
-aws ecr get-login-password --region "${AWS_REGION}" --profile cue-uat| docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+aws ecr get-login-password --region "${AWS_REGION}" --profile cue-uat | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 if [ $? -ne 0 ]; then
     echo "ECR login failed. Please check your AWS credentials and region." >&2
     exit 1
