@@ -14,6 +14,7 @@ module "iam_role" {
   cue_archive_bucket           = var.cue_archive_bucket
   cue_archive_results_bucket   = var.cue_archive_results_bucket
   cue_staging_bucket           = var.cue_staging_bucket
+  file_transfer_lambda_arn = module.lambda_functions.cue_file_transfer_lambda_alias_arn
 }
 
 module "lambda_functions" {
@@ -43,7 +44,8 @@ module "lambda_functions" {
   notification_manager_role_arn  = module.iam_role.notification_manager_role_arn
   email_sender_role_arn          = module.iam_role.email_sender_role_arn
   process_athena_query_role_arn  = module.iam_role.process_athena_query_role_arn
-  file_transfer_role_arn         = module.iam_role.file_transfer_role_arn  
+  file_transfer_role_arn         = module.iam_role.file_transfer_role_arn
+  
 
   # --- Database variables (connecting to the RDS Proxy) ---
   db_proxy_host                  = module.rds.db_proxy_host

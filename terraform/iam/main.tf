@@ -109,3 +109,23 @@ resource "aws_iam_role" "db_proxy_iam_role" {
   assume_role_policy = data.aws_iam_policy_document.rds_assume_role_policy.json
 }
 
+
+
+# This policy grants the Infected Logger Role permission to invoke the File Transfer Lambda.
+# It is required for the faster, direct invocation workflow.
+resource "aws_iam_role_policy" "allow_invoke_file_transfer_lambda" {
+  name = "AllowInvokeFileTransferLambda"
+  role = aws_iam_role.infected_logger_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        # Use the input variable here, which will contain the alias ARN
+        Resource = var.file_transfer_lambda_arn
+      }
+    ]
+  })
+}
