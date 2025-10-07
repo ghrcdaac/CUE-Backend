@@ -51,8 +51,7 @@ async def complete_single_upload(
     try:
         file_id = await upload_utils.complete_single_file_upload(request, params, user)
         return UploadSuccessResponse(
-            file_id=file_id, status="unscanned",
-            message="Upload confirmed and file is awaiting scan."
+            file_id=file_id
         )
     except (ValueError, upload_utils.UploadValidationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -101,8 +100,7 @@ async def multipart_complete(
     try:
         file_id = await upload_utils.complete_multipart_upload(request, params, user)
         return UploadSuccessResponse(
-            file_id=file_id, status="unscanned",
-            message="Multipart upload confirmed and file is awaiting scan."
+            file_id=file_id
         )
     except (ValueError, upload_utils.UploadValidationError, upload_utils.S3ClientError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

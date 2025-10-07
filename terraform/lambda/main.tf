@@ -14,10 +14,6 @@
    raw_message_delivery = "true"
  }
 
-# --- Lambda Code Packaging ---
-# These resources create the zip files from your source code directories.
-
-
 # --- Lambda Function Definitions ---
 
 # 1. Main API Lambda (Docker Image)
@@ -67,7 +63,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "3"
+      REDEPLOY_TRIGGER = "1"
     }
   }
 
@@ -81,12 +77,13 @@ resource "aws_lambda_function" "cue_api" {
 resource "aws_lambda_function" "cue_scan_event" {
   filename         = "../artifacts/infected-logger-lambda.zip"
   source_code_hash = filebase64sha256("../artifacts/infected-logger-lambda.zip")
-  function_name    = "cue_scan_event" # Using your preferred name
+  function_name    = "cue_scan_event" 
   role             = var.infected_logger_role_arn
   handler          = "handler.handler"
   runtime          = "python3.13"
   architectures    = ["x86_64"]
   timeout          = 180
+  publish          = true
 
   vpc_config {
     subnet_ids         = var.subnet_ids
@@ -105,7 +102,9 @@ resource "aws_lambda_function" "cue_scan_event" {
       QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "1"
+      REDEPLOY_TRIGGER = "2"
+      FILE_TRANSFER_LAMBDA_NAME = aws_lambda_alias.cue_file_transfer_live_alias.arn
+      TRANSFER_INVOCATION_MODE  = "LAMBDA"  # This can take 2 values: LAMBDA or SQS
     }
   }
 }
@@ -213,6 +212,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       LOG_LEVEL      = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
+      VERIFY_CHECKSUM_ON_TRANSFER = "true"
       REDEPLOY_TRIGGER = "1"
     }
   }
@@ -261,6 +261,28 @@ resource "aws_lambda_provisioned_concurrency_config" "cue_api_pc" {
 }
 
 
+resource "aws_lambda_alias" "cue_scan_event_live_alias" {
+  name             = "uat"
+  description      = "The uat alias for the scan event function"
+  function_name    = aws_lambda_function.cue_scan_event.function_name
+  function_version = aws_lambda_function.cue_scan_event.version
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_lambda_provisioned_concurrency_config" "scan_event_pc" {
+  function_name                     = aws_lambda_function.cue_scan_event.function_name
+  provisioned_concurrent_executions = 1
+  qualifier                         = aws_lambda_alias.cue_scan_event_live_alias.name
+  depends_on                        = [aws_lambda_alias.cue_scan_event_live_alias]
+
+  provisioner "local-exec" {
+    command = "aws lambda wait function-updated --function-name ${self.function_name} --qualifier ${self.qualifier}"
+  }
+}
+
 
 resource "aws_lambda_permission" "cue_api_apigw_permission" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -303,7 +325,7 @@ resource "aws_lambda_provisioned_concurrency_config" "file_transfer_pc" {
 
 resource "aws_lambda_event_source_mapping" "scan_event_trigger" {
   event_source_arn = aws_sqs_queue.scan_results_queue.arn
-  function_name    = aws_lambda_function.cue_scan_event.arn
+  function_name    = aws_lambda_alias.cue_scan_event_live_alias.arn
   batch_size       = 5
 }
 
@@ -327,6 +349,7 @@ resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.application_events_rule.arn
 }
+
 
 # resource "aws_lambda_permission" "allow_eventbridge_to_athena_processor" {
 #   statement_id  = "AllowExecutionFromEventBridgeForAthena"

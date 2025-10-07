@@ -38,3 +38,7 @@ variable "cue_staging_bucket" {
   type        = string
 }
 
+variable "file_transfer_lambda_arn" {
+  description = "The ARN of the file_transfer lambda function, passed in from the lambda module."
+  type        = string
+}

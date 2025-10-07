@@ -42,18 +42,23 @@ async def async_handler(event: Dict[str, Any], context: object):
     if not pool:
         logger.critical("db.pool.not_available.failing_invocation")
         raise RuntimeError("Database connection pool could not be initialized.")
+    
     raw_messages = [msg for msg in (parse_sqs_record(rec) for rec in event.get('Records', [])) if msg is not None]
     validated_messages = [val_msg for val_msg in (parse_and_validate_message(raw_msg) for raw_msg in raw_messages) if val_msg is not None]
+    
     if not validated_messages:
         logger.warning("sqs.batch.no_valid_messages")
         return
+        
     logger.info("sqs.batch.processing", message_count=len(validated_messages))
     tasks = [process_scan_result(msg, pool) for msg in validated_messages]
     results = await asyncio.gather(*tasks, return_exceptions=True)
+    
     failed_tasks = [res for res in results if isinstance(res, Exception)]
     if failed_tasks:
         logger.error("sqs.batch.task_failed", error_count=len(failed_tasks), first_error=str(failed_tasks[0]))
         raise failed_tasks[0]
+        
     logger.info("sqs.batch.success")
 
 def handler(event: Dict[str, Any], context: object):
@@ -64,4 +69,3 @@ def handler(event: Dict[str, Any], context: object):
     except Exception:
         logger.critical("lambda.handler.unhandled_exception", exc_info=True)
         raise
-
