@@ -192,3 +192,13 @@ variable "lambda_env_vars" {
   type        = map(string)
   default     = {}
 }
+
+variable "app_env" {
+  type        = string
+  description = "The name of the deployment environment (e.g., sit, uat, prod)."
+}
+
+variable "keycloak_certs_file" {
+  description = "The Keycloak public key location."
+  type        = string
+}

@@ -25,6 +25,7 @@ def parse_sqs_record(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not message_body_str:
             logger.error("sqs.record.body.missing")
             return None
+        logger.info("sqs.record.body.received", body_content=message_body_str)
         return json.loads(message_body_str)
     except json.JSONDecodeError:
         logger.warning("sqs.record.body.invalid_json", body=message_body_str)
@@ -38,6 +39,7 @@ async def async_handler(event: Dict[str, Any], context: object):
         aws_request_id=context.aws_request_id,
         function_name=context.function_name
     )
+    logger.info("lambda.event.received", event_payload=event)
     pool = await get_database_pool()
     if not pool:
         logger.critical("db.pool.not_available.failing_invocation")

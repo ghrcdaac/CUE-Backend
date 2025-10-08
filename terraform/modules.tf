@@ -37,6 +37,7 @@ module "lambda_functions" {
   keycloak_audience              = var.keycloak_audience
   keycloak_admin_client_id       = var.keycloak_admin_client_id
   keycloak_admin_client_secret   = var.keycloak_admin_client_secret
+  keycloak_certs_file            = var.keycloak_certs_file
 
   # --- Role ARNs from the iam module ---
   api_lambda_role_arn            = module.iam_role.cue_api_lambda_role_arn
@@ -46,7 +47,6 @@ module "lambda_functions" {
   process_athena_query_role_arn  = module.iam_role.process_athena_query_role_arn
   file_transfer_role_arn         = module.iam_role.file_transfer_role_arn
   
-
   # --- Database variables (connecting to the RDS Proxy) ---
   db_proxy_host                  = module.rds.db_proxy_host
   db_port                        = module.rds.db_port
@@ -63,11 +63,15 @@ module "lambda_functions" {
   ses_source_arn                 = var.ses_source_arn
   ses_configuration_set_name     = var.ses_configuration_set_name
   ses_region                     = var.ses_region
+  
+  # name for PC env
+  app_env                     = var.app_env
 
   #delete later
   pool_id                     = var.pool_id
   client_id                   = var.client_id
   client_secret               = var.client_secret
+
 }
 
 module "rds" {

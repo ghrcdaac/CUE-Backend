@@ -4,16 +4,39 @@ from uuid import UUID
 from typing import List, Dict, Any, Tuple, Optional
 from v2.type_util.auth import AuthUser
 import structlog
-from fastapi import Request
+from fastapi import Request, HTTPException, status
 import json
+import hashlib
 
 from v2.database_util import file as file_db
-from v2.type_util.file import FileUpdateRequest
+from v2.database_util import api_keys as api_key_db
+from v2.type_util.file import FileUpdateRequest, FileListRequest 
+from datetime import date
 
 logger = structlog.get_logger(__name__)
 
 class FileNotFoundError(Exception):
     pass
+class ApiKeyError(Exception):
+    """Base exception for API key validation errors."""
+    pass
+
+class InvalidApiKeyError(ApiKeyError):
+    """Raised when the API key is not found or invalid."""
+    pass
+
+class ApiKeyScopeError(ApiKeyError):
+    """Raised when the API key lacks the required scope."""
+    pass
+
+class ApiKeyConfigurationError(ApiKeyError):
+    """Raised when the key is misconfigured (e.g., no group)."""
+    pass
+
+class FileAccessError(Exception):
+    """Raised when a file cannot be found or accessed by the user."""
+    pass
+
 
 def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -72,7 +95,9 @@ async def list_files(
     active_ngroup_id: Optional[str],
     page: int,
     page_size: int,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Retrieves a paginated list of files for a specific ngroup, optionally by status."""
     offset = (page - 1) * page_size
@@ -84,7 +109,9 @@ async def list_files(
             conn,
             requesting_user=user_dump,
             active_ngroup_id=ngroup_id_to_filter,
-            status=status
+            status=status,
+            start_date=start_date,
+            end_date=end_date
         )
         files = await file_db.list_files_paginated(
             conn,
@@ -92,9 +119,52 @@ async def list_files(
             active_ngroup_id=ngroup_id_to_filter,
             limit=page_size,
             offset=offset,
-            status=status
+            status=status,
+            start_date=start_date,
+            end_date=end_date
         )
     return [_process_record(f) for f in files], total
+
+async def list_files_by_api_key(
+    request: Request,
+    body: FileListRequest
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Validates an API key and fetches files, raising custom exceptions on failure."""
+    
+    api_key = body.apiKey
+    if not api_key or not api_key.startswith("cue_sk_"):
+        raise InvalidApiKeyError("A valid application API key is required.")
+
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    async with request.state.pool.acquire() as conn:
+        key_data = await api_key_db.get_user_from_api_key(conn, key_hash)
+
+    if not key_data:
+        raise InvalidApiKeyError("Invalid API Key")
+
+    if "file:read" not in key_data.get("scopes", []):
+        raise ApiKeyScopeError("API Key lacks required scope 'file:read'")
+    
+    ngroup_id_to_filter = key_data.get("ngroup_id")
+    if not ngroup_id_to_filter:
+        # This is a server-side configuration issue, not a client error.
+        raise ApiKeyConfigurationError("API Key is not associated with a group.")
+
+    async with request.state.pool.acquire() as conn:
+        if body.file_id:
+            file_details = await file_db.get_file_details_for_group(conn, body.file_id, ngroup_id_to_filter)
+            if not file_details:
+                raise FileAccessError("File not found or you do not have permission to access it.")
+            return [_process_record(dict(file_details))], 1
+        else:
+            offset = (body.page - 1) * body.page_size
+            proxy_user_for_db = {"roles": ["proxy"]}
+            total = await file_db.count_files_for_ngroup(conn, proxy_user_for_db, ngroup_id_to_filter, body.status, body.start_date, body.end_date)
+            files = await file_db.list_files_paginated(
+                conn, proxy_user_for_db, ngroup_id_to_filter, body.page_size, offset, body.status, body.start_date, body.end_date
+            )
+            return [_process_record(f) for f in files], total
+
 
 async def update_file(request: Request, file_id: UUID, file_update: FileUpdateRequest) -> Dict[str, Any]:
     """Updates a file's descriptive metadata."""
