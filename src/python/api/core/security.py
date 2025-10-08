@@ -5,12 +5,12 @@
 import os
 import json
 import hashlib
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 
 
 import structlog
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer
 from jose import jwt
 from jose.exceptions import JOSEError
@@ -24,6 +24,7 @@ from v2.utils.cueuser import _parse_user_data
 # --- Environment Variables ---
 KEYCLOAK_ISSUER = os.getenv("KEYCLOAK_ISSUER", "https://idfs.uat.earthdatacloud.nasa.gov/realms/cue")
 KEYCLOAK_AUDIENCE = os.getenv("KEYCLOAK_AUDIENCE", "cue-uat")
+KEYCLOAK_CERTS_FILE = os.getenv("KEYCLOAK_CERTS_FILE", "idfs_certs_prod.json")
 
 logger = structlog.get_logger(__name__)
 
@@ -36,7 +37,7 @@ def load_jwks_from_file() -> Dict[str, Any]:
     logger.info("jwks.local_file.loading_attempt")
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "idfs_certs.json")
+        file_path = os.path.join(current_dir, KEYCLOAK_CERTS_FILE)
         
         with open(file_path, 'r') as f:
             jwks = json.load(f)

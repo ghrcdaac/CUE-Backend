@@ -108,3 +108,11 @@ class UserClaimsResponse(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     cueusername: Optional[str] = None
+
+
+class ApiKeyPrincipal(BaseModel):
+    """Represents the identity derived from a valid API Key."""
+    id: UUID  
+    ngroup_id: UUID  
+    scopes: List[str] 
+    type: str = "api_key"

@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 import json
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 logger = structlog.get_logger(__name__)
 
@@ -132,7 +132,9 @@ async def list_files_paginated(
     active_ngroup_id: Optional[UUID],
     limit: int,
     offset: int,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    start_date: Optional[date] = None, 
+    end_date: Optional[date] = None    
 ) -> List[Dict[str, Any]]:
     user_roles = set(requesting_user.get('roles', []))
     params: list[Any] = []
@@ -151,13 +153,23 @@ async def list_files_paginated(
         params.append(active_ngroup_id)
         where_conditions.append(f"c.ngroup_id = ${len(params)}")
     else:
+        # For JWT users without an active group, only admins can see results
         if 'admin' not in user_roles and 'security' not in user_roles:
             where_conditions.append("FALSE")
 
     if status:
         params.append(status)
         where_conditions.append(f"fs.status = ${len(params)}")
-        
+    
+    if start_date:
+        params.append(start_date)
+        where_conditions.append(f"fs.upload_time >= ${len(params)}")
+    
+    if end_date:
+        params.append(end_date)
+        # To include the entire end day, we check for less than the start of the next day
+        where_conditions.append(f"fs.upload_time < (${len(params)}::date + 1)")
+
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
     query = f"{base_query} {where_clause} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
     params.extend([limit, offset])
@@ -169,12 +181,18 @@ async def count_files_for_ngroup(
     conn: Connection,
     requesting_user: Dict[str, Any],
     active_ngroup_id: Optional[UUID],
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None    
 ) -> int:
     params: list[Any] = []
-    base_query = "SELECT COUNT(f.id) FROM file f JOIN collection c ON f.collection_id = c.id"
-    join_clause = " LEFT JOIN file_status fs ON f.id = fs.id" if status else ""
+    join_conditions = ["JOIN collection c ON f.collection_id = c.id"]
     where_conditions = ["f.name != 'pending_upload'"]
+    
+    if status or start_date or end_date:
+        join_conditions.append("LEFT JOIN file_status fs ON f.id = fs.id")
+
+    base_query = f"SELECT COUNT(f.id) FROM file f {' '.join(join_conditions)}"
 
     if active_ngroup_id:
         params.append(active_ngroup_id)
@@ -184,8 +202,16 @@ async def count_files_for_ngroup(
         params.append(status)
         where_conditions.append(f"fs.status = ${len(params)}")
 
+    if start_date:
+        params.append(start_date)
+        where_conditions.append(f"fs.upload_time >= ${len(params)}")
+    
+    if end_date:
+        params.append(end_date)
+        where_conditions.append(f"fs.upload_time < (${len(params)}::date + 1)")
+
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
-    query = f"{base_query}{join_clause} {where_clause}"
+    query = f"{base_query} {where_clause}"
     
     count = await conn.fetchval(query, *params)
     return count or 0
@@ -231,3 +257,18 @@ async def delete_file(conn: Connection, file_id: UUID) -> bool:
         logger.warning("db.file.delete.failed_fk", file_id=str(file_id), error=str(e))
         raise ValueError("Cannot delete this file because it is still referenced.") from e
 
+async def get_file_details_for_group(conn: Connection, file_id: UUID, ngroup_id: UUID) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves detailed information for a single file, but only if it belongs
+    to the specified ngroup_id. This enforces data tenancy.
+    """
+    query = """
+        SELECT
+            f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum,
+            fs.status, fs.upload_time, fs.scan_start, fs.scan_end, fs.egress_start, fs.scan_results
+        FROM file f
+        JOIN collection c ON f.collection_id = c.id
+        LEFT JOIN file_status fs ON f.id = fs.id
+        WHERE f.id = $1 AND c.ngroup_id = $2;
+    """
+    return await conn.fetchrow(query, file_id, ngroup_id)

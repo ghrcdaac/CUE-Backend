@@ -50,6 +50,7 @@ resource "aws_lambda_function" "cue_api" {
       KEYCLOAK_ADMIN_CLIENT_SECRET   = var.keycloak_admin_client_secret
       FRONTEND_URL                   = var.frontend_url
       FRONTEND_CALLBACK_URL          = var.frontend_callback_url
+      KEYCLOAK_CERTS_FILE            = var.keycloak_certs_file
       LOG_LEVEL                      = "INFO"
       POOL_ID          = var.pool_id
       CLIENT_ID        = var.client_id
@@ -63,7 +64,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "1"
+      REDEPLOY_TRIGGER = "4"
     }
   }
 
@@ -137,7 +138,7 @@ resource "aws_lambda_function" "notification_manager" {
       LOG_LEVEL        = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "1"
+      REDEPLOY_TRIGGER = "2"
     }
   }
 }
@@ -213,7 +214,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       DB_SSL_MODE    = "require"
       ENV = "production"
       VERIFY_CHECKSUM_ON_TRANSFER = "true"
-      REDEPLOY_TRIGGER = "1"
+      REDEPLOY_TRIGGER = "2"
     }
   }
 
@@ -225,8 +226,8 @@ resource  "aws_lambda_function" "cue_file_transfer"{
 
 
 resource "aws_lambda_alias" "cue_api_live_alias" {
-  name             = "live"
-  description      = "The live alias for production traffic"
+  name             = var.app_env
+  description      = "The ${var.app_env} alias for production traffic"
   function_name    = aws_lambda_function.cue_api.function_name
   function_version = aws_lambda_function.cue_api.version
 
@@ -262,8 +263,8 @@ resource "aws_lambda_provisioned_concurrency_config" "cue_api_pc" {
 
 
 resource "aws_lambda_alias" "cue_scan_event_live_alias" {
-  name             = "uat"
-  description      = "The uat alias for the scan event function"
+  name             = var.app_env
+  description      = "The ${var.app_env} alias for the scan event function"
   function_name    = aws_lambda_function.cue_scan_event.function_name
   function_version = aws_lambda_function.cue_scan_event.version
 
@@ -300,8 +301,8 @@ resource "aws_lambda_permission" "cue_api_apigw_permission" {
 # cold start delays and ensuring the fastest possible response time.
 
 resource "aws_lambda_alias" "cue_file_transfer_live_alias" {
-  name             = "uat"
-  description      = "The uat alias for the file transfer function"
+  name             = var.app_env
+  description      = "The ${var.app_env} alias for the file transfer function"
   function_name    = aws_lambda_function.cue_file_transfer.function_name
   function_version = aws_lambda_function.cue_file_transfer.version
 

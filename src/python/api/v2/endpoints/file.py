@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/file.py (Complete & Corrected)
+# File: src/python/api/v2/endpoints/file.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
 from uuid import UUID
@@ -8,32 +8,56 @@ from typing import List, Optional
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import file as file_utils
-from v2.type_util.file import FileResponse, PaginatedFileResponse, FileUpdateRequest
-from v2.utils.authorization import check_user_access_to_file # Centralized auth helper
+from v2.type_util.file import FileResponse, PaginatedFileResponse, FileUpdateRequest, FileListRequest 
+from v2.utils.authorization import check_user_access_to_file
+from datetime import date
 
 router = APIRouter(prefix="/files", tags=["V2 - Files"])
-
 
 @router.get("/", response_model=PaginatedFileResponse, dependencies=[Depends(require_privilege("file:read"))])
 async def list_files_endpoint(
     request: Request,
-    user: AuthUser = Depends(get_current_user),
-    # Read the active ngroup ID directly from the header
+    user: AuthUser = Depends(get_current_user), 
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     status: Optional[str] = Query(None, description="Filter files by status (e.g., 'infected', 'clean')."),
     page: int = Query(1, ge=1, description="Page number."),
-    page_size: int = Query(50, ge=1, le=100, description="Items per page.")
+    page_size: int = Query(50, ge=1, le=100, description="Items per page."),
+    start_date: Optional[date] = Query(None, description="Filter for files uploaded on or after this date (YYYY-MM-DD)."),
+    end_date: Optional[date] = Query(None, description="Filter for files uploaded on or before this date (YYYY-MM-DD).")
 ):
     """
     Lists files for the user's selected ngroup with pagination.
     Optionally filters the list by file status.
     """
     try:
-        # Pass the header value and user object down to the utility layer
-        items, total = await file_utils.list_files(request, user, active_ngroup_id, page, page_size, status)
+        items, total = await file_utils.list_files(
+            request, user, active_ngroup_id, page, page_size, status, start_date, end_date
+        )
         return PaginatedFileResponse(items=items, total=total, page=page, page_size=page_size)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/list", response_model=PaginatedFileResponse, tags=["V2 - Files"])
+async def list_files_by_api_key_endpoint(
+    request: Request,
+    body: FileListRequest
+):
+    """
+    Lists files OR gets a single file using a secure API key sent in the request body.
+    """
+    try:
+        items, total = await file_utils.list_files_by_api_key(request, body)
+        return PaginatedFileResponse(items=items, total=total, page=body.page, page_size=body.page_size)
+    except (file_utils.InvalidApiKeyError, file_utils.ApiKeyScopeError) as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except file_utils.FileAccessError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except file_utils.ApiKeyConfigurationError as e:       
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 
 @router.get("/find", response_model=List[FileResponse], dependencies=[Depends(require_privilege("file:read"))])
 async def find_files_by_name_endpoint(
