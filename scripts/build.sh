@@ -14,10 +14,11 @@ clear_artifacts
 # Package all event-driven lambdas
 build_common_dependencies
 install_lambda infected-logger
-# install_lambda notification-manager
-# install_lambda email-sender
-# install_lambda file-transfer
-# install_lambda process-athena-query
+install_lambda notification-manager
+install_lambda email-sender
+install_lambda file-transfer
+install_lambda cost-update
+install_lambda process-athena-query
 
 # Cleanup
 remove_temp
