@@ -42,11 +42,11 @@ resource "aws_cloudwatch_event_rule" "athena_query_state_change_rule" {
 }
 
 # Target for the Athena rule: the process_athena_query Lambda
-# resource "aws_cloudwatch_event_target" "process_athena_query_target" {
-#   rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
-#   target_id = "TriggerAthenaQueryProcessor"
-#   arn       = aws_lambda_function.process_athena_query.arn
-# }
+resource "aws_cloudwatch_event_target" "process_athena_query_target" {
+  rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
+  target_id = "TriggerAthenaQueryProcessor"
+  arn       = aws_lambda_function.process_athena_query.arn
+}
 
 #resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   #name = "cue_infected_file_notification_scheduler"
