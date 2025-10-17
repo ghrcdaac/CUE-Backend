@@ -18,8 +18,10 @@ def _build_metrics_query_parts(
         params.append(active_ngroup_id)
         where_clauses.append(f"c.ngroup_id = ${len(params)}")
     else:
-        if 'admin' not in user_roles and 'security' not in user_roles:
-            where_clauses.append("FALSE")
+        # If no active ngroup is selected, return no results, regardless of user role.
+        # This enforces that the frontend must always provide the group context.
+        where_clauses.append("FALSE")
+
     
     filter_map = {
         "start_date": "fs.upload_time >= ${index}::date",

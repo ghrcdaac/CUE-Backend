@@ -122,6 +122,12 @@ variable "keycloak_admin_client_secret" {
   sensitive   = true
 }
 
+variable "keycloak_certs_file" {
+  description = "The Keycloak public key location."
+  type        = string
+}
+
+
 # --- SES (Email) Configuration ---
 variable "sender_email" {
   description = "The 'From' email address for system notifications."
@@ -168,6 +174,11 @@ variable "frontend_url" {
 variable "frontend_callback_url" {
   description = "The full callback URL for the OIDC flow."
   type        = string
+}
+
+variable "app_env" {
+  type        = string
+  description = "The name of the deployment environment (e.g., sit, uat, prod)."
 }
 
 

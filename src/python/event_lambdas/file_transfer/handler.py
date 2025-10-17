@@ -1,20 +1,16 @@
 import asyncio
-import os
-import itertools
 import structlog
-from typing import Dict,List,Any
+from typing import Dict, List
 from uuid import UUID
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
 from logic import (
     process_messages,
-    get_collection_egress,
-    get_file_metadata,
-    batch_copy_files,
-    update_successful_transfers,
-    update_failed_validations
-) 
+    batch_transfer_and_validate,
+    update_database_records
+)
+from db import fetch_batch_transfer_details
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -25,12 +21,12 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-def handler(event, context) -> Dict[str, List[Dict[str,str]]]:
-    """Synchronous handler to start asynchronous handler"""
+def handler(event, context) -> Dict[str, List[Dict[str, str]]]:
+    """Synchronous entry point for AWS Lambda."""
     return loop.run_until_complete(async_handler(event, context))
 
 async def async_handler(event, context) -> Dict[str, List[Dict[str, str]]]:
-    """Asynchronous handler to batch process messages"""
+    """Asynchronous handler to batch process messages."""
     structlog.contextvars.bind_contextvars(
         aws_request_id=context.aws_request_id,
         function_name=context.function_name
@@ -38,60 +34,38 @@ async def async_handler(event, context) -> Dict[str, List[Dict[str, str]]]:
 
     pool = await get_database_pool()
     if not pool:
-        logger.critical("db.pool.not_available.failing_invocation")
+        logger.critical("db.pool.unavailable")
         failures = [{"itemIdentifier": record["messageId"]} for record in event.get('Records', [])]
         return {"batchItemFailures": failures}
 
-    records = event.get('Records', [])
-    batch_item_failures = []
-
-    messages, collection_file_map = await process_messages(records)
+    messages, file_ids = await process_messages(event.get('Records', []))
     if not messages:
-        logger.info("sqs.batch.no_valid_messages")
-        return {"batchItemFailures": batch_item_failures}
-    
-    collection_ids = list(collection_file_map.keys())
-    file_ids = list(itertools.chain.from_iterable(collection_file_map.values()))
+        return {"batchItemFailures": []}
 
-    destinations = await get_collection_egress(collection_ids, pool)
-    file_metadata = await get_file_metadata(file_ids, pool)
+    # This single database call now gets all required info for the batch.
+    async with pool.acquire() as conn:
+        transfer_details = await fetch_batch_transfer_details(conn, file_ids)
     
-    if not destinations or not file_metadata:
-        batch_item_failures.extend([{"itemIdentifier": msg_id} for msg_id in messages.keys()])
-        logger.error("db.batch_queries.no_data", batch_item_failures=batch_item_failures)
-        return {"batchItemFailures": batch_item_failures}
+    # Transfer files, validate them, and categorize the results.
+    successful_ids, validation_failures, hard_failures = await batch_transfer_and_validate(messages, transfer_details)
 
-    # --- Call the updated copy function and handle its new return signature ---
-    successful_ids, validation_failures, hard_failures = await batch_copy_files(messages, file_metadata, destinations)
-    batch_item_failures.extend(hard_failures)
+    # Concurrently update statuses for successful and validation-failed files.
+    success_update_ok, validation_update_ok = await update_database_records(successful_ids, validation_failures, pool)
 
-    # --- Run both database update tasks concurrently ---
-    update_tasks = [
-        update_successful_transfers(successful_ids, pool),
-        update_failed_validations(validation_failures, pool)
-    ]
-    results = await asyncio.gather(*update_tasks)
+    batch_item_failures = list(hard_failures)
     
-    # Check the results of the two update tasks separately for granular retries.
-    success_update_ok, validation_update_ok = results
-    
-    # If the DB update for successfully validated files failed, mark their messages for retry.
+    # If DB updates failed, mark corresponding SQS messages for retry.
     if not success_update_ok:
-        logger.error("db.update.failed.success_group", file_ids=[str(f) for f in successful_ids])
         for msg_id, body in messages.items():
             if UUID(body['file_id']) in successful_ids:
                 batch_item_failures.append({"itemIdentifier": msg_id})
-
-    # If the DB update for checksum-failed files failed, mark their messages for retry.
+                
     if not validation_update_ok:
         vf_ids = {vf['file_id'] for vf in validation_failures}
-        logger.error("db.update.failed.validation_failure_group", file_ids=[str(f) for f in vf_ids])
         for msg_id, body in messages.items():
             if UUID(body['file_id']) in vf_ids:
                 batch_item_failures.append({"itemIdentifier": msg_id})
-            
-    logger.info("sqs.batch.batchItemFailures", batch_item_failures=batch_item_failures)
-    logger.info("sqs.batch.success")  
 
+    logger.info("sqs.batch.complete", success_count=len(successful_ids), validation_fail_count=len(validation_failures), hard_fail_count=len(hard_failures), retry_count=len(batch_item_failures))
     return {"batchItemFailures": batch_item_failures}
 

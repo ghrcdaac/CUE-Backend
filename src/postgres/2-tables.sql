@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS cueuser_auth (
 
 
 CREATE TABLE IF NOT EXISTS ngroup (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     short_name VARCHAR NOT NULL,
     long_name VARCHAR NOT NULL,
     PRIMARY KEY (id),
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS cueuser_ngroup (
 );
 
 CREATE TABLE IF NOT EXISTS role (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     short_name VARCHAR NOT NULL,
     long_name VARCHAR NOT NULL,
     PRIMARY KEY (id),
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS role (
 CREATE TYPE api_key_type AS ENUM ('personal', 'managed_user', 'proxy');
 
 CREATE TABLE IF NOT EXISTS api_key (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     key_hash VARCHAR NOT NULL,
     prefix VARCHAR(10) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS cueuser_role (
 );
 
 CREATE TABLE IF NOT EXISTS privilege (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     privilege VARCHAR NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (privilege)
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS role_privilege(
 );
 
 CREATE TABLE IF NOT EXISTS provider (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     ngroup_id UUID NOT NULL,
     short_name VARCHAR NOT NULL,
     long_name VARCHAR NOT NULL,
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS cueuser_provider (
 );
 
 CREATE TABLE IF NOT EXISTS egress (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     type VARCHAR NOT NULL,
     path VARCHAR NOT NULL,
     config JSONB NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS egress (
 );
 
 CREATE TABLE IF NOT EXISTS collection (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     ngroup_id UUID NOT NULL,
     egress_id UUID NOT NULL,
     short_name VARCHAR NOT NULL,
@@ -214,7 +214,7 @@ CREATE TYPE application_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE account_type AS ENUM ('daac', 'provider');
 
 CREATE TABLE IF NOT EXISTS user_application (
-    id UUID NOT NULL DEFAULT UUID_GENERATE_V4(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     user_id UUID,
     email VARCHAR NOT NULL,
     name VARCHAR NOT NULL,

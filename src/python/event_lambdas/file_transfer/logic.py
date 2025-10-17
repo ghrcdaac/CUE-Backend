@@ -1,8 +1,8 @@
 import boto3
-from botocore.exceptions import ClientError 
-from uuid import UUID 
+from botocore.exceptions import ClientError
+from uuid import UUID
 import json
-import os 
+import os
 from typing import Dict, List, Any, Optional, Tuple
 import structlog
 import asyncpg
@@ -10,16 +10,20 @@ import hashlib
 import base64
 import asyncio
 
+from db import (
+    safely_advance_file_status_batch,
+    update_status_with_checksum_failure
+)
 
-from db import fetch_destinations, fetch_file_metadata, update_status_distributed, update_status_with_checksum_failure
-
-logger = structlog.get_logger(__file__)
+logger = structlog.get_logger(__name__)
 s3_client = boto3.client('s3')
 
 STAGING_BUCKET = os.environ.get("STAGING_BUCKET", "")
+VERIFY_CHECKSUM = os.environ.get("VERIFY_CHECKSUM_ON_TRANSFER", "true").lower() == "true"
 
 
-async def parse_sqs_message(message:Dict[str,Any]) -> Optional[Dict[str,Any]]:
+async def parse_sqs_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Parses the body of an SQS record into a dictionary."""
     try:
         message_body_str = message.get('body')
         if not message_body_str:
@@ -27,205 +31,162 @@ async def parse_sqs_message(message:Dict[str,Any]) -> Optional[Dict[str,Any]]:
             return None
         return json.loads(message_body_str)
     except json.JSONDecodeError:
-        logger.warning(f"sqs.record.body.invalid_json", body=message_body_str, record_id=message.get("messageId"))
-        return None
-    except Exception as e:
-        logger.error(f"sqs.record.parse_failed", exc_info=True, record_id=message.get("messageId"))
+        logger.warning("sqs.record.body.invalid_json", body=message_body_str, record_id=message.get("messageId"))
         return None
 
-async def process_messages(records) -> Tuple[Dict[str,Dict[str,Any]], Dict[UUID,List[UUID]]] :
-    collection_file_map = {}
+async def process_messages(records: List[Dict]) -> Tuple[Dict[str, Dict], List[UUID]]:
+    """Parses SQS records, validates them, and extracts file IDs for batch processing."""
     messages = {}
-
+    file_ids = []
+    logger.info("sqs.batch.processing_messages", record_count=len(records))
     for record in records:
         message_id = record["messageId"]
         message_body = await parse_sqs_message(record)
-        if not message_body:
-            logger.warning("process_message.skip.invalid_body", message_id=message_id)
+        
+        if not message_body or not message_body.get("file_id") or not message_body.get("collection_id"):
+            logger.warning("process_message.skip.invalid_or_incomplete_body", message_id=message_id, body=message_body)
             continue
         
-        collection_id_str = message_body.get("collection_id")
-        file_id_str = message_body.get("file_id")
-        if not collection_id_str or not file_id_str:
-            logger.error(
-                "process_message.skip.missing_ids",
-                message_id=message_id,
-                has_collection_id=(collection_id_str is not None),
-                has_file_id=(file_id_str is not None)
-            )
+        try:
+            messages[message_id] = message_body
+            file_ids.append(UUID(message_body["file_id"]))
+        except (ValueError, TypeError) as e:
+            logger.error("process_message.skip.invalid_uuid", message_id=message_id, body=message_body, error=str(e))
             continue
             
-        collection_id = UUID(collection_id_str)
-        file_id = UUID(file_id_str)
-        
-        if not collection_file_map.get(collection_id):
-            collection_file_map[collection_id] = [file_id]
-        else:
-            collection_file_map[collection_id].append(file_id)
-        
-        messages[message_id] = message_body
-
-    return (messages, collection_file_map)
+    logger.info("sqs.batch.messages_processed", valid_message_count=len(messages))
+    return messages, file_ids
 
 async def verify_staging_object_sha256(file_id: str) -> str:
-   
+    """Downloads an S3 object from the staging bucket and computes its SHA256 hash."""
     sha256_hash = hashlib.sha256()
     
     def download_and_hash():
         try:
             response = s3_client.get_object(Bucket=STAGING_BUCKET, Key=file_id)
             body = response['Body']
-            for chunk in body.iter_chunks(chunk_size=8192 * 1024):
+            for chunk in body.iter_chunks(chunk_size=8192 * 1024): # 8MB chunks
                 sha256_hash.update(chunk)
         except ClientError as e:
-            logger.error(
-                "s3.get_object.failed_from_staging",
-                bucket=STAGING_BUCKET,
-                key=file_id,
-                error_code=e.response['Error']['Code'],
-                exc_info=True
-            )
+            logger.error("s3.get_object.failed_from_staging", key=file_id, error_code=e.response['Error']['Code'])
             raise
-
+            
     await asyncio.to_thread(download_and_hash)
-    
     return base64.b64encode(sha256_hash.digest()).decode('utf-8')
 
-async def copy_file_to_dest(src_bucket:str, src_key:str, dest_bucket:str, dest_key:str):
-    
-    copy_source = {"Bucket": src_bucket, "Key": src_key}
-    try:
-        s3_client.copy_object(
-            CopySource=copy_source,
-            Bucket=dest_bucket,
-            Key=dest_key,
-            ACL="bucket-owner-full-control"
-        )
-    except ClientError as e:
-        logger.error(
-            "s3.copy.failed.client_error",
-            src_bucket=src_bucket, src_key=src_key,
-            dest_bucket=dest_bucket, dest_key=dest_key,
-            error_code=e.response['Error']['Code'],
-            exc_info=True
-        )
-        raise
+async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str):
+    """Copies a file to its destination, with an internal retry mechanism for transient errors."""
+    copy_source = {"Bucket": STAGING_BUCKET, "Key": src_key}
+    max_retries = 3
+    retry_delay_base = 2
 
-# ---  This function now separates successful files from checksum failures ---
-async def batch_copy_files(
+    for attempt in range(max_retries):
+        try:
+            # Run the synchronous boto3 call in a separate thread
+            await asyncio.to_thread(
+                s3_client.copy_object,
+                CopySource=copy_source,
+                Bucket=dest_bucket,
+                Key=dest_key,
+                ACL="bucket-owner-full-control"
+            )
+            # This log is crucial for auditing successful transfers.
+            logger.info("s3.copy.success", file_id=src_key, dest_bucket=dest_bucket, dest_key=dest_key)
+            return
+        except ClientError as e:
+            # Retry only on specific, transient S3 errors
+            if e.response['Error']['Code'] in ['ServiceUnavailable', 'SlowDown', 'InternalError'] and attempt < max_retries - 1:
+                delay = retry_delay_base * (2 ** attempt)
+                logger.warning("s3.copy.transient_error.retrying", attempt=attempt + 1, file_id=src_key, delay=delay, error_code=e.response['Error']['Code'])
+                await asyncio.sleep(delay)
+            else:
+                logger.error("s3.copy.failed.persistent_error", src_key=src_key, dest_key=dest_key, error_code=e.response['Error']['Code'])
+                raise
+
+async def batch_transfer_and_validate(
     messages: Dict[str, Dict],
-    file_metadata: Dict[UUID, Dict],
-    destinations: Dict[UUID, Dict]
+    transfer_details: Dict[UUID, Dict]
 ) -> Tuple[List[UUID], List[Dict[str, Any]], List[Dict[str, str]]]:
-    """
-    Transfers files, validates them, and categorizes results.
-    Returns: (successful_ids, validation_failures, hard_failures)
-    """
+    """Orchestrates the transfer and validation for a batch of files."""
     hard_failures = []
     successful_file_ids = []
     validation_failures = []
 
     for message_id, msg_body in messages.items():
         file_id = UUID(msg_body['file_id'])
-        collection_id = UUID(msg_body['collection_id'])
-        file_info = file_metadata.get(file_id)
-        egress = destinations.get(collection_id)
+        details = transfer_details.get(file_id)
 
-        if not file_info or not egress:
-            logger.error("batch_copy.failed.no_metadata", file_id=str(file_id), has_info=(file_info is not None), has_egress=(egress is not None))
-            hard_failures.append({"itemIdentifier": message_id})
+        if not details:
+            logger.warning("batch_transfer.skip.no_metadata_or_not_ready", file_id=str(file_id), message_id=message_id)
             continue
 
+        file_info = details["file_info"]
+        egress = details["egress"]
         dest_bucket = egress.get("config", {}).get("bucket")
+
         if not dest_bucket:
-            logger.error("batch_copy.failed.no_destination_bucket", file_id=str(file_id), egress_config=egress.get("config"))
+            logger.error("batch_transfer.failed.no_destination_bucket", file_id=str(file_id), message_id=message_id)
             hard_failures.append({"itemIdentifier": message_id})
             continue
 
-        file_name = file_info["name"]
-        collection_path = file_info.get("collection_path")
-        destination_path = egress.get("config", {}).get("destination_path")
-        
-        dest_key_parts = [p for p in [destination_path, collection_path, file_name] if p]
-        dest_key = os.path.join(*dest_key_parts)
+        path_parts = [p for p in [egress.get("config", {}).get("destination_path"), file_info.get("collection_path"), file_info["name"]] if p]
+        dest_key = os.path.join(*path_parts)
 
         try:
-            # 1. Transfer the file FIRST to ensure delivery.
-            await copy_file_to_dest(STAGING_BUCKET, str(file_id), dest_bucket, dest_key)
-            logger.info("s3.copy.success", file_id=str(file_id), dest_bucket=dest_bucket, dest_key=dest_key)
+            await copy_file_to_dest(str(file_id), dest_bucket, dest_key)
 
-            # 2. Then, perform the validation.
-            logger.info("s3.pre_transfer_validation.started", file_id=str(file_id))
-            staging_checksum = await verify_staging_object_sha256(str(file_id))
-            db_checksum = file_info.get('checksum')
+            if VERIFY_CHECKSUM:
+                logger.info("checksum_validation.started", file_id=str(file_id))
+                staging_checksum = await verify_staging_object_sha256(str(file_id))
+                db_checksum = file_info.get('checksum')
 
-            # 3. Categorize the result based on the validation.
-            if staging_checksum == db_checksum:
-                logger.info("s3.pre_transfer_validation.success", file_id=str(file_id))
-                successful_file_ids.append(file_id)
+                if staging_checksum == db_checksum:
+                    logger.info("checksum_validation.success", file_id=str(file_id))
+                    successful_file_ids.append(file_id)
+                else:
+                    logger.critical("checksum_validation.failed.mismatch", file_id=str(file_id), database_checksum=db_checksum, staging_file_checksum=staging_checksum)
+                    validation_failures.append({ "file_id": file_id, "db_checksum": db_checksum, "staging_checksum": staging_checksum })
             else:
-                logger.critical(
-                    "s3.pre_transfer_validation.checksum_mismatch",
-                    file_id=str(file_id),
-                    database_checksum=db_checksum,
-                    staging_file_checksum=staging_checksum
-                )
-                validation_failures.append({
-                    "file_id": file_id,
-                    "db_checksum": db_checksum,
-                    "staging_checksum": staging_checksum
-                })
-        
+                logger.info("checksum_validation.skipped", file_id=str(file_id))
+                successful_file_ids.append(file_id)
+
         except Exception as e:
-            logger.error(
-                "batch_copy.task.failed_with_exception",
-                file_id=str(file_id),
-                message_id=message_id,
-                exception_type=type(e).__name__,
-                exc_info=True
-            )
+            logger.error("batch_transfer.task.exception", file_id=str(file_id), message_id=message_id, exc_info=True)
             hard_failures.append({"itemIdentifier": message_id})
             
-    return (successful_file_ids, validation_failures, hard_failures)
+    return successful_file_ids, validation_failures, hard_failures
 
-async def get_collection_egress(collection_ids: List[UUID], db_pool: asyncpg.Pool) -> Optional[Dict]: 
+async def update_database_records(
+    successful_ids: List[UUID],
+    validation_failures: List[Dict[str, Any]],
+    db_pool: asyncpg.Pool
+) -> Tuple[bool, bool]:
+    """Concurrently updates the database for successful and validation-failed files."""
+    if not successful_ids and not validation_failures:
+        return True, True
 
-    try:
+    async def _update_success():
+        if not successful_ids: return True
         async with db_pool.acquire() as conn:
-            return await fetch_destinations(conn, collection_ids)
-    except Exception as e:
-        logger.error("get_collection_egress.unexpected_error", exc_info=True)
-        return None
-
-async def get_file_metadata(file_ids: List[UUID], db_pool: asyncpg.Pool) -> Optional[Dict[UUID, Any]]: 
-
-    try:
-        async with db_pool.acquire() as conn:
-            return await fetch_file_metadata(conn, file_ids)
-    except Exception as e:
-        logger.error("get_file_metadata.unexpected_error", exc_info=True)
-        return None
-
-
-async def update_successful_transfers(file_ids: List[UUID], db_pool: asyncpg.Pool) -> bool:
-    """Updates the status for files that were successfully transferred and validated."""
-    if not file_ids:
+            await safely_advance_file_status_batch(conn, successful_ids, 'distributed')
         return True
-    try:
-        async with db_pool.acquire() as conn:
-            return await update_status_distributed(conn, file_ids)
-    except Exception as e:
-        logger.error("update_successful_transfers.unexpected_error", exc_info=True)
-        return False
 
-async def update_failed_validations(failure_details: List[Dict[str, Any]], db_pool: asyncpg.Pool) -> bool:
-    """Updates the status and logs checksum errors for files that were transferred but failed validation."""
-    if not failure_details:
-        return True
-    try:
+    async def _update_failures():
+        if not validation_failures: return True
         async with db_pool.acquire() as conn:
-            return await update_status_with_checksum_failure(conn, failure_details)
+            await update_status_with_checksum_failure(conn, validation_failures)
+        return True
+
+    try:
+        results = await asyncio.gather(_update_success(), _update_failures(), return_exceptions=True)
+        success_ok = not isinstance(results[0], Exception)
+        validation_ok = not isinstance(results[1], Exception)
+        
+        if not success_ok: logger.error("db.update.success_group.failed", error=str(results[0]), file_ids=[str(f) for f in successful_ids])
+        if not validation_ok: logger.error("db.update.validation_failure_group.failed", error=str(results[1]), count=len(validation_failures))
+
+        return success_ok, validation_ok
     except Exception as e:
-        logger.error("update_failed_validations.unexpected_error", exc_info=True)
-        return False
+        logger.error("update_database_records.unexpected_error", exc_info=True)
+        return False, False
 

@@ -35,14 +35,16 @@ echo "Remote Image: ${REMOTE_IMAGE_NAME}" >&2
 
 # --- ECR Login ---
 echo "Attempting to log in to ECR..." >&2
-aws ecr get-login-password --region "${AWS_REGION}" --profile cue-uat| docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+# The AWS CLI will now use the AWS_PROFILE environment variable set by the parent script.
+aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 if [ $? -ne 0 ]; then
     echo "ECR login failed. Please check your AWS credentials and region." >&2
     exit 1
 fi
 echo "ECR login successful." >&2
 
-# --- Docker Build ---
+
 # We run the build from the project root to ensure the Dockerfile context is correct.
 cd "${PROJECT_ROOT}" || exit
 
@@ -68,6 +70,7 @@ echo "Image pushed successfully to ${REMOTE_IMAGE_NAME}" >&2
 
 # Get the image digest of the image we just pushed.
 echo "Retrieving image digest from ECR..." >&2
+
 IMAGE_DIGEST=$(aws ecr describe-images --repository-name ${REPO_NAME} --image-ids imageTag=${IMAGE_TAG} --query 'imageDetails[0].imageDigest' --output text)
 
 if [ -z "${IMAGE_DIGEST}" ]; then
@@ -79,7 +82,6 @@ fi
 DIGEST_BASED_URI="${ECR_REGISTRY}/${REPO_NAME}@${IMAGE_DIGEST}"
 echo "ECR Image Digest URI: ${DIGEST_BASED_URI}" >&2
 
-# --- MOVED CLEANUP STEP ---
 # Clean up images before the final output to avoid interfering with stdout.
 echo "Cleaning up local Docker images..." >&2
 docker rmi "${LOCAL_IMAGE_NAME}" "${REMOTE_IMAGE_NAME}"

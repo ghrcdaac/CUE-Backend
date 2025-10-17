@@ -70,12 +70,22 @@ async def _validate_upload_permissions(request: Request, collection_name: str, u
 # --- Single File Upload Logic ---
 
 async def prepare_single_file_upload(request: Request, params: PrepareUploadRequest, user: AuthUser) -> dict:
+    """Step 1: Validate and create a complete preliminary DB record, then get an S3 URL."""
     collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
+    ip_address = {"ip_address": request.client.host}
     
     async with request.state.pool.acquire() as conn:
         async with conn.transaction():
-            await file_db.create_preliminary_file_records(conn, file_id, user.id, collection['id'])
+            await file_db.create_preliminary_file_records(
+                conn=conn, file_id=file_id, user_id=user.id, collection_id=collection['id'],
+                ip_address=ip_address,
+                file_name=params.file_name,
+                file_type=params.content_type,
+                size_bytes=params.file_size_bytes,
+                checksum=params.checksum,
+                collection_path=params.collection_path
+            )
 
     s3_client = _get_s3_client()
     try:
@@ -86,28 +96,36 @@ async def prepare_single_file_upload(request: Request, params: PrepareUploadRequ
         raise S3ClientError("Could not generate upload URL.") from e
 
 async def complete_single_file_upload(request: Request, params: CompleteUploadRequest, user: AuthUser) -> UUID:
+    """Step 2: Atomically and conditionally transition file status from 'uploading' to 'unscanned'."""
     async with request.state.pool.acquire() as conn:
-        ip_address = {"ip_address": request.client.host}
-        collection = await _validate_upload_permissions(request, params.collection_name, user)
-        async with conn.transaction():
-            await file_db.update_final_file_details(
-                conn=conn, file_id=params.file_id, file_name=params.file_name,
-                file_type=params.content_type, size_bytes=params.file_size_bytes,
-                collection_path=params.collection_path, checksum=params.checksum,
-                ip_address=ip_address
-            )
+        await file_db.safely_advance_file_status(
+            conn,
+            file_id=params.file_id,
+            target_status='unscanned'
+        )
+            
     logger.info("upload.single.completed", file_id=str(params.file_id))
     return params.file_id
 
 # --- Multipart Upload Logic ---
 
 async def start_multipart_upload(request: Request, params: MultipartStartRequest, user: AuthUser) -> dict:
+    """Step 1 (Multipart): Validate, create a partial DB record, and start S3 multipart upload."""
     collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
+    ip_address = {"ip_address": request.client.host}
 
     async with request.state.pool.acquire() as conn:
         async with conn.transaction():
-            await file_db.create_preliminary_file_records(conn, file_id, user.id, collection['id'])
+            await file_db.create_preliminary_file_records(
+                conn=conn, file_id=file_id, user_id=user.id, collection_id=collection['id'],
+                ip_address=ip_address,
+                file_name=params.file_name,
+                file_type=params.content_type,
+                size_bytes=params.final_file_size if params.final_file_size else 0,
+                checksum=params.checksum if params.checksum else 'pending',
+                collection_path=params.collection_path
+            )
 
     s3_client = _get_s3_client()
     try:
@@ -118,6 +136,7 @@ async def start_multipart_upload(request: Request, params: MultipartStartRequest
         raise S3ClientError("Could not start multipart upload.") from e
 
 async def get_multipart_presigned_url(params: MultipartGetPartUrlRequest) -> dict:
+    """Step 2 (Multipart): Get a presigned URL for a single part."""
     s3_client = _get_s3_client()
     try:
         url = s3_client.generate_presigned_url(
@@ -132,10 +151,11 @@ async def get_multipart_presigned_url(params: MultipartGetPartUrlRequest) -> dic
         raise S3ClientError("Could not generate part URL.") from e
 
 async def complete_multipart_upload(request: Request, params: MultipartCompleteRequest, user: AuthUser) -> UUID:
+    """Step 3 (Multipart): Complete S3 upload and update DB record with final metadata."""
     s3_client = _get_s3_client()
     file_id = params.file_id
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
-    ip_address = {"ip_address": request.client.host}
+    ip_address = {"ip_address": request.client.host} # Still useful for logging/auditing
     
     try:
         s3_client.complete_multipart_upload(Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id, MultipartUpload={'Parts': formatted_parts})
@@ -143,6 +163,7 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
         raise S3ClientError(f"Failed to complete S3 multipart upload: {e.response['Error']['Code']}") from e
 
     async with request.state.pool.acquire() as conn:
+        await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
             await file_db.update_final_file_details(
                 conn=conn, file_id=file_id, file_name=params.file_name,
@@ -150,10 +171,12 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
                 collection_path=params.collection_path, checksum=params.checksum,
                 ip_address=ip_address
             )
+            
     logger.info("upload.multipart.completed", file_id=str(file_id))
     return file_id
 
 async def abort_multipart_upload(params: MultipartAbortRequest):
+    """Abort a multipart upload in S3."""
     s3_client = _get_s3_client()
     try:
         s3_client.abort_multipart_upload(

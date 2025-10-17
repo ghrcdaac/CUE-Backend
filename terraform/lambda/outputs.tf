@@ -36,3 +36,13 @@ output "cue_file_transfer_sqs_queue_arn" {
   description = "The ARN of the clean file sqs queue"
   value = aws_sqs_queue.cue_file_transfer_queue.arn
 }
+
+output "cue_file_transfer_lambda_arn" {
+  description = "The ARN of the CUE file transfer Lambda function."
+  value       = aws_lambda_function.cue_file_transfer.arn
+}
+
+output "cue_file_transfer_lambda_alias_arn" {
+  description = "The ARN of the CUE file transfer Lambda function's alias."
+  value       = aws_lambda_alias.cue_file_transfer_live_alias.arn
+}

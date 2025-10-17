@@ -16,6 +16,7 @@ module "iam_role" {
   cue_staging_bucket           = var.cue_staging_bucket
   cue_cost_explorer_role_name  = var.cue_cost_explorer_role_name
   css_cost_explorer_role_arn   = var.css_cost_explorer_role_arn
+  file_transfer_lambda_arn = module.lambda_functions.cue_file_transfer_lambda_alias_arn
 }
 
 module "lambda_functions" {
@@ -38,6 +39,7 @@ module "lambda_functions" {
   keycloak_audience              = var.keycloak_audience
   keycloak_admin_client_id       = var.keycloak_admin_client_id
   keycloak_admin_client_secret   = var.keycloak_admin_client_secret
+  keycloak_certs_file            = var.keycloak_certs_file
 
   # --- Role ARNs from the iam module ---
   api_lambda_role_arn            = module.iam_role.cue_api_lambda_role_arn
@@ -67,11 +69,15 @@ module "lambda_functions" {
   ses_source_arn                 = var.ses_source_arn
   ses_configuration_set_name     = var.ses_configuration_set_name
   ses_region                     = var.ses_region
+  
+  # name for PC env
+  app_env                     = var.app_env
 
   #delete later
   pool_id                     = var.pool_id
   client_id                   = var.client_id
   client_secret               = var.client_secret
+
 }
 
 module "rds" {
@@ -91,7 +97,7 @@ module "glue" {
   # --- Pass in required variables ---
   region                       = var.region
   account_id                   = var.account_id
-  db_proxy_host                = module.rds.db_host 
+  db_proxy_host                = module.rds.db_proxy_host 
   db_port                      = module.rds.db_port
   db_database                  = module.rds.db_database
   db_user                      = module.rds.db_user

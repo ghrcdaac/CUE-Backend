@@ -5,10 +5,12 @@
 import os
 import json
 import hashlib
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import uuid
+
 
 import structlog
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer
 from jose import jwt
 from jose.exceptions import JOSEError
@@ -22,6 +24,7 @@ from v2.utils.cueuser import _parse_user_data
 # --- Environment Variables ---
 KEYCLOAK_ISSUER = os.getenv("KEYCLOAK_ISSUER", "https://idfs.uat.earthdatacloud.nasa.gov/realms/cue")
 KEYCLOAK_AUDIENCE = os.getenv("KEYCLOAK_AUDIENCE", "cue-uat")
+KEYCLOAK_CERTS_FILE = os.getenv("KEYCLOAK_CERTS_FILE", "idfs_certs_prod.json")
 
 logger = structlog.get_logger(__name__)
 
@@ -34,7 +37,7 @@ def load_jwks_from_file() -> Dict[str, Any]:
     logger.info("jwks.local_file.loading_attempt")
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "idfs_certs.json")
+        file_path = os.path.join(current_dir, KEYCLOAK_CERTS_FILE)
         
         with open(file_path, 'r') as f:
             jwks = json.load(f)
@@ -98,7 +101,7 @@ class OIDCBearer(HTTPBearer, OIDCValidator):
             user.privileges = json.loads(db_details.get("privileges", "[]"))
             ngroup_objects = json.loads(db_details.get("ngroups", "[]"))
 
-            user.ngroups = [ng['short_name'] for ng in ngroup_objects if 'short_name' in ng]
+            user.ngroups = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
             user_ngroup_ids = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
 
             active_ngroup_header = request.headers.get("X-Active-Ngroup-Id")
@@ -145,22 +148,42 @@ class APIKeyBearer(HTTPBearer):
             if not self.required_scopes.issubset(key_scopes):
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API Key does not have the required permissions.")
 
-            user_id = key_data["user_id"]
-            
-            db_details_record = await user_db.get_user_by_id(conn, user_id)
-            if not db_details_record:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
-            
-            # First, parse the raw data (which handles JSON strings)
-            parsed_details = _parse_user_data(dict(db_details_record))
+            user_id = key_data.get("user_id")
 
-            if parsed_details and 'ngroups' in parsed_details:
-                ngroup_objects = parsed_details['ngroups']
-                parsed_details['ngroups'] = [ng['short_name'] for ng in ngroup_objects if 'short_name' in ng]
+            # Case 1: The key is associated with a real user.
+            if user_id:
+                db_details_record = await user_db.get_user_by_id(conn, user_id)
+                if not db_details_record:
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
+                
+                parsed_details = _parse_user_data(dict(db_details_record))
+                
+                if parsed_details and 'ngroups' in parsed_details:
+                    ngroup_objects = parsed_details['ngroups']
+                    parsed_details['ngroups'] = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
 
-            # Finally, validate the complete and correctly formatted data.
-            user = AuthUser.model_validate(parsed_details)
-            return user
+                return AuthUser.model_validate(parsed_details)
+
+            # Case 2: The key is a proxy key.
+            else:
+                proxy_name = key_data.get("proxy_user_name")
+                ngroup_id = key_data.get("ngroup_id")
+
+                if not proxy_name or not ngroup_id:
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid proxy key configuration.")
+
+                # Build a synthetic user object for the proxy.
+                # The most important part is setting the 'ngroups' correctly.
+                proxy_user = AuthUser(
+                    id=key_data.get("created_by_user_id"), # Use the creator's ID
+                    name=proxy_name,
+                    email=f"{proxy_name.lower().replace(' ', '_')}@proxy.internal",
+                    roles=["proxy"],
+                    privileges=list(key_scopes),
+                    ngroups=[str(ngroup_id)] # This authorizes the key for its group
+                )
+                return proxy_user
+           
 
 # --- Dependency Instances ---
 get_current_user = OIDCBearer()
