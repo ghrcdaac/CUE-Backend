@@ -92,15 +92,18 @@ async def get_infected_scheduled_file_details(conn: Connection, time_threshold: 
                                     'uploader_name', u.name,
                                     'collection_name', c.short_name,
                                     'user_ngroup', ung.ngroup_id,
-                                    'scan_result', fs.scan_results->0->>'result',
-                                    'virusName', fs.scan_results->0->'virusName',
-                                    'date_scanned', fs.scan_results->0->'dateScanned')) AS file_details
+                                    'scan_result', scan_result,
+                                    'virusName', virusName,
+                                    'date_scanned', data_scanned)) AS file_details
             FROM file f
                 JOIN cueuser u ON f.cueuser_uploaded = u.id
                 JOIN collection c ON f.collection_id = c.id
                 JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
                 JOIN file_status fs ON f.id = fs.id
-                JOIN recipient_emails re on re.ngroup_id = ung.ngroup_id
+                JOIN recipient_emails re on re.ngroup_id = ung.ngroup_id,
+                LATERAL jsonb_path_query(fs.scan_results, '$[*].result') as scan_result,
+                LATERAL jsonb_path_query(fs.scan_results, '$[*].virusName') as virusName,
+                LATERAL jsonb_path_query(fs.scan_results, '$[*].dateScanned') as data_scanned
             WHERE fs.status = 'infected' AND fs.upload_time >= (NOW() - $2::INTERVAL)
             GROUP BY user_ngroup,re.short_name,re.recipient_emails 
     """

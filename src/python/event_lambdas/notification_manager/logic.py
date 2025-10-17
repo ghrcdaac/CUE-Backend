@@ -88,7 +88,7 @@ async def create_file_table(file_details:Dict[str,str]) -> str:
 async def process_providers(blocked_provider_details:Dict):
     provider_html = """
     <div>
-        <p>The following providers have been blocked from uploading due to uploading multiple infected files over the past hour.</p>
+        <p>The following providers have been blocked from uploading due to uploading excessive infected files.</p>
         <table>
             <tr>
                 <th>Provider ID</th>
