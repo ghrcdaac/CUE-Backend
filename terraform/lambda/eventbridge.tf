@@ -73,8 +73,8 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
     input = replace(
       replace(
         jsonencode({
-          "detail-type": "ScheduledInfectedFileNotification",
-          "detail":"<aws.scheduler.scheduled-time>"
+          "detail-type": "ScheduledInfectedFileFound",
+          "detail": "<aws.scheduler.scheduled-time>"
         }),"\\u003c", "<"),
         "\\u003e", ">"
     )
