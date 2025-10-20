@@ -84,8 +84,15 @@ async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
         logger.warning("notification.recipients.not_found", alert_type="application_submitted", application_id=str(app_id))
         return
         
-    subject = f"New CUE User Application for {details.get('ngroup_name', 'N/A')}"
-    body_html = load_template("new_application_admin_alert.html", details)
+    ESDIS_SECURITY_NGROUP_ID = UUID('0259fb55-1146-4461-ade2-57504e0c3ace')
+    if details['ngroup_id'] == ESDIS_SECURITY_NGROUP_ID:
+        template_name = "new_security_application_alert.html"
+        subject = f"ACTION REQUIRED: New CUE Security Application"
+    else:
+        template_name = "new_application_admin_alert.html"
+        subject = f"New CUE User Application for {details.get('ngroup_name', 'N/A')}"
+
+    body_html = load_template(template_name, details)
     body_text = f"A new user application from {details.get('user_name')} has been submitted."
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 

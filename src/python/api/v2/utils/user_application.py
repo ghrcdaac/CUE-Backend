@@ -89,7 +89,7 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
             approver_roles = set(approver.roles)
             if "admin" not in approver_roles:
                 if "daac_manager" in approver_roles:
-                    allowed_roles = {"daac_staff", "daac_observer", "provider"}
+                    allowed_roles = {"daac_manager", "daac_staff", "daac_observer", "provider"}
                     if role_to_assign not in allowed_roles:
                         raise ValueError(f"DAAC Managers may only assign roles: {', '.join(allowed_roles)}.")
                 elif "security" in approver_roles:

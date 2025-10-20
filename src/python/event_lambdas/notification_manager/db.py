@@ -58,44 +58,63 @@ async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional
 
 async def get_new_application_details(conn: Connection, application_id: UUID) -> Optional[Dict[str, Any]]:
     """
-    Fetches details for a new application alert, including the emails of all
-    DAAC Managers AND Admins in the application's ngroup.
+    Fetches details for a new application alert.
+    - If it's a security application, it finds ALL system 'admins' and 'security' users.
+    - Otherwise, it finds 'daac_manager' and 'admin' users within the application's specific ngroup.
     """
-
-    RECIPIENT_ROLES = ['daac_manager', 'admin']
-    
-    query = """
-        WITH app_details AS (
-            SELECT
-                ua.name AS user_name,
-                ua.email AS user_email,
-                ua.username AS user_username,
-                ua.account_type,
-                ua.justification,
-                ua.ngroup_id,
-                g.long_name AS ngroup_name
-            FROM user_application ua
-            JOIN ngroup g ON ua.ngroup_id = g.id
-            WHERE ua.id = $1
-        )
+        
+    # First, get the application's basic details, including its ngroup_id
+    app_info_query = """
         SELECT
-            (SELECT user_name FROM app_details) AS user_name,
-            (SELECT user_email FROM app_details) AS user_email,
-            (SELECT user_username FROM app_details) AS user_username,
-            (SELECT account_type FROM app_details) AS account_type,
-            (SELECT justification FROM app_details) AS justification,
-            (SELECT ngroup_name FROM app_details) AS ngroup_name,
-            array_agg(DISTINCT u_recipients.email) AS recipient_emails
-        FROM cueuser u_recipients
-        JOIN cueuser_role ur ON u_recipients.id = ur.cueuser_id
-        JOIN role r ON ur.role_id = r.id
-        JOIN cueuser_ngroup ung ON u_recipients.id = ung.cueuser_id
-        WHERE r.short_name = ANY($2::text[]) -- Check for both 'daac_manager' and 'admin'
-          AND ung.ngroup_id = (SELECT ngroup_id FROM app_details)
-        GROUP BY 1, 2, 3, 4, 5, 6;
+            ua.name AS user_name,
+            ua.email AS user_email,
+            ua.username AS user_username,
+            ua.account_type,
+            ua.justification,
+            ua.ngroup_id,
+            g.long_name AS ngroup_name
+        FROM user_application ua
+        JOIN ngroup g ON ua.ngroup_id = g.id
+        WHERE ua.id = $1;
     """
-    record = await conn.fetchrow(query, application_id, RECIPIENT_ROLES)
-    return dict(record) if record else None
+    app_info = await conn.fetchrow(app_info_query, application_id)
+    if not app_info:
+        return None
+
+    app_details = dict(app_info)
+    ESDIS_SECURITY_NGROUP_ID = UUID('0259fb55-1146-4461-ade2-57504e0c3ace')
+    
+    recipient_emails = []
+
+    if app_details['ngroup_id'] == ESDIS_SECURITY_NGROUP_ID:
+        # This is a security application. Find all admins and security users in the system.
+        recipient_roles = ['admin', 'security']
+        recipients_query = """
+            SELECT array_agg(DISTINCT u.email)
+            FROM cueuser u
+            JOIN cueuser_role ur ON u.id = ur.cueuser_id
+            JOIN role r ON ur.role_id = r.id
+            WHERE r.short_name = ANY($1::text[]);
+        """
+        recipient_emails = await conn.fetchval(recipients_query, recipient_roles)
+    
+    else:
+        # This is a standard DAAC application. Use the original logic.
+        recipient_roles = ['daac_manager', 'admin']
+        recipients_query = """
+            SELECT array_agg(DISTINCT u.email)
+            FROM cueuser u
+            JOIN cueuser_role ur ON u.id = ur.cueuser_id
+            JOIN role r ON ur.role_id = r.id
+            JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
+            WHERE r.short_name = ANY($1::text[])
+              AND ung.ngroup_id = $2;
+        """
+        recipient_emails = await conn.fetchval(recipients_query, recipient_roles, app_details['ngroup_id'])
+        
+    app_details['recipient_emails'] = recipient_emails or []
+    
+    return app_details
 
 async def get_approved_user_details(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
     """Fetches the name and email for a newly approved user."""

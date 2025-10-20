@@ -57,6 +57,13 @@ async def list_user_applications(
     user_roles = set(requesting_user.get('roles', []))
     params = []
     conditions = []
+    
+    # For non-privileged users, explicitly hide applications for the 'ESDIS Security' group.
+    # This ensures a DAAC Manager can never see them.
+    if 'admin' not in user_roles and 'security' not in user_roles:
+        ESDIS_SECURITY_NGROUP_ID = UUID('0259fb55-1146-4461-ade2-57504e0c3ace')
+        params.append(ESDIS_SECURITY_NGROUP_ID)
+        conditions.append(f"ngroup_id != ${len(params)}::uuid")
 
     # If a DAAC is selected, ALL roles are strictly filtered by it.
     if active_ngroup_id:

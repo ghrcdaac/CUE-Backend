@@ -136,7 +136,7 @@ async def delete_user_fully(request: Request, user_id: UUID):
     logger.info("user.deleted_in_DB", user_id=str(user_id))
 
 async def update_user_details(request: Request, user_id: UUID, update_request: UserUpdateRequest) -> Dict[str, Any]:
-    """--- OPTIMIZED: Updates details and returns profile without a second query. ---"""
+    """---  Updates details and returns profile without a second query. ---"""
     update_data = update_request.model_dump(exclude_unset=True)
     if not update_data:
         raise ValueError("No update data provided.")
