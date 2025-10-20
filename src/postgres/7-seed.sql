@@ -63,17 +63,26 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:page')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'provider:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'provider:update')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'provider:delete')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:update')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:delete')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'egress:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:update')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:delete')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:suspend')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:reinstate')),
-    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'file:read_all')),
-    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'scan:read_all')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'role:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'file:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'scan:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'metrics:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'file:delete')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:update')),
-    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:delete'));
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:delete')),
+    ('39677929-ba9b-426d-8c18-f607d669fcc', (SELECT id from privilege where privilege = 'application:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'application:approve'));
 
 -- DAAC Manager
 INSERT INTO role_privilege (role_id, privilege_id) VALUES
@@ -164,8 +173,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
 -- ngroup
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-0e02b2c3d479', 'GHRC', 'GHRC DAAC');
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('f2c806ff-0362-41c8-b67e-1c589ef5b728', 'EDPub', 'Earthdata Pub');
-INSERT INTO ngroup (id, short_name, long_name) VALUES
-('0259fb55-1146-4461-ade2-57504e0c3ace', 'ESDIS Security', 'ESDIS Security');
+INSERT INTO ngroup (id, short_name, long_name) VALUES('0259fb55-1146-4461-ade2-57504e0c3ace', 'ESDIS Security', 'ESDIS Security');
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('1675f412-7468-4cd4-adb0-20b08236079b', 'CUE', 'Cloud Upload Environment');
 
 
@@ -184,16 +192,42 @@ INSERT INTO ngroup (id, short_name, long_name) VALUES ('1675f412-7468-4cd4-adb0-
 --    VALUES ('225b4a2a-2367-447b-b2e1-3e5b537fa962', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
 
 
+
+--PROD
+-- INSERT INTO cueuser (id, email, name, cueusername)
+--     VALUES ('2333d3c9-4679-467f-baee-a6be78a0c5b6', 'navaneeth.rangaswamyselvaraj@nasa.gov', 'Navaneeth Rangaswamy Selvaraj', 'nrangasw');
+-- INSERT INTO cueuser_role (cueuser_id, role_id)
+--     VALUES ('2333d3c9-4679-467f-baee-a6be78a0c5b6', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('2333d3c9-4679-467f-baee-a6be78a0c5b6', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('2333d3c9-4679-467f-baee-a6be78a0c5b6', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
+-- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+--    VALUES ('2333d3c9-4679-467f-baee-a6be78a0c5b6', '1675f412-7468-4cd4-adb0-20b08236079b');
+
+-- INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
+--     VALUES (
+--         '2333d3c9-4679-467f-baee-a6be78a0c5b6',
+--         'navaneeth.rangaswamyselvaraj@nasa.gov',
+--         'Navaneeth Rangaswamy Selvaraj',
+--         'nrangasw',
+--         'approved', -- Set the status to 'approved'
+--         'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+--         'Initial seed administrator account.',
+--         'daac'
+--     );
+
+-- UAT account
 INSERT INTO cueuser (id, email, name, cueusername)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'navaneeth.rangaswamyselvaraj@nasa.gov', 'Navaneeth Rangaswamy Selvaraj', 'nrangasw');
 INSERT INTO cueuser_role (cueuser_id, role_id)
     VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
--- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
---    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
--- INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
---    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '1675f412-7468-4cd4-adb0-20b08236079b');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '1675f412-7468-4cd4-adb0-20b08236079b');
 
 INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
     VALUES (

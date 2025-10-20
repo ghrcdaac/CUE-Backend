@@ -22,7 +22,6 @@ from logic import process_infected_scheduled_notification
 setup_logging()
 logger = structlog.get_logger(__name__)
 
-
 try:
     loop = asyncio.get_running_loop()
 except RuntimeError: 
@@ -46,6 +45,7 @@ def load_template(template_name: str, context: dict) -> str:
 
 async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
     """Handles logic for the original infected file notification."""
+
     file_id = UUID(detail['key'])
     logger.info("event.infected_file.received", file_id=str(file_id))
     
@@ -99,6 +99,7 @@ async def handle_infected_files_scheduled(detail: dict, pool):
 
 async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
     """Handles sending a notification to admins about a new application."""
+  
     app_id = UUID(detail["application_id"])
     logger.info("event.application_submitted.received", application_id=str(app_id))
     
@@ -108,14 +109,23 @@ async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
     if not details or not details.get('recipient_emails'):
         logger.warning("notification.recipients.not_found", alert_type="application_submitted", application_id=str(app_id))
         return
-        
-    subject = f"New CUE User Application for {details.get('ngroup_name', 'N/A')}"
-    body_html = load_template("new_application_admin_alert.html", details)
+    
+    # Template selection logic for security applications
+    ESDIS_SECURITY_NGROUP_ID = UUID('0259fb55-1146-4461-ade2-57504e0c3ace')
+    if details.get('ngroup_id') == ESDIS_SECURITY_NGROUP_ID:
+        template_name = "new_security_application_alert.html"
+        subject = f"ACTION REQUIRED: New CUE Security Application"
+    else:
+        template_name = "new_application_admin_alert.html"
+        subject = f"New CUE User Application for {details.get('ngroup_name', 'N/A')}"
+
+    body_html = load_template(template_name, details)
     body_text = f"A new user application from {details.get('user_name')} has been submitted."
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 
 async def handle_application_approved(detail: dict, pool: asyncpg.Pool):
     """Handles sending a welcome email to a newly approved user."""
+
     user_id = UUID(detail["user_id"])
     logger.info("event.application_approved.received", user_id=str(user_id))
     
@@ -134,6 +144,7 @@ async def handle_application_approved(detail: dict, pool: asyncpg.Pool):
 
 async def invoke_email_sender(recipients: list, subject: str, body_html: str, body_text: str):
     """Prepares payload and invokes the email_sender Lambda."""
+
     payload = {"recipients": recipients, "subject": subject, "body_html": body_html, "body_text": body_text}
     try:
         logger.info("email_sender.invoke.started", recipient_count=len(recipients))
@@ -147,6 +158,7 @@ async def invoke_email_sender(recipients: list, subject: str, body_html: str, bo
 
 async def async_handler(event, context):
     """Async handler to route events based on their detail-type."""
+
     pool = await get_database_pool()
     if not pool:
         logger.critical("db.pool.not_available.failing_invocation")
@@ -161,9 +173,10 @@ async def async_handler(event, context):
         event_type=detail_type
     )
 
-    #if detail_type == "InfectedFileFound":
-    #    await handle_infected_file(detail, pool)
-    if detail_type == "ScheduledInfectedFileFound":
+    if detail_type == "InfectedFileFound":
+        # await handle_infected_file(detail, pool)
+        pass # Explicitly pass
+    elif detail_type == "ScheduledInfectedFileFound":
         await handle_infected_files_scheduled(detail, pool)
     elif detail_type == "UserApplicationSubmitted":
         await handle_application_submitted(detail, pool)
@@ -174,10 +187,10 @@ async def async_handler(event, context):
 
 def handler(event, context):
     """Synchronous entrypoint for AWS Lambda."""
+
     try:
         logger.info("event.received", full_event=event)
         loop.run_until_complete(async_handler(event, context))
     except Exception:
         logger.critical("lambda.handler.unhandled_exception", exc_info=True)
         raise
-

@@ -1,6 +1,6 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/upload.py (Updated)
-# --- MODIFIED to use the shared connection pool from the request state ---
+# File: src/python/api/v2/utils/upload.py
+# 
 # ==============================================================================
 import os
 import boto3
@@ -32,40 +32,64 @@ def _get_s3_client():
 
 async def _validate_upload_permissions(request: Request, collection_name: str, user: AuthUser):
     """V2 helper to validate if a user can upload to a collection, with detailed error reasons."""
+    log = logger.bind(
+        user_id=str(user.id),
+        user_roles=user.roles,
+        collection_name=collection_name
+    )
+    log.info("upload.permission_check.starting")
+    
     async with request.state.pool.acquire() as conn:
+        # Check 1: Collection Existence
         collection = await collection_db.get_collection_by_short_name(conn, collection_name)
         if not collection:
+            log.warning("upload.permission_check.failed", reason="collection_not_found")
             raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' does not exist.")
         
-        # Admins have universal access and bypass group/provider checks.
-        if "admin" in user.roles:
-            return collection
-            
-        # Check 1: User's group permissions
-        user_ngroup_ids = set()
-        if user.ngroups:
-            # This handles both list-of-dicts and list-of-strings for ngroups
-            if isinstance(user.ngroups[0], dict):
-                user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
-            else:
-                user_ngroup_ids = {str(ng) for ng in user.ngroups}
+        log = log.bind(collection_id=str(collection['id']))
+        log.info("upload.permission_check.collection_found")
         
-        if str(collection['ngroup_id']) not in user_ngroup_ids:
-            raise UploadValidationError(f"Upload Denied: Your API key is not authorized for the DAAC group associated with collection '{collection_name}'.")
-
-        # Check 2: Collection status
+        # Check 2: Collection Status (Applies to all users, including admins)
         if not collection['active']:
+            log.warning("upload.permission_check.failed", reason="collection_inactive")
             raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' is inactive and cannot accept new files.")
 
-        # Check 3: Provider status
+        # Check 3: Provider Status (Applies to all users, including admins)
         provider = await provider_db.get_provider_by_id(conn, collection['provider_id'])
         if not provider:
+            log.error("upload.permission_check.error", reason="provider_not_found", provider_id=str(collection['provider_id']))
             # This is an internal configuration error, not a user permission issue.
             raise UploadValidationError(f"Upload Configuration Error: The provider associated with collection '{collection_name}' could not be found.")
         
+        log = log.bind(provider_id=str(provider['id']), provider_short_name=provider['short_name'])
+        
         if not provider['can_upload']:
+            log.warning("upload.permission_check.failed", reason="provider_uploads_disabled")
             raise UploadValidationError(f"Upload Denied: The provider '{provider['short_name']}' for collection '{collection_name}' is not configured to allow uploads.")
+
+        # Check 4: User Group Permissions (Bypassed by admins)
+        if "admin" in user.roles:
+            log.info("upload.permission_check.admin_bypass", reason="user_is_admin")
+        else:
+            log.info("upload.permission_check.performing_group_check")
+            user_ngroup_ids = set()
+            if user.ngroups:
+                # This handles both list-of-dicts and list-of-strings for ngroups
+                if isinstance(user.ngroups[0], dict):
+                    user_ngroup_ids = {str(ng['id']) for ng in user.ngroups}
+                else:
+                    user_ngroup_ids = {str(ng) for ng in user.ngroups}
             
+            if str(collection['ngroup_id']) not in user_ngroup_ids:
+                log.warning(
+                    "upload.permission_check.failed",
+                    reason="group_mismatch",
+                    required_ngroup_id=str(collection['ngroup_id']),
+                    user_ngroup_ids=list(user_ngroup_ids)
+                )
+                raise UploadValidationError(f"Upload Denied: Your API key is not authorized for the DAAC group associated with collection '{collection_name}'.")
+            
+    log.info("upload.permission_check.succeeded")
     return collection
 
 # --- Single File Upload Logic ---
