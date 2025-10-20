@@ -77,7 +77,6 @@ async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
     await invoke_email_sender(db_details['recipient_emails'], subject, body_html, body_text)
 
 async def handle_infected_files_scheduled(detail: dict, pool):
-
     logger.info("event.scheduled_infected_files.received", detail=detail)
     notification_details = None
     time_threshold = timedelta(minutes=30)
@@ -97,7 +96,6 @@ async def handle_infected_files_scheduled(detail: dict, pool):
         subject, html_details, body_text = await process_infected_scheduled_notification(infected_file_details, blocked_provider_details)
         body_html = load_template("infected_files_template.html", html_details)
         await invoke_email_sender(infected_file_details['recipient_emails'], subject, body_html, body_text)
-
 
 async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
     """Handles sending a notification to admins about a new application."""
