@@ -38,16 +38,16 @@ data "aws_iam_policy_document" "glue_assume_role_policy" {
   }
 }
 
-#data "aws_iam_policy_document" "eventbridge_scheduler_assume_role" { 
-  #statement {
-    #effect  = "Allow"
-    #actions = ["sts:AssumeRole"]
-    #principals {
-      #type        = "Service"
-      #identifiers = ["scheduler.amazonaws.com"]
-    #}
-  #}
-#}
+data "aws_iam_policy_document" "eventbridge_scheduler_assume_role" { 
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
 
 # --- Permission Policies for Lambda Roles ---
 
@@ -130,6 +130,14 @@ data "aws_iam_policy_document" "file_transfer_policy" {
   }
 }
 
+data "aws_iam_policy_document" "cost_update_policy"{
+  statement{
+    effect    = "Allow"
+    actions   = ["sts:AssumeRole"]
+    resources = ["${var.css_cost_explorer_role_arn}"]
+  }
+}
+
 # --- Policies for Glue and Archive Roles (Restored) ---
 
 data "aws_iam_policy_document" "glue_job_policy" {
@@ -180,10 +188,10 @@ data "aws_iam_policy_document" "glue_crawler_policy" {
 
 # --- Policy for EventBridge Scheduler ---
 
-#data "aws_iam_policy_document" "infected_notif_scheduler_policy" {
-  #statement {
-    #effect = "Allow"
-    #actions = ["lambda:InvokeFunction"]
-    #resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
-  #}
-#}
+data "aws_iam_policy_document" "infected_notif_scheduler_policy" {
+  statement {
+    effect = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
+  }
+}

@@ -48,29 +48,47 @@ resource "aws_cloudwatch_event_rule" "athena_query_state_change_rule" {
 #   arn       = aws_lambda_function.process_athena_query.arn
 # }
 
-#resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
-  #name = "cue_infected_file_notification_scheduler"
-  #flexible_time_window {
-    #mode = "OFF"
-  #}
-  #schedule_expression = "cron(0 * * * ? *)"
-  #target {
-    #role_arn = var.notification_scheduler_role_arn 
-    #arn = aws_lambda_function.notification_manager.arn
-    #input = jsonencode({
-          #"detail-type": "ScheduledInfectedFileNotification"
-        #})
-    #retry_policy {
-      #maximum_event_age_in_seconds = 3600
-      #maximum_retry_attempts = 3
-    #}
-  #}
-#}
 
-#resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
-  #statement_id  = "AllowExecutionFromEventBridgeScheduler"
-  #action        = "lambda:InvokeFunction"
-  #function_name = aws_lambda_function.notification_manager.function_name
-  #principal     = "scheduler.amazonaws.com"
-  #source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
-#}
+resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
+  name                = "cue-cost-update-lambda-schedule"
+  description         = "Schedule to run cost update lambda"
+  schedule_expression = "cron(0 1 * * ? *)"  
+}
+
+resource "aws_cloudwatch_event_target" "update_cost_target" {
+  rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
+  target_id = "TriggerCostUpdate"
+  arn       = aws_lambda_function.cue_cost_update.arn
+}
+
+resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
+  name = "cue_infected_file_notification_scheduler"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = "cron(*/30 * * * ? *)"
+  target {
+    role_arn = var.notification_manager_scheduler_role_arn
+    arn = aws_lambda_function.notification_manager.arn
+    input = replace(
+      replace(
+        jsonencode({
+          "detail-type": "ScheduledInfectedFileFound",
+          "detail": "<aws.scheduler.scheduled-time>"
+        }),"\\u003c", "<"),
+        "\\u003e", ">"
+    )
+    retry_policy {
+      maximum_event_age_in_seconds = 1800
+      maximum_retry_attempts = 3
+    }
+  }
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
+  statement_id  = "AllowExecutionFromEventBridgeScheduler"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.notification_manager.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
+}

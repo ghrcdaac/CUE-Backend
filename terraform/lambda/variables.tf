@@ -155,6 +155,22 @@ variable "file_transfer_role_arn" {
   type        = string
 }
 
+variable "notification_manager_scheduler_role_arn"{
+  description = "IAM Role ARN for infected notification scheduler role"
+  type        = string
+}
+
+variable "cost_update_role_arn" {
+  description = "IAM Role ARN for the Cost Update Lambda"
+  type        = string
+}
+
+variable "css_cost_explorer_role_arn" {
+  description = "IAM Role ARN for the external css cost explorer role "
+  type        = string
+}
+
+
 # --- Archive Bucket ---
 variable "cue_archive_results_bucket" {
   description = "The S3 bucket for final Athena query results."
