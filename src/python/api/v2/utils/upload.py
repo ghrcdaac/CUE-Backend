@@ -22,7 +22,8 @@ from v2.type_util.upload import (
 logger = structlog.get_logger(__name__)
 S3_BUCKET_NAME = os.environ.get("S3_UPLOAD_BUCKET", "cue-uat-dmz")
 PRESIGNED_URL_EXPIRATION = 3600  # 1 hour
-
+ENV = os.environ.get("ENV", "production")
+ 
 class S3ClientError(Exception): pass
 class UploadValidationError(Exception): pass
 
@@ -73,7 +74,7 @@ async def prepare_single_file_upload(request: Request, params: PrepareUploadRequ
     """Step 1: Validate and create a complete preliminary DB record, then get an S3 URL."""
     collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
-    ip_address = {"ip_address": request.client.host}
+    ip_address = {"ip_address": await get_ip_address(request)}
     
     async with request.state.pool.acquire() as conn:
         async with conn.transaction():
@@ -113,7 +114,7 @@ async def start_multipart_upload(request: Request, params: MultipartStartRequest
     """Step 1 (Multipart): Validate, create a partial DB record, and start S3 multipart upload."""
     collection = await _validate_upload_permissions(request, params.collection_name, user)
     file_id = uuid4()
-    ip_address = {"ip_address": request.client.host}
+    ip_address = {"ip_address": await get_ip_address(request)}
 
     async with request.state.pool.acquire() as conn:
         async with conn.transaction():
@@ -155,7 +156,7 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
     s3_client = _get_s3_client()
     file_id = params.file_id
     formatted_parts = [{'PartNumber': part.PartNumber, 'ETag': part.ETag} for part in params.parts]
-    ip_address = {"ip_address": request.client.host} # Still useful for logging/auditing
+    ip_address = {"ip_address": await get_ip_address(request)} # Still useful for logging/auditing
     
     try:
         s3_client.complete_multipart_upload(Bucket=S3_BUCKET_NAME, Key=str(file_id), UploadId=params.upload_id, MultipartUpload={'Parts': formatted_parts})
@@ -189,3 +190,10 @@ async def abort_multipart_upload(params: MultipartAbortRequest):
             return
         logger.error("s3.multipart_abort.failed", error=str(e))
         raise S3ClientError("Failed to abort S3 multipart upload.") from e
+
+async def get_ip_address(request: Request):
+    """Retrieves client's IP address"""
+    if ENV == "production":
+        return str(request.headers.get("x-forwarded-for","").split(",")[0])
+    else: 
+        return request.client.host
