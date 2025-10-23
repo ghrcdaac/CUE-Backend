@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/provider.py (Corrected)
+# File: src/python/api/v2/utils/provider.py 
 # --- MODIFIED to pass the request object on cross-utility calls ---
 # ==============================================================================
 from uuid import UUID
@@ -8,8 +8,7 @@ from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
 
-# No longer need get_db_connection
-# from core.db import get_db_connection 
+
 from v2.database_util import provider as provider_db
 from v2.type_util.provider import ProviderCreate, ProviderUpdate
 # We need to import the user utils to validate the point_of_contact
@@ -91,6 +90,7 @@ async def update_provider(request: Request, provider_id: UUID, provider_update: 
     
     if 'can_upload' in update_data and update_data['can_upload'] == True:
         update_data['reason'] = None
+        update_data['last_block_notification_at'] = None
 
     async with request.state.pool.acquire() as conn:
         updated_provider = await provider_db.update_provider(conn, provider_id, update_data)

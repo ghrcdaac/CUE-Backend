@@ -5,8 +5,13 @@ import os
 import structlog
 import asyncpg
 from uuid import UUID, uuid4
+from datetime import timedelta
 
-from db import process_scan_result_in_database
+from db import (
+    process_scan_result_in_database,
+    count_provider_infected_files,
+    block_provider_instant
+)
 from model import ScanResultMessage, ScanResultDetailJSONEncoder
 
 logger = structlog.get_logger(__name__)
@@ -23,6 +28,10 @@ TRANSFER_INVOCATION_MODE = os.environ.get("TRANSFER_INVOCATION_MODE", "SQS").upp
 FILE_TRANSFER_LAMBDA_NAME = os.environ.get("FILE_TRANSFER_LAMBDA_NAME")
 # The URL for the existing clean files SQS queue
 CLEAN_FILES_QUEUE_URL = os.environ.get("QUEUE_URL")
+# Defaults to 5 files if not set
+INFECTED_FILE_THRESHOLD = int(os.getenv("INFECTED_FILE_THRESHOLD", "5"))
+# Defaults to 24 hours if not set
+BLOCKING_LOOKBACK_HOURS = int(os.getenv("BLOCKING_LOOKBACK_HOURS", "24"))
 
 STATUS_MAP = {"Clean": "clean", "Infected": "infected"}
 DEFAULT_STATUS = "scan_failed"
@@ -98,18 +107,15 @@ async def invoke_file_transfer_lambda(file_id: UUID, collection_id: UUID):
 
 async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool):
     """
-    Processes a validated scan result, updates the database, and triggers the next
-    step in the workflow using the configured invocation mode.
+    Processes a validated scan result, updates the database, triggers the next
+    step, and performs instant provider blocking if the threshold is met.
     """
     file_id = message.key
     status = STATUS_MAP.get(message.result, DEFAULT_STATUS)
     
-    # --- Correctly prepare scan_results based on status ---
     if status == 'infected':
-        # For infected files, serialize the ENTIRE message for a full audit trail.
         scan_results_json = message.model_dump_json(by_alias=True)
     else:
-        # For other statuses, serialize only the 'scanResults' array.
         scan_results_list = message.model_dump(by_alias=True).get("scanResults")
         scan_results_json = json.dumps(scan_results_list, cls=ScanResultDetailJSONEncoder)
 
@@ -122,19 +128,43 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
     
     logger.info("scan_result.processing", file_id=str(file_id), status=status)
     
+    collection_id = None
+    final_status = "unknown"
+    provider_id = None # Initialize provider_id
+    
     async with db_pool.acquire() as conn:
-        # Pass the pre-formatted data to the database function
-        collection_id, final_status = await process_scan_result_in_database(conn, file_id, update_data)
+       
+        collection_id, final_status, provider_id = await process_scan_result_in_database(conn, file_id, update_data)
 
-    # --- Main Workflow Logic based on the confirmed status from the DB ---
+      
+        if final_status == 'infected' and provider_id:
+            logger.info("infected_file.provider_check", file_id=str(file_id), provider_id=str(provider_id))
+            lookback_window = timedelta(hours=BLOCKING_LOOKBACK_HOURS)
+            infected_count = await count_provider_infected_files(conn, provider_id, lookback_window)
+
+            if infected_count >= INFECTED_FILE_THRESHOLD:
+                logger.warning("provider.threshold_exceeded.blocking",
+                               provider_id=str(provider_id),
+                               infected_count=infected_count,
+                               threshold=INFECTED_FILE_THRESHOLD,
+                               lookback_hours=BLOCKING_LOOKBACK_HOURS)
+                reason = f"Provider automatically blocked after uploading {infected_count} infected files within {BLOCKING_LOOKBACK_HOURS} hour(s) (Threshold: {INFECTED_FILE_THRESHOLD})."
+                await block_provider_instant(conn, provider_id, reason)
+            else:
+                 logger.info("provider.threshold_not_met",
+                               provider_id=str(provider_id),
+                               infected_count=infected_count,
+                               threshold=INFECTED_FILE_THRESHOLD)
+
+  
     if final_status == 'clean' and collection_id:
         if TRANSFER_INVOCATION_MODE == "LAMBDA":
             await invoke_file_transfer_lambda(file_id, collection_id)
         else: # Default to SQS for safety
             await send_clean_file_message_sqs(file_id, collection_id)
             
-    elif final_status == 'infected':
-        await publish_infected_file_event(message)
+    # elif final_status == 'infected':
+    #     await publish_infected_file_event(message)
 
     elif final_status == 'scan_failed':
         logger.warning("scan.failed", file_id=str(file_id), scan_result=message.result)

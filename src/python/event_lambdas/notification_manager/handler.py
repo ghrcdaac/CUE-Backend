@@ -15,12 +15,16 @@ from db import (
     get_new_application_details, 
     get_approved_user_details,
     get_infected_scheduled_file_details,
-    block_providers_uploading_infected_files,
+    get_providers_exceeding_threshold,
+    get_ngroup_recipient_emails,
+    mark_files_as_notified, 
+    mark_providers_as_notified
 )
 from logic import process_infected_scheduled_notification 
 
 setup_logging()
 logger = structlog.get_logger(__name__)
+
 
 try:
     loop = asyncio.get_running_loop()
@@ -29,6 +33,17 @@ except RuntimeError:
     asyncio.set_event_loop(loop)
 
 lambda_client = boto3.client('lambda')
+
+
+# Read configurable thresholds from environment variables
+# Defaults to 30 minutes if not set
+NOTIFICATION_SCHEDULE_MINUTES = int(os.getenv("NOTIFICATION_SCHEDULE_MINUTES", "30"))
+# Defaults to 5 files if not set
+INFECTED_FILE_THRESHOLD = int(os.getenv("INFECTED_FILE_THRESHOLD", "5"))
+# Defaults to 24 hours if not set (MUST MATCH infected_logger)
+BLOCKING_LOOKBACK_HOURS = int(os.getenv("BLOCKING_LOOKBACK_HOURS", "24"))
+
+
 
 def load_template(template_name: str, context: dict) -> str:
     """Loads and populates an HTML email template."""
@@ -78,28 +93,123 @@ async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
 
 async def handle_infected_files_scheduled(detail: dict, pool):
     logger.info("event.scheduled_infected_files.received", detail=detail)
+
+    # This is for the "providers blocked in last 1h" report
+    provider_lookback_window = timedelta(hours=BLOCKING_LOOKBACK_HOURS)
+    infected_file_threshold = INFECTED_FILE_THRESHOLD 
+    
+    logger.info(
+        "scheduler.settings.loaded",
+        provider_lookback_hours=BLOCKING_LOOKBACK_HOURS,
+        infected_file_threshold=infected_file_threshold
+    )
+
     notification_details = None
-    time_threshold = timedelta(minutes=30)
-    infected_file_threshold = 5 
+    providers_exceeding = None
 
     async with pool.acquire() as conn:
-        notification_details = await get_infected_scheduled_file_details(conn, time_threshold)
-        blocked_providers = await block_providers_uploading_infected_files(conn, time_threshold, infected_file_threshold)
+        # 1. Fetch all pending notifications (files and providers)
+        # We no longer pass time_threshold to get_infected_scheduled_file_details
+        notification_details = await get_infected_scheduled_file_details(conn)
+        providers_exceeding = await get_providers_exceeding_threshold(conn, provider_lookback_window, infected_file_threshold)
+
+        # 2. Extract the IDs of what we just found
+        file_ids_to_mark = [
+            file['file_id'] 
+            for ngroup_data in (notification_details or {}).values() 
+            for file in ngroup_data.get('file_details', [])
+        ]
+        
+        provider_ids_to_mark = [
+            provider['provider_id'] 
+            for ngroup_data in (providers_exceeding or {}).values() 
+            for provider in ngroup_data
+        ]
+
+        # 3. Check if there is anything to do
+        if not file_ids_to_mark and not provider_ids_to_mark:
+            logger.info("No new infected files or provider blocks to report.")
+            return # Nothing to do
+
+        # 4. Atomically "claim" these records by marking them in a transaction
+        try:
+            async with conn.transaction():
+                if file_ids_to_mark:
+                    await mark_files_as_notified(conn, file_ids_to_mark)
+                if provider_ids_to_mark:
+                    await mark_providers_as_notified(conn, provider_ids_to_mark)
+            logger.info("Successfully claimed notifications.", 
+                        files=len(file_ids_to_mark), 
+                        providers=len(provider_ids_to_mark))
+        except Exception as e:
+            logger.error("Failed to claim notifications in transaction, will retry on next run.", exc_info=True)
+            # We re-raise to fail the lambda, so it retries.
+            # The records weren't marked, so they'll be picked up next time.
+            raise
 
     if not notification_details:
         logger.info("No infected file notifications to send")
-        return None
+        # ---  Check if there are providers to report even if no new files ---
+        if not providers_exceeding:
+             return None # Exit if nothing to report
+        else: # Prepare to send email only about providers exceeding threshold
+             notification_details = {} # Ensure loop below runs correctly if needed
+             logger.info("Providers exceeded threshold, but no new file details. Preparing provider report.")
 
-    for ngroup_id, infected_file_details in notification_details.items():
-        logger.info(f"processing notification for ngroup: {ngroup_id}")
-        blocked_provider_details = blocked_providers.get(ngroup_id, {})
-        subject, html_details, body_text = await process_infected_scheduled_notification(infected_file_details, blocked_provider_details)
-        body_html = load_template("infected_files_template.html", html_details)
-        await invoke_email_sender(infected_file_details['recipient_emails'], subject, body_html, body_text)
+    processed_ngroups = set() # Keep track of ngroups processed via file details
+
+    # Process ngroups that had infected files
+    if notification_details:
+        for ngroup_id, infected_file_details in notification_details.items():
+            processed_ngroups.add(ngroup_id) # Mark as processed
+            logger.info(f"Processing infected file notification for ngroup: {ngroup_id}")
+            # Get the list of providers exceeding threshold for *this specific ngroup*
+            provider_report_details = providers_exceeding.get(ngroup_id, []) # Use empty list if none for this group
+            
+            subject, html_details, body_text = await process_infected_scheduled_notification(
+                infected_file_details, 
+                provider_report_details # Pass the list for this group
+            )
+            body_html = load_template("infected_files_template.html", html_details)
+            # Use recipient emails from infected_file_details as before
+            await invoke_email_sender(infected_file_details.get('recipient_emails', []), subject, body_html, body_text)
+
+    # --- Process ngroups that *only* had providers exceeding threshold ---
+    for ngroup_id, provider_report_details in providers_exceeding.items():
+        if ngroup_id not in processed_ngroups:
+            logger.info(f"Processing provider-only notification for ngroup: {ngroup_id}")
+            # Need recipient emails and short_name for this ngroup
+            async with pool.acquire() as conn:
+                # ---  Get both emails and short_name ---
+                recipient_emails, ngroup_short_name = await get_ngroup_recipient_emails(conn, ngroup_id) 
+
+            if not recipient_emails:
+                 logger.warning("No recipients found for provider-only report", ngroup_id=ngroup_id)
+                 continue
+
+            # ---  Use the fetched short_name ---
+            # Use the actual short_name or fallback if None was returned
+            actual_short_name = ngroup_short_name or 'Unknown Group' 
+            minimal_infected_details = {
+                'short_name': actual_short_name, 
+                'file_details': [], 
+                'recipient_emails': recipient_emails
+            }
+
+            subject, html_details, body_text = await process_infected_scheduled_notification(
+                minimal_infected_details, # Pass minimal file info with correct name
+                provider_report_details # Pass the provider list
+            )
+            # Update subject to reflect no files, just provider issues, using correct name
+            subject = f"CUE Security Alert: Providers Exceeded Infected File Threshold - {actual_short_name}" 
+            html_details['header'] = subject # Update header in details
+
+            body_html = load_template("infected_files_template.html", html_details)
+            await invoke_email_sender(recipient_emails, subject, body_html, body_text)
 
 async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
     """Handles sending a notification to admins about a new application."""
-  
+ 
     app_id = UUID(detail["application_id"])
     logger.info("event.application_submitted.received", application_id=str(app_id))
     
