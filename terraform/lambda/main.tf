@@ -140,7 +140,7 @@ resource "aws_lambda_function" "notification_manager" {
       LOG_LEVEL        = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "8"
+      REDEPLOY_TRIGGER = "9"
       NOTIFICATION_SCHEDULE_MINUTES = tostring(var.notification_schedule_minutes)
       INFECTED_FILE_THRESHOLD       = "5"
       BLOCKING_LOOKBACK_HOURS = "1"
@@ -218,7 +218,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       DB_SSL_MODE    = "require"
       ENV = "production"
       VERIFY_CHECKSUM_ON_TRANSFER = "true"
-      REDEPLOY_TRIGGER = "2"
+      REDEPLOY_TRIGGER = "10"
     }
   }
 
