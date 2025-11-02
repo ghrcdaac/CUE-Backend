@@ -3,13 +3,15 @@ from uuid import UUID
 from typing import List, Dict
 from fastapi import HTTPException, status
 import boto3
+import json 
 from botocore.exceptions import ClientError
 import structlog
 
 from core.db import get_db_connection
 from v2.database_util import archive as archive_db
-from v2.type_util.archive import ArchiveQueryRequest
-from v2.type_util.file import FileResponse
+from v2.type_util.file_metrics import MetricsQueryParameters
+from v2.type_util.file import FileResponse 
+from v2.type_util.archive import ArchiveQueryResult
 
 logger = structlog.get_logger(__name__)
 ATHENA_DB_NAME = os.environ.get("ATHENA_DB_NAME")
@@ -21,7 +23,7 @@ class AthenaError(Exception):
 def _get_athena_client():
     return boto3.client('athena', region_name=os.environ.get("AWS_REGION", "us-west-2"))
 
-async def start_archive_query(ngroup_id: UUID, filters: ArchiveQueryRequest) -> str:
+async def start_archive_query(ngroup_id: UUID, filters: MetricsQueryParameters) -> str:
     """
     Securely starts an Athena query. First, it queries the local Postgres DB
     for relevant file IDs, then uses those IDs to build the Athena query.
@@ -45,8 +47,9 @@ async def start_archive_query(ngroup_id: UUID, filters: ArchiveQueryRequest) -> 
     try:
         response = athena_client.start_query_execution(
             QueryString=athena_query,
-            QueryExecutionContext={"Database": ATHENA_DB_NAME},
-            ResultConfiguration={"OutputLocation": f"s3://{ATHENA_OUTPUT_BUCKET}/results/"}
+            QueryExecutionContext={"Database": f"{ATHENA_DB_NAME}"},
+            ResultConfiguration={"OutputLocation": f"s3://{ATHENA_OUTPUT_BUCKET}/results/"},
+            ResultReuseConfiguration= {"ResultReuseByAgeConfiguration":{"Enabled":False}}
         )
         return response["QueryExecutionId"]
     except ClientError as e:
@@ -69,18 +72,12 @@ async def get_query_status(query_execution_id: str) -> Dict:
 
 async def get_query_results(query_execution_id: str) -> List[FileResponse]:
     """Gets the results of a completed Athena query."""
-    athena_client = _get_athena_client()
     try:
-        response = athena_client.get_query_results(QueryExecutionId=query_execution_id)
-        # Process Athena's complex response structure
-        column_info = [col['Name'] for col in response['ResultSet']['ResultSetMetadata']['Columns']]
-        results = []
-        # Skip the header row (index 0)
-        for row in response['ResultSet']['Rows'][1:]:
-            
-            row_data = {column_info[i]: item.get('VarCharValue') for i, item in enumerate(row['Data'])}
-            results.append(FileResponse.model_validate(row_data))
-        return results
+        s3_client = boto3.client('s3', region_name=os.environ.get("AWS_REGION", "us-west-2"))
+        response = s3_client.get_object(Bucket=ATHENA_OUTPUT_BUCKET, Key=f"{query_execution_id}.json")
+        json_data = response["Body"].read().decode('utf-8')
+        result = json.loads(json_data)
+        return result
     except ClientError as e:
         logger.error("athena.get_results.failed", error=str(e))
         raise AthenaError("Failed to get query results.") from e

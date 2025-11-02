@@ -167,6 +167,16 @@ resource "aws_lambda_function" "notification_manager" {
 # }
 
 # 5. Process Athena Query Lambda
+resource "aws_lambda_function" "process_athena_query" {
+  # --- DEBUGGING CHANGE 2: Updated this reference ---
+  filename         = archive_file.process_athena_query_zip_NEW.output_path
+  source_code_hash = archive_file.process_athena_query_zip_NEW.output_base64sha256
+  function_name    = "cue_process_athena_query"
+  role             = var.process_athena_query_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
 #  resource "aws_lambda_function" "process_athena_query" {
 #   filename         = "../artifacts/process-athena-query-lambda.zip"
 #   source_code_hash = filebase64sha256("../artifacts/process-athena-query-lambda.zip")
@@ -177,13 +187,13 @@ resource "aws_lambda_function" "notification_manager" {
 #   architectures    = ["x86_64"]
 #   timeout          = 180
 
-#   environment {
-#     variables = {
-#       RESULTS_BUCKET = var.cue_archive_results_bucket
-#       LOG_LEVEL      = "INFO"
-#     }
-#   }
-# }
+  environment {
+    variables = {
+      RESULTS_BUCKET = var.cue_archive_results_bucket
+      LOG_LEVEL      = "INFO"
+    }
+  }
+}
 
 # 6. File Transfer Lambda
 resource  "aws_lambda_function" "cue_file_transfer"{
@@ -429,8 +439,8 @@ resource "aws_cloudwatch_log_group" "email_sender_lg" {
   retention_in_days = 14
 }
 
-# resource "aws_cloudwatch_log_group" "process_athena_query_lg" {
-#   name              = "/aws/lambda/${aws_lambda_function.process_athena_query.function_name}"
-#   retention_in_days = 14
-# }
+resource "aws_cloudwatch_log_group" "process_athena_query_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.process_athena_query.function_name}"
+  retention_in_days = 14
+}
 
