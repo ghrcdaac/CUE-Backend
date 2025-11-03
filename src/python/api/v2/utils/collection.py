@@ -5,9 +5,7 @@
 from uuid import UUID
 from typing import List, Dict, Any, Optional
 import structlog
-from fastapi import Request # <-- Import Request
-
-# --- REMOVED: from core.db import get_db_connection ---
+from fastapi import Request 
 from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
 from v2.database_util import egress as egress_db
@@ -19,8 +17,6 @@ logger = structlog.get_logger(__name__)
 class CollectionNotFoundError(Exception):
     """Custom exception raised when a collection is not found."""
     pass
-
-# --- Functions now accept the `request` object ---
 
 async def create_collection(request: Request, collection: CollectionCreate, ngroup_id: UUID) -> Dict[str, Any]:
     """Creates a new collection record after validating dependencies."""
@@ -58,7 +54,6 @@ async def list_collections(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
-        # Call the new, more powerful list_collections function
         records = await collection_db.list_collections(
             conn, 
             requesting_user=user.model_dump(),

@@ -14,7 +14,6 @@ router = APIRouter(prefix="/api-keys", tags=["V2 - API Keys"])
 
 @router.post("/", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("api-key:create"))])
-# Accepts the 'request' object
 async def create_api_key_endpoint(fastapi_request: Request, request_body: ApiKeyCreateRequest, user: AuthUser = Depends(get_current_user)):
     """Creates a new API key, either for the requester or a target user/proxy."""
     try:
@@ -30,7 +29,7 @@ async def create_api_key_endpoint(fastapi_request: Request, request_body: ApiKey
 async def list_api_keys_endpoint(
     request: Request, 
     user: AuthUser = Depends(get_current_user),
-    # 1. This line reads the active DAAC/group ID from the HTTP header.
+    # 1. reads the active DAAC/group ID from the HTTP header.
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
 ):
     """
@@ -60,7 +59,6 @@ async def update_api_key_endpoint(request: Request, key_id: UUID, update_body: A
 
 @router.patch("/{key_id}/record-usage", status_code=status.HTTP_204_NO_CONTENT,
               dependencies=[Depends(require_privilege("file:upload"))]) # Protected by a basic privilege
-# Accepts the 'request' object
 async def record_key_usage_endpoint(request: Request, key_id: UUID):
     """
     An internal-facing endpoint to update the `last_used_at` timestamp of an API key.
@@ -75,7 +73,6 @@ async def record_key_usage_endpoint(request: Request, key_id: UUID):
 
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT,
                dependencies=[Depends(require_privilege("api-key:delete"))])
-# Accepts the 'request' object
 async def revoke_api_key_endpoint(request: Request, key_id: UUID, user: AuthUser = Depends(get_current_user)):
     """Revokes (deletes) an API key."""
     try:

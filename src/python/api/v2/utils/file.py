@@ -4,7 +4,7 @@ from uuid import UUID
 from typing import List, Dict, Any, Tuple, Optional
 from v2.type_util.auth import AuthUser
 import structlog
-from fastapi import Request, HTTPException, status
+from fastapi import Request
 import json
 import hashlib
 
@@ -80,7 +80,6 @@ async def find_files_by_name(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
-        # Call the new, more powerful database function
         records = await file_db.find_files_by_name(
             conn,
             requesting_user=user.model_dump(),

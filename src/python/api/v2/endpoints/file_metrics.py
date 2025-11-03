@@ -12,8 +12,6 @@ from v2.type_util.file_metrics import (
 
 router = APIRouter(prefix="/file-metrics", tags=["V2 - File Metrics"])
 
-# --- MODIFIED: All endpoints now pass the user and header to the V2 utility functions ---
-
 @router.get("/summary", response_model=MetricsSummaryResponse, dependencies=[Depends(require_privilege("metrics:read"))])
 async def get_metrics_summary_endpoint(
     request: Request,

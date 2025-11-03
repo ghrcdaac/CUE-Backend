@@ -13,5 +13,5 @@ class PrivilegeUpdate(BaseModel):
 class PrivilegeReturn(PrivilegeBase):
     @classmethod
     def from_db_row(cls, row: Tuple) -> "PrivilegeReturn":
-        privilege = row[0]  # Adjust according to your table structure
+        privilege = row[0]  # Adjust according to table structure
         return cls(privilege=privilege)
