@@ -81,7 +81,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:update')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'api-key:delete')),
-    ('39677929-ba9b-426d-8c18-f607d669fcc', (SELECT id from privilege where privilege = 'application:read')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'application:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'application:approve'));
 
 -- DAAC Manager
