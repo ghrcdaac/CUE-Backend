@@ -72,6 +72,7 @@ module "lambda_functions" {
   
   # name for PC env
   app_env                     = var.app_env
+  notification_schedule_minutes = var.notification_schedule_minutes
 
   #delete later
   pool_id                     = var.pool_id

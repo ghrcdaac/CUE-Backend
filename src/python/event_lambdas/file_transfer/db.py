@@ -20,8 +20,9 @@ async def fetch_batch_transfer_details(conn: Connection, file_ids: List[UUID]) -
             f.name,
             f.checksum,
             f.collection_path,
-            f.size_bytes, -- Corrected: Ensure size_bytes is selected
+            f.size_bytes, 
             f.collection_id,
+            f.type,
             e.path as egress_path,
             e.config as egress_config
         FROM file f

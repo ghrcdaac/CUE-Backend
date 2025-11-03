@@ -1,4 +1,5 @@
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from uuid import UUID
 import json
@@ -16,7 +17,7 @@ from db import (
 )
 
 logger = structlog.get_logger(__name__)
-s3_client = boto3.client('s3')
+s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
 
 STAGING_BUCKET = os.environ.get("STAGING_BUCKET", "")
 VERIFY_CHECKSUM = os.environ.get("VERIFY_CHECKSUM_ON_TRANSFER", "true").lower() == "true"
@@ -74,11 +75,18 @@ async def verify_staging_object_sha256(file_id: str) -> str:
     await asyncio.to_thread(download_and_hash)
     return base64.b64encode(sha256_hash.digest()).decode('utf-8')
 
-async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str):
+async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str, file_info: Dict[str, Any]):
     """Copies a file to its destination, with an internal retry mechanism for transient errors."""
     copy_source = {"Bucket": STAGING_BUCKET, "Key": src_key}
     max_retries = 3
     retry_delay_base = 2
+
+    #EDPUB requirement
+    s3_metadata = {
+        'fileId ': src_key
+    }
+
+    content_type = file_info.get('type', 'application/octet-stream')
 
     for attempt in range(max_retries):
         try:
@@ -89,6 +97,8 @@ async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str):
                 Bucket=dest_bucket,
                 Key=dest_key,
                 ACL="bucket-owner-full-control"
+                # Metadata=s3_metadata,           
+                # MetadataDirective='REPLACE'
             )
             # This log is crucial for auditing successful transfers.
             logger.info("s3.copy.success", file_id=src_key, dest_bucket=dest_bucket, dest_key=dest_key)
@@ -102,6 +112,30 @@ async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str):
             else:
                 logger.error("s3.copy.failed.persistent_error", src_key=src_key, dest_key=dest_key, error_code=e.response['Error']['Code'])
                 raise
+
+async def add_tags_to_dest(dest_bucket: str, dest_key: str, file_id: str):
+    """Applies the file_id and checksum as S3 object tags to the destination file."""
+    
+    # S3 tags are just key-value strings
+    tag_set = {
+        'TagSet': [
+            {'Key': 'fileId', 'Value': file_id}
+        ]
+    }
+    
+    try:
+        await asyncio.to_thread(
+            s3_client.put_object_tagging,
+            Bucket=dest_bucket,
+            Key=dest_key,
+            Tagging=tag_set
+        )
+        logger.info("s3.tagging.success", file_id=file_id, dest_key=dest_key)
+    except Exception as e:
+        # We only log this error. We don't fail the transfer,
+        # as the file is already there. This is a non-critical error.
+        logger.warning("s3.tagging.failed", file_id=file_id, dest_key=dest_key, exc_info=True)
+
 
 async def batch_transfer_and_validate(
     messages: Dict[str, Dict],
@@ -133,7 +167,8 @@ async def batch_transfer_and_validate(
         dest_key = os.path.join(*path_parts)
 
         try:
-            await copy_file_to_dest(str(file_id), dest_bucket, dest_key)
+            await copy_file_to_dest(str(file_id), dest_bucket, dest_key, file_info)
+            is_valid_transfer = False
 
             if VERIFY_CHECKSUM:
                 logger.info("checksum_validation.started", file_id=str(file_id))
@@ -142,12 +177,18 @@ async def batch_transfer_and_validate(
 
                 if staging_checksum == db_checksum:
                     logger.info("checksum_validation.success", file_id=str(file_id))
-                    successful_file_ids.append(file_id)
+                    # successful_file_ids.append(file_id)
+                    is_valid_transfer = True
                 else:
                     logger.critical("checksum_validation.failed.mismatch", file_id=str(file_id), database_checksum=db_checksum, staging_file_checksum=staging_checksum)
                     validation_failures.append({ "file_id": file_id, "db_checksum": db_checksum, "staging_checksum": staging_checksum })
             else:
                 logger.info("checksum_validation.skipped", file_id=str(file_id))
+                # successful_file_ids.append(file_id)
+                is_valid_transfer = True
+            
+            if is_valid_transfer:
+                await add_tags_to_dest(dest_bucket, dest_key, str(file_id))
                 successful_file_ids.append(file_id)
 
         except Exception as e:
