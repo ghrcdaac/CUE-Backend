@@ -1,6 +1,5 @@
 # ==============================================================================
 # File: src/python/api/v2/utils/provider.py 
-# --- MODIFIED to pass the request object on cross-utility calls ---
 # ==============================================================================
 from uuid import UUID
 from typing import List, Optional, Dict, Any

@@ -1,6 +1,5 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/cueuser.py
-# --- MODIFIED to pass the request object down to the utility layer ---
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header 
 from uuid import UUID
