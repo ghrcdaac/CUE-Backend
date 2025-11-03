@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/database_util/cueuser.py (Optimized)
+# File: src/python/api/v2/database_util/cueuser.py
 # Purpose: Contains all raw SQL queries for user management.
 # ==============================================================================
 from asyncpg import Connection, ForeignKeyViolationError

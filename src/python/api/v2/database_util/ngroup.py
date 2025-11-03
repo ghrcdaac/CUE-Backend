@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/database_util/ngroup.py (Final)
+# File: src/python/api/v2/database_util/ngroup.py
 # Purpose: Contains all raw SQL queries for ngroup management.
 # Change: Added specific exception handling for database errors.
 # ==============================================================================

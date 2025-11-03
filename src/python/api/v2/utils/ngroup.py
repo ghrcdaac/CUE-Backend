@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/ngroup.py (Updated)
+# File: src/python/api/v2/utils/ngroup.py
 # --- MODIFIED to use the shared connection pool from the request state ---
 # ==============================================================================
 from uuid import UUID

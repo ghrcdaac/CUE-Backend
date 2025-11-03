@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/oidc_test_helpers.py (New)
+# File: src/python/api/v2/endpoints/oidc_test_helpers.py
 # Purpose: Provides endpoints to facilitate local OIDC testing.
 # This should NOT be deployed to production environments.
 # ==============================================================================
