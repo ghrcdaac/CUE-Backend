@@ -89,10 +89,6 @@ resource "aws_glue_catalog_table" "metrics" {
       type = "string"
     }
     columns {
-      name = "ngroup_id"
-      type = "string"
-    }
-    columns {
       name = "metric_upload_at"
       type = "timestamp" 
     }
@@ -106,6 +102,10 @@ resource "aws_glue_catalog_table" "metrics" {
     }
   }
 
+  partition_keys {
+    name = "ngroup_id"
+    type = "string"
+  }
   partition_keys {
     name = "date"
     type = "string"
