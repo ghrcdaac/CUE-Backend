@@ -49,17 +49,17 @@ resource "aws_cloudwatch_event_target" "process_athena_query_target" {
 }
 
 
-resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
-  name                = "cue-cost-update-lambda-schedule"
-  description         = "Schedule to run cost update lambda"
-  schedule_expression = "cron(0 1 * * ? *)"  
-}
+# resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
+  # name                = "cue-cost-update-lambda-schedule"
+  # description         = "Schedule to run cost update lambda"
+  # schedule_expression = "cron(0 1 * * ? *)"  
+# }
 
-resource "aws_cloudwatch_event_target" "update_cost_target" {
-  rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
-  target_id = "TriggerCostUpdate"
-  arn       = aws_lambda_function.cue_cost_update.arn
-}
+# resource "aws_cloudwatch_event_target" "update_cost_target" {
+  # rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
+  # target_id = "TriggerCostUpdate"
+  # arn       = aws_lambda_function.cue_cost_update.arn
+# }
 
 resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   name = "cue_infected_file_notification_scheduler"
