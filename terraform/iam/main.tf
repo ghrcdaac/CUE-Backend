@@ -107,10 +107,10 @@ resource "aws_iam_role_policy" "file_transfer_policy" {
 data "aws_iam_role" "cue_cost_explorer_role" {
  name = var.cue_cost_explorer_role_name
 }
-resource "aws_iam_role_policy_attachment" "cue_cost_update_lambda_execution_role_attach" {
-  role       = data.aws_iam_role.cue_cost_explorer_role.name
-  policy_arn = var.lambda_execution_policy_arn
-}
+# resource "aws_iam_role_policy_attachment" "cue_cost_update_lambda_execution_role_attach" {
+#   role       = data.aws_iam_role.cue_cost_explorer_role.name
+#   policy_arn = var.lambda_execution_policy_arn
+# }
 
 resource "aws_iam_role_policy" "cost_update_policy"{
   name   = "CUECostUpdatePolicy"

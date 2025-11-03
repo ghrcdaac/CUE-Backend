@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS provider (
     can_upload BOOLEAN NOT NULL DEFAULT FALSE,
     point_of_contact UUID NOT NULL,
     reason VARCHAR,
+    last_block_notification_at TIMESTAMPTZ,
     PRIMARY KEY (id),
     FOREIGN KEY (point_of_contact) REFERENCES cueuser(id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
@@ -248,6 +249,8 @@ CREATE TABLE IF NOT EXISTS file_status (
     egress_start TIMESTAMPTZ,
     status file_status_type NOT NULL,
     scan_results JSONB,
+    notification_sent_at TIMESTAMPTZ,
+
     PRIMARY KEY (id),
     FOREIGN KEY (id) REFERENCES file(id) ON DELETE CASCADE
 );
@@ -283,3 +286,8 @@ CREATE INDEX IF NOT EXISTS idx_user_application_ngroup_status ON user_applicatio
 CREATE INDEX IF NOT EXISTS idx_file_collection_id ON file(collection_id);
 CREATE INDEX IF NOT EXISTS idx_collection_provider_id ON collection(provider_id);
 CREATE INDEX IF NOT EXISTS idx_provider_ngroup_id ON provider(ngroup_id);
+
+-- New index to speed up finding files that need notification
+CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
+ON file_status(status)
+WHERE (status = 'infected' AND notification_sent_at IS NULL);
