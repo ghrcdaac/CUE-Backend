@@ -116,9 +116,7 @@ async def get_aws_cost(start_time: datetime, end_time: datetime, granularity="DA
 async def calculate_cost_per_file(files: List[Dict[str,Any]], type:str, cost_per_byte: Dict[str, Decimal]) -> List[tuple]:
     """Calculate the per file cost for each cost metric"""
     file_costs = []
-    logger.info(f"Decimal precision: {decimal.getcontext().prec}")
     for file in files:
-        logger.info(file)
         file_id = file.get('file_id')
         size_bytes = file['file_size']
         fc = ( 
@@ -145,12 +143,12 @@ async def update_file_costs(start_time:datetime, end_time:datetime, pool:asyncpg
         
         total_size = file_data.get("total_size", 0)
         files = file_data.get("files",[])
-        logger.info(type(files[0]))
-        files = [json.loads(file) for file in files]
-        if total_size == 0 or len(files) == 0:
+        if total_size == 0 or not files: 
             logger.info("No files to update cost for")
             return
             
+        files = [json.loads(file) for file in files]
+
         # get the cost
         # Cost Explorer data is updated at least once every 24 hours some data might be updated later 
         scan_cost = await get_scan_cost(start_time, end_time)
@@ -189,4 +187,4 @@ async def update_file_costs(start_time:datetime, end_time:datetime, pool:asyncpg
             await update_file_status_with_cost(conn, aws_file_costs)
     except Exception as e:
         logger.error("Failed to update cost", exc_info=True)
-        raise e
+        raise CostUpdateError(e)

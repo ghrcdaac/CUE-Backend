@@ -35,12 +35,13 @@ async def async_handler(event, context):
         if end_time is None:
             end_time = datetime.now(tz=timezone.utc)
         else:
-            end_time = datetime.fromisoformat(end_time)
+            end_time = datetime.fromisoformat(end_time).replace(tzinfo=timezone.utc)
 
         if start_time is None:
             start_time = end_time - timedelta(days=LOOKBACK_DAYS)
+            start_time = start_time.replace(tzinfo=timezone.utc)
         else:
-            start_time = datetime.fromisoformat(start_time)
+            start_time = datetime.fromisoformat(start_time).replace(tzinfo=timezone.utc)
     except ValueError as e:
         logger.error("start_time or end_time does not follow ISO 8601 format.")
         raise e
