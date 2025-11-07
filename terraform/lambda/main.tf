@@ -247,6 +247,7 @@ resource "aws_lambda_function" "cue_cost_update" {
       CSS_ROLE_ARN  = var.css_cost_explorer_role_arn
       DB_SSL_MODE   = "require"
       ENV           = "production"
+      LOOKBACK_DAYS = 1
     }
   }
 
