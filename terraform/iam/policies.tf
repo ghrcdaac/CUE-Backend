@@ -138,6 +138,18 @@ data "aws_iam_policy_document" "cost_update_policy"{
   }
 }
 
+data "aws_iam_policy_document" "manual_file_transfer_policy"{
+  statement{
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = ["arn:aws:sqs:${var.region}:${var.account_id}:cue-file-transfer-queue"]
+  }
+  statement{
+    effect    = "Allow" 
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${var.cue_staging_bucket}", "arn:aws:s3:::${var.cue_staging_bucket}/*" ]
+  }
+}
 # --- Policies for Glue and Archive Roles (Restored) ---
 
 data "aws_iam_policy_document" "glue_job_policy" {

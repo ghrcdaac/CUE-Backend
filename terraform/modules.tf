@@ -50,6 +50,7 @@ module "lambda_functions" {
   file_transfer_role_arn         = module.iam_role.file_transfer_role_arn  
   cost_update_role_arn           = module.iam_role.cost_update_role_arn
   css_cost_explorer_role_arn     = var.css_cost_explorer_role_arn
+  manual_file_transfer_role_arn  = module.iam_role.manual_file_transfer_role_arn
   notification_manager_scheduler_role_arn = module.iam_role.notification_manager_scheduler_role_arn
 
 
