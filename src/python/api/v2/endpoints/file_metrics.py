@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
-from uuid import UUID
+from fastapi import APIRouter, Depends, Query, Request, Header
 from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
@@ -11,8 +10,6 @@ from v2.type_util.file_metrics import (
 )
 
 router = APIRouter(prefix="/file-metrics", tags=["V2 - File Metrics"])
-
-# --- MODIFIED: All endpoints now pass the user and header to the V2 utility functions ---
 
 @router.get("/summary", response_model=MetricsSummaryResponse, dependencies=[Depends(require_privilege("metrics:read"))])
 async def get_metrics_summary_endpoint(

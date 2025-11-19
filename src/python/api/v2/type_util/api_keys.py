@@ -33,12 +33,12 @@ class ApiKeyCreateRequest(BaseModel):
             raise ValueError("'expires_in_days' and 'expires_at' are mutually exclusive.")
         return self
 
-    # Validator is now simpler and more explicit thanks to key_type.
+    # Validator is now simpler and more explicit
     @model_validator(mode='after')
     def validate_owner_by_type(self):
         """Validator to ensure the correct fields are provided for the given key_type."""
         if self.key_type == 'personal':
-            # A personal key MUST now be associated with a group.
+            # A personal key MUST be associated with a group.
             if not self.ngroup_id:
                 raise ValueError("For 'personal' keys, the 'ngroup_id' is required.")
             if self.target_user_id or self.proxy_user_name:

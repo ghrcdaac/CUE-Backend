@@ -82,7 +82,7 @@ async def get_file_endpoint(
 ):
     """Retrieves detailed information for a single file."""
     try:
-        # ---   Use a robust, centralized permission check ---
+        # --- permission check ---
         await check_user_access_to_file(request, user, file_id)
         
         file_details = await file_utils.get_file_details(request, file_id)
@@ -103,7 +103,7 @@ async def update_file_endpoint(
 ):
     """Updates a file's descriptive metadata (e.g., name, collection_path)."""
     try:
-        # ---   Use a robust, centralized permission check ---
+        # --- permission check ---
         await check_user_access_to_file(request, user, file_id)
         
         updated_file = await file_utils.update_file(request, file_id, file_update)
@@ -125,7 +125,7 @@ async def delete_file_endpoint(
 ):
     """Deletes a file and its associated records."""
     try:
-        # ---   Use a robust, centralized permission check ---
+        # ---  permission check ---
         await check_user_access_to_file(request, user, file_id)
 
         await file_utils.delete_file(request, file_id)

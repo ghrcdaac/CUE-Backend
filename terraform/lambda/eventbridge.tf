@@ -56,9 +56,9 @@ resource "aws_cloudwatch_event_target" "process_athena_query_target" {
 # }
 
 # resource "aws_cloudwatch_event_target" "update_cost_target" {
-  # rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
-  # target_id = "TriggerCostUpdate"
-  # arn       = aws_lambda_function.cue_cost_update.arn
+#   rule      = aws_cloudwatch_event_rule.cost_update_schedule.name
+#   target_id = "TriggerCostUpdate"
+#   arn       = aws_lambda_function.cue_cost_update.arn
 # }
 
 resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
@@ -66,7 +66,7 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   flexible_time_window {
     mode = "OFF"
   }
-  schedule_expression = "cron(*/30 * * * ? *)"
+  schedule_expression = "cron(*/${var.notification_schedule_minutes} * * * ? *)"
   target {
     role_arn = var.notification_manager_scheduler_role_arn
     arn = aws_lambda_function.notification_manager.arn

@@ -123,3 +123,14 @@ COMMIT;
 -- ALTER TABLE user_application ADD COLUMN user_id UUID;
 
 -- ALTER TYPE file_status_type ADD VALUE 'uploading' BEFORE 'unscanned';
+
+
+-- ALTER TABLE file_status
+-- ADD COLUMN notification_sent_at TIMESTAMPTZ;
+
+-- ALTER TABLE provider
+-- ADD COLUMN last_block_notification_at TIMESTAMPTZ;
+
+-- CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
+-- ON file_status(status)
+-- WHERE (status = 'infected' AND notification_sent_at IS NULL);

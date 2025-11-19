@@ -1,7 +1,6 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/auth.py
 # Purpose: Provides all necessary OIDC authentication and user management endpoints.
-# --- MODIFIED to use the dependency-injected Keycloak client ---
 # ==============================================================================
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Response
 from urllib.parse import urlencode

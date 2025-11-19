@@ -181,6 +181,12 @@ variable "app_env" {
   description = "The name of the deployment environment (e.g., sit, uat, prod)."
 }
 
+variable "notification_schedule_minutes" {
+  description = "How often (in minutes) the infected file notification schedule runs and how far back the Lambda looks."
+  type        = number
+  default     = 30 
+}
+
 
 # delete later
 

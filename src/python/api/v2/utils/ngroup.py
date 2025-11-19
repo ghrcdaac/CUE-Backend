@@ -1,13 +1,10 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/ngroup.py (Updated)
-# --- MODIFIED to use the shared connection pool from the request state ---
+# File: src/python/api/v2/utils/ngroup.py
 # ==============================================================================
 from uuid import UUID
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 import structlog
-from fastapi import Request # <-- Import Request
-
-# --- REMOVED: from core.db import get_db_connection ---
+from fastapi import Request
 from v2.database_util import ngroup as ngroup_db
 from v2.type_util.ngroup import NgroupCreate, NgroupUpdate
 
@@ -18,8 +15,6 @@ class NgroupNotFoundError(Exception):
     def __init__(self, ngroup_id: UUID):
         self.ngroup_id = ngroup_id
         super().__init__(f"Ngroup not found with ID: {ngroup_id}")
-
-# --- Functions now accept the `request` object ---
 
 async def create_ngroup(request: Request, ngroup: NgroupCreate) -> Dict[str, Any]:
     """Creates a new ngroup record."""

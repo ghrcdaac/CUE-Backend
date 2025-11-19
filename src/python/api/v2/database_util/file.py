@@ -36,7 +36,9 @@ async def create_preliminary_file_records(
         INSERT INTO file_status (id, status, upload_time, scan_results)
         VALUES ($1, 'uploading', $2, $3::jsonb);
     """
-    await conn.execute(status_query, file_id, datetime.now(timezone.utc), json.dumps(ip_address))
+    ip_address_json = json.dumps([ip_address]) 
+    
+    await conn.execute(status_query, file_id, datetime.now(timezone.utc), ip_address_json)
 
 
 async def safely_advance_file_status(conn: Connection, file_id: UUID, target_status: str) -> bool:

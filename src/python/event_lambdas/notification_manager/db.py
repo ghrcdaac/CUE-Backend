@@ -2,7 +2,7 @@ import logging
 import json
 from uuid import UUID
 from asyncpg import Connection
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
@@ -51,127 +51,182 @@ async def get_infected_file_details(conn: Connection, file_id: UUID) -> Optional
         logger.error(f"Error fetching notification details for file {file_id}: {e}", exc_info=True)
         return None
 
-async def get_infected_scheduled_file_details(conn: Connection, time_threshold: timedelta) -> Optional[Dict[UUID, Any]]:
+async def get_infected_scheduled_file_details(conn: Connection) -> Optional[Dict[UUID, Any]]:
     """
-    Finds all file details needed for a scheduled infected file notification.
+    Finds all file details for infected files that have not yet had a notification sent.
     """
-    query = """
-        WITH recipient_emails AS (
-            SELECT ngroup_id, ng.short_name AS short_name, array_agg(u.email) AS recipient_emails
-            FROM cueuser u
-            JOIN cueuser_role ur ON u.id = ur.cueuser_id
-            JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
-            JOIN ngroup ng ON ung.ngroup_id = ng.id
-            JOIN role r ON r.id = ur.role_id
-            WHERE r.short_name = ANY($1::text[])
-            GROUP BY ngroup_id, ng.short_name
-        )
-        SELECT 
-            ung.ngroup_id AS user_ngroup,
-            re.short_name,
-            re.recipient_emails,
-            JSONB_AGG(
-                JSONB_BUILD_OBJECT('file_id', f.id,
-                                 'file_name', f.name,
-                                 'uploader_name', u.name,
-                                 'collection_name', c.short_name,
-                                 'user_ngroup', ung.ngroup_id,
-                                 'scan_result', scan_result,
-                                 'virusName', virusName,
-                                 'date_scanned', data_scanned)) AS file_details
-        FROM file f
-        JOIN cueuser u ON f.cueuser_uploaded = u.id
-        JOIN collection c ON f.collection_id = c.id
-        JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
-        JOIN file_status fs ON f.id = fs.id
-        JOIN recipient_emails re on re.ngroup_id = ung.ngroup_id,
-        LATERAL jsonb_path_query(fs.scan_results, '$[*].result') as scan_result,
-        LATERAL jsonb_path_query(fs.scan_results, '$[*].virusName') as virusName,
-        LATERAL jsonb_path_query(fs.scan_results, '$[*].dateScanned') as data_scanned
-        WHERE fs.status = 'infected' AND fs.upload_time >= (NOW() - $2::INTERVAL)
-        GROUP BY user_ngroup,re.short_name,re.recipient_emails
-    """
+    # Define recipient roles directly in the query context for clarity
     RECIPIENT_ROLES = ["admin", "security", "daac_manager", "daac_staff"]
-    try:
-        records = await conn.fetch(query, *(RECIPIENT_ROLES, time_threshold))
-        if not records:
-            logger.info("No infected file details")
-            return None
-        notification_details = {}
-        for record in records:
-            key = record['user_ngroup']
-            notification_details[key] = {'short_name': record['short_name'],
-                                         'recipient_emails': record['recipient_emails'],
-                                         'file_details': json.loads(record['file_details'])}
-        logger.info("Found infected files")
-        return notification_details
-    except Exception as e:
-        logger.error(f"Error fetching notification details :{e}", exc_info=True)
-        return None
-
-async def block_providers_uploading_infected_files(conn: Connection, time_threshold: timedelta, infected_file_threshold:int) -> Dict[UUID, Dict[UUID,Any]]:
-    """
-    Finds all providers that have uploaded infected files over a threshold and blocks them.
-    """
+    
     query = """
-        WITH infected_provider_uploads AS (
+        WITH RelevantInfectedFiles AS (
+            -- Select infected files that have not been notified
             SELECT
-                p.id AS provider_id,
-                p.short_name AS provider_name,
-                p.ngroup_id AS provider_ngroup 
+                f.id AS file_id,
+                f.name AS file_name,
+                f.collection_id,
+                u.name AS uploader_name,
+                fs.scan_results,
+                fs.scan_end -- Use scan_end for ordering
             FROM file f
             JOIN file_status fs ON f.id = fs.id
-            JOIN cueuser_provider up ON f.cueuser_uploaded = up.cueuser_id
-            JOIN provider p ON p.id = up.provider_id 
-            WHERE fs.status = 'infected' AND fs.upload_time >= (NOW() - $1::INTERVAL)
-            GROUP BY p.id
-            HAVING (count(f.id) >= $2)
+            JOIN cueuser u ON f.cueuser_uploaded = u.id
+            WHERE fs.status = 'infected'
+              AND fs.notification_sent_at IS NULL -- Find files not yet reported
+            ORDER BY fs.scan_end ASC -- Process oldest first
+            LIMIT 500 -- Safety valve for large backlogs
+        ),
+        FileDetailsGroupedByCollectionNgroup AS (
+            -- Aggregate file details, linking through collection to get ngroup and provider
+            SELECT
+                c.ngroup_id,
+                ng.short_name AS ngroup_short_name,
+                JSONB_AGG(
+                    JSONB_BUILD_OBJECT(
+                        'file_id', rif.file_id,
+                        'file_name', rif.file_name,
+                        'uploader_name', rif.uploader_name,
+                        'collection_name', c.short_name,
+                        'scan_result', scan_res ->> 'result',
+                        'virusName', scan_res -> 'scanResults' -> 0 -> 'virusName',
+                        'date_scanned', scan_res ->> 'dateScanned',
+                        'uploader_ip', rif.scan_results -> 0 ->> 'ip_address'
+                    ) ORDER BY rif.scan_end ASC -- Order files within the group if desired
+                ) AS file_details_json
+            FROM RelevantInfectedFiles rif
+            JOIN collection c ON rif.collection_id = c.id
+            JOIN ngroup ng ON c.ngroup_id = ng.id
+            JOIN LATERAL jsonb_array_elements(
+                CASE
+                    WHEN jsonb_typeof(rif.scan_results) = 'array' THEN rif.scan_results
+                    ELSE '[]'::jsonb
+                END
+            ) AS scan_res ON TRUE
+            WHERE scan_res ->> 'result' = 'Infected' 
+            GROUP BY c.ngroup_id, ng.short_name
         )
-        SELECT provider_ngroup,
-            array_agg(provider_id) as provider_ids,
+        -- Final Select: Join aggregated file details with correctly scoped recipients
+        SELECT
+            fdg.ngroup_id,
+            fdg.ngroup_short_name,
+            fdg.file_details_json,
+            -- Aggregate recipient emails specifically for this ngroup_id
+            (
+                SELECT array_agg(DISTINCT u.email)
+                FROM cueuser u
+                JOIN cueuser_role ur ON u.id = ur.cueuser_id
+                JOIN role r ON ur.role_id = r.id
+                JOIN cueuser_ngroup ung ON u.id = ung.cueuser_id
+                WHERE r.short_name = ANY($1::text[]) 
+                  AND ung.ngroup_id = fdg.ngroup_id 
+            ) AS recipient_emails
+        FROM FileDetailsGroupedByCollectionNgroup fdg;
+    """
+    try:
+        # Pass recipient roles as the first parameter
+        records = await conn.fetch(query, RECIPIENT_ROLES)
+        if not records:
+            logger.info("No new infected file details found to report.")
+            return None
+            
+        notification_details = {}
+        for record in records:
+            key = record['ngroup_id'] # Use the explicitly selected ngroup_id
+            
+            # Parse the aggregated file details JSON
+            try:
+                file_details_list = json.loads(record['file_details_json']) if isinstance(record['file_details_json'], str) else record['file_details_json']
+                if file_details_list is None:
+                       file_details_list = []
+                elif not isinstance(file_details_list, list):
+                       file_details_list = [file_details_list]
+
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Failed to parse file_details_json JSONB for ngroup_id={key}, raw_details={record['file_details_json']}, error={e}")
+                file_details_list = [] # Avoid crashing, log the error
+
+            notification_details[key] = {
+                'short_name': record['ngroup_short_name'], # Use the explicitly selected short_name
+                'recipient_emails': record['recipient_emails'] or [], # Handle potential NULL from subquery
+                'file_details': file_details_list # Use the parsed list
+            }
+            
+        count = len(notification_details)
+        logger.info(f"Aggregated infected file details by {count} ngroup(s).")
+        return notification_details
+        
+    except Exception as e:
+        logger.error(f"Error fetching scheduled notification details: {e}", exc_info=True)
+        return None
+
+
+async def get_providers_exceeding_threshold(conn: Connection, time_threshold: timedelta, infected_file_threshold: int) -> Dict[UUID, List[Dict[str, Any]]]:
+    """
+    Finds providers that (a) exceeded the threshold in the lookback window,
+    (b) are currently blocked, and (c) have not had a notification sent yet.
+    Returns details grouped by the collection's ngroup_id.
+    """
+    query = """
+        WITH infected_collection_providers AS (
+            -- Find providers linked to collections where infected files were uploaded
+            SELECT DISTINCT
+                c.provider_id,
+                p.short_name AS provider_name,
+                c.ngroup_id AS collection_ngroup,
+                p.can_upload,
+                p.reason,
+                -- Count infected files per provider *within this time window*
+                COUNT(f.id) OVER (PARTITION BY c.provider_id) as infected_count
+            FROM file f
+            JOIN file_status fs ON f.id = fs.id
+            JOIN collection c ON f.collection_id = c.id
+            JOIN provider p ON c.provider_id = p.id
+            WHERE fs.status = 'infected'
+              AND fs.scan_end >= (NOW() - $1::INTERVAL)
+        )
+        -- Aggregate the details for reporting, grouped by the collection's ngroup
+        SELECT
+            icp.collection_ngroup,
             JSONB_AGG(
-                JSON_BUILD_OBJECT(
-                    'provider_id', provider_id,
-                    'provider_name', provider_name
+                JSONB_BUILD_OBJECT(
+                    'provider_id', icp.provider_id,
+                    'provider_name', icp.provider_name,
+                    'is_currently_blocked', NOT icp.can_upload,
+                    'current_reason', icp.reason
                 )
             ) as provider_details
-        FROM infected_provider_uploads
-        GROUP BY provider_ngroup
+        FROM infected_collection_providers icp
+        -- Join provider table to check notification status
+        JOIN provider p ON icp.provider_id = p.id
+        WHERE icp.infected_count >= $2 -- Apply threshold filter
+          AND p.can_upload = false -- Only report providers that are *actually* blocked
+          AND p.last_block_notification_at IS NULL -- Only report if we haven't notified
+        GROUP BY icp.collection_ngroup;
     """
     try:
         params = (time_threshold, infected_file_threshold)
         records = await conn.fetch(query, *params)
         if not records:
-            logger.info("No users to block")
+            logger.info("No new provider blocks to report.")
             return {}
-        blocked_providers = {} 
-        provider_ids = []
-        for record in records:
-            key = record["provider_ngroup"] 
-            blocked_providers[key] = json.loads(record["provider_details"])
-            provider_ids.extend(record["provider_ids"])
-        logger.info("Found users to block")
-        if provider_ids:
-           await block_providers(conn, provider_ids)
-        return blocked_providers
-    except Exception as e:
-        logger.error(f"Error finding providers to block or blocking providers: {e}", exc_info=True)
-        return {} 
 
-async def block_providers(conn:Connection, provider_ids:List[UUID]):
-    """
-    Helper function to disable "Can Upload" permission for given provider IDs.
-    """
-    query = """
-        UPDATE provider
-        SET can_upload = false
-        WHERE id = ANY($1::uuid[])
-    """
-    try: 
-        result = await conn.fetch(query, provider_ids)
-        return result 
+        providers_exceeding_threshold = {}
+        for record in records:
+            key = record["collection_ngroup"]
+            try:
+                details_list = json.loads(record["provider_details"]) if isinstance(record["provider_details"], str) else record["provider_details"]
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse provider_details JSONB for ngroup_id={key}, raw_details={record['provider_details']}")
+                details_list = []
+            providers_exceeding_threshold[key] = details_list
+
+        count = len(providers_exceeding_threshold)
+        logger.info(f"Found {count} ngroup(s) with providers exceeding threshold (by collection).")
+        return providers_exceeding_threshold
     except Exception as e:
-        logger.error(f"Error blocking providers : {e}", exc_info=True)
+        logger.error(f"Error finding providers exceeding threshold (by collection): {e}", exc_info=True)
+        return {}
+
 
 
 async def get_new_application_details(conn: Connection, application_id: UUID) -> Optional[Dict[str, Any]]:
@@ -237,3 +292,61 @@ async def get_approved_user_details(conn: Connection, user_id: UUID) -> Optional
     query = "SELECT name AS user_name, email AS user_email FROM cueuser WHERE id = $1;"
     record = await conn.fetchrow(query, user_id)
     return dict(record) if record else None
+
+async def get_ngroup_recipient_emails(conn: Connection, ngroup_id: UUID) -> Tuple[List[str], Optional[str]]:
+    """Fetches recipient emails AND the short_name for a specific ngroup."""
+    RECIPIENT_ROLES = ["admin", "security", "daac_manager", "daac_staff"]
+    query = """
+        SELECT 
+            g.short_name, -- Fetch the group's short name
+            array_agg(DISTINCT u.email) FILTER (WHERE u.email IS NOT NULL) AS emails -- Aggregate emails
+        FROM ngroup g
+        LEFT JOIN cueuser_ngroup ung ON g.id = ung.ngroup_id
+        LEFT JOIN cueuser u ON ung.cueuser_id = u.id
+        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
+        LEFT JOIN role r ON ur.role_id = r.id AND r.short_name = ANY($1::text[])
+        WHERE g.id = $2
+        GROUP BY g.short_name; -- Group by the name we're selecting
+    """
+    try:
+        result = await conn.fetchrow(query, RECIPIENT_ROLES, ngroup_id)
+        if result:
+            emails = result['emails'] or []
+            short_name = result['short_name']
+            return emails, short_name
+        else:
+            logger.warning(f"db.get_ngroup_details.not_found for ngroup_id={ngroup_id}")
+            return [], None # Return empty list and None if group not found
+    except Exception as e:
+        logger.error(f"db.get_ngroup_recipients.failed for ngroup_id={ngroup_id}", exc_info=True)
+        return [], None # Return empty list and None on error
+    
+
+
+async def mark_files_as_notified(conn: Connection, file_ids: List[UUID]):
+    """Sets notification_sent_at for a list of file IDs."""
+    if not file_ids:
+        return
+    try:
+        await conn.execute(
+            "UPDATE file_status SET notification_sent_at = NOW() WHERE id = ANY($1::uuid[])",
+            file_ids
+        )
+        logger.info(f"Marked {len(file_ids)} files as notified.")
+    except Exception as e:
+        logger.error(f"Failed to mark files as notified", exc_info=True)
+        raise
+
+async def mark_providers_as_notified(conn: Connection, provider_ids: List[UUID]):
+    """Sets last_block_notification_at for a list of provider IDs."""
+    if not provider_ids:
+        return
+    try:
+        await conn.execute(
+            "UPDATE provider SET last_block_notification_at = NOW() WHERE id = ANY($1::uuid[])",
+            provider_ids
+        )
+        logger.info(f"Marked {len(provider_ids)} providers as notified.")
+    except Exception as e:
+        logger.error(f"Failed to mark providers as notified", exc_info=True)
+        raise

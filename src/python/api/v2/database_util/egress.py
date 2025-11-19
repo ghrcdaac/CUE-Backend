@@ -1,6 +1,6 @@
 # File: src/python/api/v2/database_util/egress.py
 
-from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError
+from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 import structlog

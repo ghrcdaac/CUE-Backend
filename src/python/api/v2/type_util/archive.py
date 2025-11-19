@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
 from .file_metrics import MetricsQueryParameters
-from .file import FileResponse # Re-use the rich file response model
+from .file import FileResponse
 
 class ArchiveQueryRequest(MetricsQueryParameters):
     """Request body for starting an archive query. Filters are inherited."""

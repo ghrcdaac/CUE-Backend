@@ -1,6 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/cueuser.py (Updated)
-# --- MODIFIED to pass the request object down to the utility layer ---
+# File: src/python/api/v2/endpoints/cueuser.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header 
 from uuid import UUID
@@ -12,8 +11,6 @@ from v2.utils import cueuser as cueuser_utils
 from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse, UserRoleUpdateRequest
 
 router = APIRouter(prefix="/cueusers", tags=["V2 - CUE Users"])
-
-# --- All endpoints now accept `request: Request` ---
 
 @router.get("/me", response_model=UserResponse)
 async def get_my_profile(request: Request, user: User = Depends(get_current_user)):

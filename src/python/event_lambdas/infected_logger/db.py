@@ -1,17 +1,18 @@
 import structlog
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List 
 from uuid import UUID
 from asyncpg import Connection
 from asyncpg.exceptions import PostgresError, ForeignKeyViolationError
+from datetime import timedelta 
 
 logger = structlog.get_logger(__name__)
 
-async def process_scan_result_in_database(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> Tuple[Optional[UUID], str]:
-    """
-    Atomically updates the file_status with scan results and advances the status using a safe,
-    forward-only state machine that correctly handles the scanner/API race condition.
 
-    Returns the collection_id if the file is clean, and the final status.
+async def process_scan_result_in_database(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> Tuple[Optional[UUID], str, Optional[UUID]]:
+    """
+    Atomically updates the file_status with scan results and advances the status.
+    Returns the collection_id (if clean), the final status, and the provider_id
+    associated with the file's collection.
     """
     target_status = update_data['status']
     
@@ -21,13 +22,10 @@ async def process_scan_result_in_database(conn: Connection, file_id: UUID, updat
             SET
                 status = (
                     CASE
-                        -- This is the critical fix: Allow update if status is 'uploading' OR 'unscanned'.
                         WHEN status IN ('uploading', 'unscanned') AND $2 IN ('clean', 'infected', 'scan_failed')
                             THEN $2::file_status_type
-                        -- This handles the standard progression from clean to distributed.
                         WHEN status = 'clean' AND $2 = 'distributed'
                             THEN 'distributed'::file_status_type
-                        -- In all other cases (e.g., trying to revert 'distributed' to 'clean'), do nothing.
                         ELSE status
                     END
                 ),
@@ -39,10 +37,11 @@ async def process_scan_result_in_database(conn: Connection, file_id: UUID, updat
         )
         SELECT
             u.status,
-            -- Only fetch the collection_id if the final status is 'clean'.
-            CASE WHEN u.status = 'clean' THEN f.collection_id ELSE NULL END as collection_id
+            CASE WHEN u.status = 'clean' THEN f.collection_id ELSE NULL END as collection_id,
+            c.provider_id -- Select the provider_id from the collection
         FROM updated u
-        JOIN file f ON u.id = f.id;
+        JOIN file f ON u.id = f.id
+        JOIN collection c ON f.collection_id = c.id; -- Join collection to get its provider_id
     """
     try:
         result = await conn.fetchrow(
@@ -56,24 +55,69 @@ async def process_scan_result_in_database(conn: Connection, file_id: UUID, updat
 
         if not result:
             logger.warning("db.scan_update.noop", file_id=str(file_id), target_status=target_status,
-                           detail="Status was not advanced. The file may have been in a later state or the ID was invalid.")
-            return None, "unchanged"
+                           detail="Status not advanced or ID invalid.")
+            return None, "unchanged", None # Return None for provider_id
 
         final_status = result['status']
         collection_id = result['collection_id']
+        provider_id = result['provider_id'] # Get collection's provider_id
         
-        logger.info("db.scan_update.success", file_id=str(file_id), final_status=final_status)
-        return collection_id, final_status
+        logger.info("db.scan_update.success", file_id=str(file_id), final_status=final_status, collection_provider_id=str(provider_id) if provider_id else "N/A")
+        return collection_id, final_status, provider_id # Return collection's provider_id
 
     except ForeignKeyViolationError as e:
         logger.warning(
-            "db.scan_update.race_condition",
-            file_id=str(file_id),
-            detail="The main file record does not exist yet. This is expected; SQS will retry.",
-            error=str(e)
+            "db.scan_update.race_condition_or_fk_issue", file_id=str(file_id),
+            detail="File/Collection record missing or FK violation. SQS will retry.", error=str(e)
         )
-        raise  # Re-raise to ensure SQS retries.
+        raise
     except PostgresError as e:
         logger.error("db.scan_update.postgres_error", file_id=str(file_id), exc_info=True)
         raise
 
+
+
+async def count_provider_infected_files(conn: Connection, provider_id: UUID, lookback_window: timedelta) -> int:
+    """Counts infected files associated with collections linked to a specific provider."""
+    query = """
+        SELECT COUNT(f.id)
+        FROM file f
+        JOIN file_status fs ON f.id = fs.id
+        JOIN collection c ON f.collection_id = c.id -- Join file to collection
+        WHERE c.provider_id = $1 -- Filter by collection's provider_id
+          AND fs.status = 'infected'
+          AND fs.scan_end >= (NOW() - $2::INTERVAL);
+    """
+    try:
+        count = await conn.fetchval(query, provider_id, lookback_window)
+        logger.info("db.provider_infected_count.success (by collection)", provider_id=str(provider_id), lookback_window=str(lookback_window), count=count)
+        return count or 0
+    except Exception as e:
+        logger.error("db.provider_infected_count.failed (by collection)", provider_id=str(provider_id), exc_info=True)
+        return 0 # Return 0 on error to prevent accidental blocking
+
+
+async def block_provider_instant(conn: Connection, provider_id: UUID, reason: str):
+    """Sets can_upload to false and updates the reason for a single provider."""
+    query = """
+        UPDATE provider
+        SET 
+            can_upload = false,
+            reason = $2
+        WHERE id = $1 AND can_upload = true; -- Only update if not already blocked
+    """
+    try:
+        result = await conn.execute(query, provider_id, reason)
+        # Check if a row was actually updated
+        if result == "UPDATE 1":
+             logger.info("db.provider_block.success", provider_id=str(provider_id), reason=reason)
+             return True
+        elif result == "UPDATE 0":
+             logger.info("db.provider_block.already_blocked", provider_id=str(provider_id))
+             return False # Indicate no change was made
+        else:
+             logger.warning("db.provider_block.unexpected_result", provider_id=str(provider_id), result=result)
+             return False
+    except Exception as e:
+        logger.error("db.provider_block.failed", provider_id=str(provider_id), exc_info=True)
+        return False # Indicate failure
