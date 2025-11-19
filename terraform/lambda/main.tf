@@ -206,37 +206,38 @@ resource  "aws_lambda_function" "cue_file_transfer"{
 }
 
 # #7. Cost Update Lambda
-# resource "aws_lambda_function" "cue_cost_update" {
-#   filename         = "../artifacts/cost-update-lambda.zip"
-#   source_code_hash = filesha256("../artifacts/cost-update-lambda.zip")
-#   function_name    = "cue_cost_update"
-#   role             = var.cost_update_role_arn 
-#   handler          = "handler.handler"
-#   runtime          = "python3.13"
-#   architectures    = ["x86_64"]
-#   timeout          = 180
+resource "aws_lambda_function" "cue_cost_update" {
+  filename         = "../artifacts/cost-update-lambda.zip"
+  source_code_hash = filesha256("../artifacts/cost-update-lambda.zip")
+  function_name    = "cue_cost_update"
+  role             = var.cost_update_role_arn 
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
 
-#   environment {
-#     variables = {
-#       PG_USER       = var.db_user
-#       PG_HOST       = var.db_proxy_host
-#       PG_DB         = var.db_database
-#       PG_PASS       = var.db_password
-#       PORT          = var.db_port
-#       POOL_MIN_SIZE = "1"
-#       POOL_MAX_SIZE = "20"
-#       LOG_LEVEL     = "INFO"
-#       CSS_ROLE_ARN  = var.css_cost_explorer_role_arn
-#       DB_SSL_MODE   = "require"
-#       ENV           = "production"
-#     }
-#   }
+  environment {
+    variables = {
+      PG_USER       = var.db_user
+      PG_HOST       = var.db_proxy_host
+      PG_DB         = var.db_database
+      PG_PASS       = var.db_password
+      PORT          = var.db_port
+      POOL_MIN_SIZE = "1"
+      POOL_MAX_SIZE = "20"
+      LOG_LEVEL     = "INFO"
+      CSS_ROLE_ARN  = var.css_cost_explorer_role_arn
+      DB_SSL_MODE   = "require"
+      ENV           = "production"
+      LOOKBACK_DAYS = 1
+    }
+  }
 
-#   vpc_config {
-#     subnet_ids         = var.subnet_ids
-#     security_group_ids = var.security_group_ids
-#   }
-# }
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
 
 
 resource "aws_lambda_alias" "cue_api_live_alias" {
