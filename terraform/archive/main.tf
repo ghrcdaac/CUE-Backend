@@ -89,11 +89,23 @@ resource "aws_glue_catalog_table" "metrics" {
       type = "string"
     }
     columns {
-      name = "ngroup_id"
-      type = "string"
+      name = "metric_upload_at"
+      type = "timestamp" 
+    }
+    columns {
+      name = "aws_transfer_cost"
+      type = "decimal"
+    }
+    columns {
+      name = "scanner_cost"
+      type = "decimal"
     }
   }
 
+  partition_keys {
+    name = "ngroup_id"
+    type = "string"
+  }
   partition_keys {
     name = "date"
     type = "string"
@@ -112,9 +124,19 @@ resource "aws_glue_catalog_table" "metrics" {
   }
 }
 
+resource "aws_iam_role" "cue_crawler_role" {
+  name               = "CUECrawlerRole"
+  assume_role_policy = data.aws_iam_policy_document.glue_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy" "cue_crawler_role_policy" {
+  role = aws_iam_role.cue_crawler_role.id
+  policy = data.aws_iam_policy_document.cue_crawler_policy.json
+}
+
 resource "aws_glue_crawler" "metrics_crawler" {
   name          = "metrics-crawler"
-  role          = var.cue_crawler_role_arn
+  role          = aws_iam_role.cue_crawler_role.arn
   database_name = aws_glue_catalog_database.cue_archive_database.name
   schedule      = "cron(30 3 ? * SUN *)"
 

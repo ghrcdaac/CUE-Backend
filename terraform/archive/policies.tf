@@ -31,13 +31,17 @@ data "aws_iam_policy_document" "cue_crawler_policy" {
     effect = "Allow"
     actions = [
       "glue:GetDatabase",
+      "glue:UpdateDatabase",
+      "glue:GetTable",
       "glue:GetTables",
       "glue:CreateTable",
       "glue:UpdateTable",
+      "glue:GetPartition",
       "glue:GetPartitions",
       "glue:CreatePartition",
       "glue:BatchCreatePartition",
-      "glue:UpdatePartition"
+      "glue:UpdatePartition",
+      "glue:BatchGetPartition"
     ]
     resources = [
       "arn:aws:glue:${var.region}:${var.account_id}:catalog",
@@ -52,7 +56,7 @@ data "aws_iam_policy_document" "cue_crawler_policy" {
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
-    resources = ["arn:aws:logs:*:*:/aws-glue/crawlers/*"]
+    resources = ["arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws-glue/crawlers:log-stream:${aws_glue_crawler.metrics_crawler.name}"]
   }
 }
 

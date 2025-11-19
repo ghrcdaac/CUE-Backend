@@ -148,47 +148,24 @@ resource "aws_lambda_function" "notification_manager" {
   }
 }
 
-# 4. Email Sender Lambda
-# resource "aws_lambda_function" "email_sender" {
-#   filename         = "../artifacts/email-sender-lambda.zip"
-#   source_code_hash = filebase64sha256("../artifacts/email-sender-lambda.zip")
-#   function_name    = "cue_email_sender"
-#   role             = var.email_sender_role_arn
-#   handler          = "handler.handler"
-#   runtime          = "python3.13"
-#   architectures    = ["x86_64"]
-#   timeout          = 30
-#   memory_size      = 128
-
-#   environment {
-#     variables = {
-#       SENDER_EMAIL           = var.sender_email
-#       SOURCE_ARN             = var.ses_source_arn
-#       CONFIGURATION_SET_NAME = var.ses_configuration_set_name
-#       SES_REGION             = var.ses_region
-#       LOG_LEVEL              = "INFO"
-#     }
-#   }
-# }
-
 # 5. Process Athena Query Lambda
-#  resource "aws_lambda_function" "process_athena_query" {
-#   filename         = "../artifacts/process-athena-query-lambda.zip"
-#   source_code_hash = filebase64sha256("../artifacts/process-athena-query-lambda.zip")
-#   function_name    = "cue_process_athena_query"
-#   role             = var.process_athena_query_role_arn
-#   handler          = "handler.handler"
-#   runtime          = "python3.13"
-#   architectures    = ["x86_64"]
-#   timeout          = 180
+resource "aws_lambda_function" "process_athena_query" {
+  filename         = "../artifacts/process-athena-query-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/process-athena-query-lambda.zip")
+  function_name    = "cue_process_athena_query"
+  role             = var.process_athena_query_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
 
-#   environment {
-#     variables = {
-#       RESULTS_BUCKET = var.cue_archive_results_bucket
-#       LOG_LEVEL      = "INFO"
-#     }
-#   }
-# }
+  environment {
+    variables = {
+      RESULTS_BUCKET = var.cue_archive_results_bucket
+      LOG_LEVEL      = "INFO"
+    }
+  }
+}
 
 # 6. File Transfer Lambda
 resource  "aws_lambda_function" "cue_file_transfer"{
@@ -388,21 +365,20 @@ resource "aws_lambda_permission" "allow_eventbridge_to_notification_manager" {
   source_arn    = aws_cloudwatch_event_rule.application_events_rule.arn
 }
 # resource "aws_lambda_permission" "allow_eventbridge_to_update_cost" {
-#   statement_id  = "AllowExecutionFromEventBridge"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.cue_cost_update.function_name
-#   principal     = "events.amazonaws.com"
-#   source_arn    = aws_cloudwatch_event_rule.cost_update_schedule.arn
+  # statement_id  = "AllowExecutionFromEventBridge"
+  # action        = "lambda:InvokeFunction"
+  # function_name = aws_lambda_function.cue_cost_update.function_name
+  # principal     = "events.amazonaws.com"
+  # source_arn    = aws_cloudwatch_event_rule.cost_update_schedule.arn
 # }
 
-
-# resource "aws_lambda_permission" "allow_eventbridge_to_athena_processor" {
-#   statement_id  = "AllowExecutionFromEventBridgeForAthena"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.process_athena_query.function_name
-#   principal     = "events.amazonaws.com"
-#   source_arn    = aws_cloudwatch_event_rule.athena_query_state_change_rule.arn
-# }
+resource "aws_lambda_permission" "allow_eventbridge_to_athena_processor" {
+  statement_id  = "AllowExecutionFromEventBridgeForAthena"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.process_athena_query.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.athena_query_state_change_rule.arn
+}
 
 # resource "aws_lambda_permission" "cue_api_apigw_permission" {
 #   statement_id  = "AllowExecutionFromAPIGateway"
@@ -434,8 +410,8 @@ resource "aws_cloudwatch_log_group" "email_sender_lg" {
   retention_in_days = 14
 }
 
-# resource "aws_cloudwatch_log_group" "process_athena_query_lg" {
-#   name              = "/aws/lambda/${aws_lambda_function.process_athena_query.function_name}"
-#   retention_in_days = 14
-# }
+resource "aws_cloudwatch_log_group" "process_athena_query_lg" {
+  name              = "/aws/lambda/${aws_lambda_function.process_athena_query.function_name}"
+  retention_in_days = 14
+}
 

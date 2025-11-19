@@ -73,6 +73,7 @@ async def main(param_name, bucket, db_host, db_port, db_name, db_user, db_pass )
 
             if uploaded_metrics and len(uploaded_metrics) == total_count:
                 #if upload was successful delete records from database
+                logger.info("Removing aged off metrics from postgres_db")
                 await remove_aged_off_metrics(conn, retention_period, uploaded_metrics)
 
     except Exception as e:
@@ -147,7 +148,7 @@ async def get_aged_off_metrics(conn, retention_period: int) -> Tuple[List[str], 
                     file f 
                 JOIN
                     file_status fs ON fs.id = f.id
-                JOIN
+                LEFT JOIN
                     cost_metric cm on cm.file_id = f.id
                 JOIN 
                     collection c ON f.collection_id = c.id
@@ -168,13 +169,18 @@ async def get_aged_off_metrics(conn, retention_period: int) -> Tuple[List[str], 
 
 async def remove_aged_off_metrics(conn, retention_period: int, ids: List[str]):
     """Remove aged off metrics from RDS"""
-    query_fs = """
-                DELETE FROM file_status 
-                WHERE DATE(NOW()) - DATE(upload_time) >= $1 and file_status.id = $2 
-             """
+    remove_file_query= """
+        DELETE FROM file f
+        WHERE EXISTS(
+            SELECT 1 
+            FROM file_status fs 
+            WHERE f.id = fs.id 
+                 AND DATE(NOW()) - DATE(fs.upload_time) >= $1
+                 AND f.id = ANY($2::uuid[])
+        )
+    """
     try:
-        for _id in ids:
-            await conn.execute(query_fs, *(retention_period, _id))
+        await conn.execute(remove_file_query, *(retention_period, ids))
     except Exception as e:
         logger.error(f"Error removing aged off metrics {e}", exc_info=True)
         raise
@@ -193,9 +199,9 @@ async def upload_to_s3(df: DataFrame, bucket: str) -> List[str]:
                                 ("ngroup_id", pa.string()), ("date", pa.date64()), ("scanner_cost", pa.decimal128(10,6)), ("aws_transfer_cost", pa.decimal128(10,6)), ("metric_recorded_at", pa.timestamp("us", tz="UTC"))])
 
     s3_client = boto3.client("s3")
-    for (date, collection_id, provider_id, cueuser_uploaded), group in df.groupby(["date", "collection_id", "provider_id", "cueuser_uploaded"]):
+    for (ngroup_id, date, collection_id, provider_id, cueuser_uploaded), group in df.groupby(["ngroup_id", "date", "collection_id", "provider_id", "cueuser_uploaded"]):
         #Create partition directory
-        partition_path = os.path.join(data_path, f"date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}")
+        partition_path = os.path.join(data_path, f"ngroup={ngroup_id}/date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}")
         os.makedirs(partition_path, exist_ok=True)
 
         #Convert Dataframe group to Parquet file
@@ -204,7 +210,7 @@ async def upload_to_s3(df: DataFrame, bucket: str) -> List[str]:
         pq.write_table(table, temp_parquet_file)
 
         #Upload the Parquet file
-        s3_path = f"data/metrics/date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}/data.parquet"
+        s3_path = f"data/metrics/ngroup_id={ngroup_id}/date={date}/collection={collection_id}/provider={provider_id}/cueuser_uploaded={cueuser_uploaded}/data.parquet"
         md5_checksum = await calculate_md5(temp_parquet_file)
         try:
             # store in s3

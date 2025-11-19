@@ -42,18 +42,18 @@ resource "aws_cloudwatch_event_rule" "athena_query_state_change_rule" {
 }
 
 # Target for the Athena rule: the process_athena_query Lambda
-# resource "aws_cloudwatch_event_target" "process_athena_query_target" {
-#   rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
-#   target_id = "TriggerAthenaQueryProcessor"
-#   arn       = aws_lambda_function.process_athena_query.arn
-# }
-
-
-resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
-  name                = "cue-cost-update-lambda-schedule"
-  description         = "Schedule to run cost update lambda"
-  schedule_expression = "cron(0 1 * * ? *)"  
+resource "aws_cloudwatch_event_target" "process_athena_query_target" {
+  rule      = aws_cloudwatch_event_rule.athena_query_state_change_rule.name
+  target_id = "TriggerAthenaQueryProcessor"
+  arn       = aws_lambda_function.process_athena_query.arn
 }
+
+
+# resource "aws_cloudwatch_event_rule" "cost_update_schedule" {
+  # name                = "cue-cost-update-lambda-schedule"
+  # description         = "Schedule to run cost update lambda"
+  # schedule_expression = "cron(0 1 * * ? *)"  
+# }
 
 # resource "aws_cloudwatch_event_target" "update_cost_target" {
 #   rule      = aws_cloudwatch_event_rule.cost_update_schedule.name

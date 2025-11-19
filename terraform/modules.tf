@@ -111,13 +111,13 @@ module "glue" {
   rds_cluster_identifier = var.rds_cluster_identifier
 }
 
-# module "archive" {
-#   source = "./archive" # Renamed from archive-api for consistency
+module "archive" {
+   source = "./archive" # Renamed from archive-api for consistency
 
-#   region                       = var.region
-#   account_id                   = var.account_id
-#   cue_archive_database_name       = var.cue_archive_database_name
-#   cue_archive_bucket              = var.cue_archive_bucket
-#   process_athena_query_lambda_arn = module.lambda_functions.process_athena_query_lambda_arn 
-# }
+   region                          = var.region
+   account_id                      = var.account_id
+   cue_archive_database_name       = var.cue_archive_database_name
+   cue_archive_bucket              = var.cue_archive_bucket
+   process_athena_query_lambda_arn = module.lambda_functions.process_athena_query_lambda_arn 
+}
 
