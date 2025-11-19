@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/database_util/user_application.py (Final)
+# File: src/python/api/v2/database_util/user_application.py
 # Purpose: Contains all raw SQL queries for managing user applications.
 # Added explicit type casting in the list_user_applications query to
 #      resolve the IndeterminateDatatypeError.

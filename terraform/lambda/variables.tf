@@ -218,3 +218,9 @@ variable "keycloak_certs_file" {
   description = "The Keycloak public key location."
   type        = string
 }
+
+variable "notification_schedule_minutes" {
+  description = "How often (in minutes) the infected file notification schedule runs and how far back the Lambda looks."
+  type        = number
+  default     = 30 
+}

@@ -1,10 +1,9 @@
 # File: src/python/api/v2/type_util/archive.py
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List
-from uuid import UUID
 from .file_metrics import MetricsQueryParameters
-from .file import FileResponse # Re-use the rich file response model
+from .file import FileResponse
 
 class ArchiveQueryRequest(MetricsQueryParameters):
     """Request body for starting an archive query. Filters are inherited."""

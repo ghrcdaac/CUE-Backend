@@ -59,8 +59,7 @@ async def create_new_user(
                 await user_db.assign_providers_to_user(conn, user_id, provider_ids)
     
     logger.info("user.created_locally", user_id=str(user_id))
-    # Fetch the final aggregated profile once after creation. This is now much faster
-    # due to the optimized query in the database_util layer.
+    # Fetch the final aggregated profile once after creation.
     return await get_user_profile(request, user_id)
 
 async def get_user_profile(request: Request, user_id: UUID) -> Dict[str, Any]:
@@ -94,7 +93,6 @@ async def list_users(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
-        # Call the new, more powerful list_users function
         users_data = await user_db.list_users(
             conn,
             requesting_user=current_user.model_dump(),
@@ -142,7 +140,7 @@ async def update_user_details(request: Request, user_id: UUID, update_request: U
         raise ValueError("No update data provided.")
     
     async with request.state.pool.acquire() as conn:
-        # The database function now returns the full, updated user record directly.
+        # The database function returns the full, updated user record directly.
         updated_user_raw = await user_db.update_user(conn, user_id, update_data)
     
     if not updated_user_raw:
@@ -182,5 +180,4 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
         await user_db.update_user_roles(conn, user_id, [role_id])
     
     logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
-    # Fetch the final profile. This is now fast due to the optimized database query.
     return await get_user_profile(request, user_id)

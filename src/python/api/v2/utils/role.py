@@ -1,13 +1,10 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/role.py (Updated)
-# --- MODIFIED to use the shared connection pool from the request state ---
+# File: src/python/api/v2/utils/role.py
 # ==============================================================================
 from uuid import UUID
 from typing import List, Optional, Dict, Any
 import structlog
-from fastapi import Request # <-- Import Request
-
-# --- REMOVED: from core.db import get_db_connection ---
+from fastapi import Request 
 from v2.database_util import role as role_db
 from v2.type_util.role import RoleCreate, RoleUpdate
 

@@ -1,6 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/role.py (Updated)
-# --- MODIFIED to pass the request object down to the utility layer ---
+# File: src/python/api/v2/endpoints/role.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request # <-- Import Request
 from uuid import UUID
