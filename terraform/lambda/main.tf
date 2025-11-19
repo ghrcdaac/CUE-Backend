@@ -230,14 +230,14 @@ resource  "aws_lambda_function" "cue_file_transfer"{
 
 # #7. Cost Update Lambda
 resource "aws_lambda_function" "cue_cost_update" {
-   filename         = "../artifacts/cost-update-lambda.zip"
-   source_code_hash = filesha256("../artifacts/cost-update-lambda.zip")
-   function_name    = "cue_cost_update"
-   role             = var.cost_update_role_arn 
-   handler          = "handler.handler"
-   runtime          = "python3.13"
-   architectures    = ["x86_64"]
-   timeout          = 180
+  filename         = "../artifacts/cost-update-lambda.zip"
+  source_code_hash = filesha256("../artifacts/cost-update-lambda.zip")
+  function_name    = "cue_cost_update"
+  role             = var.cost_update_role_arn 
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
 
   environment {
     variables = {
@@ -256,10 +256,10 @@ resource "aws_lambda_function" "cue_cost_update" {
     }
   }
 
-   vpc_config {
-     subnet_ids         = var.subnet_ids
-     security_group_ids = var.security_group_ids
-   }
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
 }
 
 
