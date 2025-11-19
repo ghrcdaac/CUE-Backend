@@ -68,6 +68,7 @@ async def async_handler(event, context):
             clean = await validate_clean_file(conn, file_id)
             if not clean:
                 invalid_status_file_ids.append(file_id)
+                logger.info('file_id.status.not_clean', file_id=file_id)
                 continue
 
             transferable_file_ids.append(file_id)
@@ -98,6 +99,7 @@ async def async_handler(event, context):
         failed_files.extend([{"file_id": str(file_id), "message":"Is not clean."} for file_id in invalid_status_file_ids])
 
     if len(failed_files) > 0:
+        logger.info('failed_file_ids', file_ids=failed_files)
         return {"status_code":400, "body":{"file_ids":json.dumps(failed_files)}}
     else:
         return {"status_code":200, "body":{"message":"All file transfers initiated."}}
