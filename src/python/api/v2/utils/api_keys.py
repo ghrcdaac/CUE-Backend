@@ -33,7 +33,7 @@ def _hash_key(key: str) -> str:
 
 async def _can_manager_access_key(manager: AuthUser, key_info: Dict[str, Any], conn) -> bool:
     """Checks if a manager has permission to access a given key."""
-    # This helper is still useful for checking manager-specific group access.
+    # This helper is useful for checking manager-specific group access.
     if "admin" in manager.roles:
         return True
     
@@ -56,7 +56,6 @@ async def _can_manager_access_key(manager: AuthUser, key_info: Dict[str, Any], c
     return False
 
 
-# Logic is now driven by the explicit `key_type`.
 async def create_api_key(request: Request, create_body: ApiKeyCreateRequest, creator: AuthUser) -> Dict[str, Any]:
     """Orchestrates the creation of a new API key based on its type."""
     creator_roles = set(creator.roles)

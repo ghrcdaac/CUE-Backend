@@ -1,5 +1,5 @@
 from asyncpg import Connection, UniqueViolationError, DataError
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 from lambda_utils.type_util.privilege import PrivilegeReturn
 import logging

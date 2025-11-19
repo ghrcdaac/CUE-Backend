@@ -40,7 +40,6 @@ class UserFindResponse(BaseModel):
 
 class UserCreateRequest(BaseModel):
     """Model for an admin to create a user directly."""
-    # --- CHANGE: Added user_id from Keycloak ---
     user_id: UUID = Field(..., description="The user's existing ID (sub) from Keycloak.")
     email: EmailStr
     cueusername: str

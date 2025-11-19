@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/database_util/role.py (Final)
+# File: src/python/api/v2/database_util/role.py
 # Purpose: Contains all raw SQL queries for role management.
 # Added list_all_privileges to support granting full access to admins.
 # ==============================================================================

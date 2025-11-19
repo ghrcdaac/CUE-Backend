@@ -1,6 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/ngroup.py (Updated)
-# --- MODIFIED to pass the request object down to the utility layer ---
+# File: src/python/api/v2/endpoints/ngroup.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Request # <-- Import Request
 from uuid import UUID
@@ -13,7 +12,6 @@ from v2.type_util.ngroup import NgroupCreate, NgroupUpdate, NgroupResponse, Ngro
 
 router = APIRouter(prefix="/ngroups", tags=["V2 - NGroups"])
 
-# --- All endpoints now accept `request: Request` ---
 
 @router.post("/", response_model=NgroupResponse, status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(require_privilege("admin"))])

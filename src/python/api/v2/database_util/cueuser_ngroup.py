@@ -1,6 +1,5 @@
 from asyncpg import Connection, UniqueViolationError, ForeignKeyViolationError, DataError
 from typing import Tuple, List
-from uuid import UUID
 import logging
 
 logger = logging.getLogger(__name__)
