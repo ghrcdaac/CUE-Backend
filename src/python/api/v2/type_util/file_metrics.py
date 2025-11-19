@@ -1,10 +1,9 @@
 # File: src/python/api/v2/type_util/file_metrics.py
 
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List
 from uuid import UUID
 from datetime import date
-from .file import FileResponse
 
 class MetricsQueryParameters(BaseModel):
     """Optional query parameters for filtering metric endpoints."""

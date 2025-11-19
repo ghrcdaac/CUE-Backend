@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/upload.py (Corrected)
+# File: src/python/api/v2/endpoints/upload.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 import structlog

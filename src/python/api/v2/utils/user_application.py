@@ -1,14 +1,10 @@
 # ==============================================================================
-# File: src/python/api/v2/utils/user_application.py (Corrected)
-# --- MODIFIED to pass the request object on cross-utility calls ---
+# File: src/python/api/v2/utils/user_application.py
 # ==============================================================================
 from uuid import UUID
 from typing import List, Dict, Any, Optional
 import structlog
 from fastapi import Request
-
-# No longer need get_db_connection
-# from core.db import get_db_connection
 from v2.database_util import user_application as app_db
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db
@@ -66,7 +62,7 @@ async def list_applications(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
 
     async with request.state.pool.acquire() as conn:
-        # Call the new, more powerful list_user_applications function
+        # Call list_user_applications function
         return await app_db.list_user_applications(
             conn,
             requesting_user=user.model_dump(),

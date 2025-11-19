@@ -1,8 +1,8 @@
 import json
-from pydantic import BaseModel, field_validator, Field
+from pydantic import BaseModel, field_validator
 from typing import Optional, Tuple, List, Dict, Union
 from uuid import UUID
-from datetime import datetime, timezone, date
+from datetime import datetime, date
 from lambda_utils.type_util.file import FileReturn
 
 

@@ -1,6 +1,5 @@
 # ==============================================================================
 # File: src/python/api/v2/utils/provider.py 
-# --- MODIFIED to pass the request object on cross-utility calls ---
 # ==============================================================================
 from uuid import UUID
 from typing import List, Optional, Dict, Any
@@ -11,7 +10,7 @@ from fastapi import Request
 
 from v2.database_util import provider as provider_db
 from v2.type_util.provider import ProviderCreate, ProviderUpdate
-# We need to import the user utils to validate the point_of_contact
+# import the user utils to validate the point_of_contact
 from v2.utils import cueuser as cueuser_utils
 
 logger = structlog.get_logger(__name__)
@@ -60,7 +59,7 @@ async def list_providers(
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
 
     async with request.state.pool.acquire() as conn:
-        # Call the new, more powerful list_providers function
+        # Call list_providers function
         records = await provider_db.list_providers(
             conn,
             requesting_user=user.model_dump(),

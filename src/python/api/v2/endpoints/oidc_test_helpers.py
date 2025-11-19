@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/oidc_test_helpers.py (New)
+# File: src/python/api/v2/endpoints/oidc_test_helpers.py
 # Purpose: Provides endpoints to facilitate local OIDC testing.
 # This should NOT be deployed to production environments.
 # ==============================================================================
@@ -30,7 +30,7 @@ def get_oidc_test_config():
         "client_id": CLIENT_ID,
         "response_type": "code",
         "scope": "openid profile email",
-        "redirect_uri": REDIRECT_URI, # This now correctly points to your frontend
+        "redirect_uri": REDIRECT_URI, 
         "state": state,
     }
     login_url = f"{AUTH_ENDPOINT}?{urlencode(auth_params)}"

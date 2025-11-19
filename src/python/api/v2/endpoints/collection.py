@@ -1,6 +1,5 @@
 # ==============================================================================
-# File: src/python/api/v2/endpoints/collection.py (Corrected)
-# --- MODIFIED to robustly handle the structure of user.ngroups ---
+# File: src/python/api/v2/endpoints/collection.py
 # ==============================================================================
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header 
 from uuid import UUID

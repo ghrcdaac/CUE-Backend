@@ -13,10 +13,9 @@ from lambda_utils.type_util.file_status import (FileStatusCreate, FileStatusRetu
 
 from lambda_utils.type_util.file import FileReturn
 
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Tuple, Dict
 from uuid import UUID
 import logging
-from datetime import datetime, timezone, date
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ VALID_FILE_STATUSES = ["unscanned", "clean", "infected", "scan_failed", "distrib
 async def create_file_status(file_status: FileStatusCreate, user_ngroup_id: UUID) -> FileStatusReturn:
     """Creates a new file_status record, verifying file belongs to user's ngroup."""
     pool: Pool = await get_connection_pool()
-    conn = None # Define conn as None initially
+    conn = None
     # Verify the referenced file exists and belongs to the user's ngroup
     try:
         # Use async with to ensure connection release
@@ -124,12 +123,11 @@ async def delete_file_status(id: UUID) -> bool:
 
         async with pool.acquire() as conn:
              result = await file_status_db.delete_file_status_from_db(conn, params)
-        # result = await query(pool, file_status_db.delete_file_status_from_db, params) # If query handles bool return
 
         if not result:
             # If deletion affected 0 rows, it means the ID wasn't found
             raise FileStatusNotFoundError(id=id)
-        return result # Should be true
+        return result
     except FileStatusNotFoundError:
         raise
     except Exception as e:
