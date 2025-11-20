@@ -2,7 +2,7 @@
 # File: src/python/api/v2/utils/collection.py
 # ==============================================================================
 from uuid import UUID
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import structlog
 from fastapi import Request 
 from v2.database_util import collection as collection_db
@@ -45,20 +45,28 @@ async def get_collection(request: Request, collection_id: UUID) -> Dict[str, Any
 async def list_collections(
     request: Request,
     user: AuthUser, # Accept the full user object for role checks
-    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
-) -> List[Dict[str, Any]]:
+    active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
+    page: int, page_size: int
+) -> Tuple[int, List[Dict[str, Any]]]:
     """Retrieves all collection records based on the user's roles and active ngroup."""
     
     # Convert string UUID from header to UUID object, or None
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
-    
+
+    offset = (page - 1) * page_size
     async with request.state.pool.acquire() as conn:
-        records = await collection_db.list_collections(
-            conn, 
-            requesting_user=user.model_dump(),
-            active_ngroup_id=ngroup_id_to_filter
-        )
-    return [dict(r) for r in records]
+        # Call the new, more powerful list_collections function
+        result = []
+        total = await collection_db.get_collection_count(conn, ngroup_id_to_filter)
+        if total > 0:
+            records = await collection_db.list_collections(
+                conn, 
+                requesting_user=user.model_dump(),
+                page_size=page_size, offset=offset,
+                active_ngroup_id=ngroup_id_to_filter
+            )
+            result = [dict(r) for r in records]
+    return total,result
 
 
 async def update_collection(

@@ -1,14 +1,14 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/collection.py
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header 
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header, Query
 from uuid import UUID
 from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import collection as collection_utils
-from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse
+from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse,PaginatedCollectionResponse
 
 router = APIRouter(prefix="/collections", tags=["V2 - Collections"])
 
@@ -32,12 +32,14 @@ async def create_collection_endpoint(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.get("/", response_model=List[CollectionResponse], dependencies=[Depends(require_privilege("collection:read"))])
+@router.get("/", response_model=PaginatedCollectionResponse, dependencies=[Depends(require_privilege("collection:read"))])
 async def list_collections_endpoint(
     request: Request,
     user: AuthUser = Depends(get_current_user),
     #  Read the active ngroup ID directly from the header
-    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100)
 ):
     """Retrieves all collections, filtered by the user's active ngroup from the header."""
     if "admin" not in user.roles and not user.active_ngroup_id:
@@ -45,7 +47,7 @@ async def list_collections_endpoint(
     
     try:
         # Pass the header value and the user object to the utility function
-        return await collection_utils.list_collections(request, user, active_ngroup_id)
+        return await collection_utils.list_collections(request, user, active_ngroup_id, page, page_size)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

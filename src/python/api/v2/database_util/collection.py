@@ -35,7 +35,9 @@ async def get_collection_by_short_name(conn: Connection, short_name: str) -> Opt
 async def list_collections(
     conn: Connection,
     requesting_user: Dict[str, Any],
-    active_ngroup_id: Optional[UUID] = None
+    page_size: int,
+    offset: int,
+    active_ngroup_id: Optional[UUID] = None,
 ) -> List[Dict[str, Any]]:
     """
     Retrieves all collection records, filtered by the active ngroup and user role.
@@ -62,8 +64,13 @@ async def list_collections(
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its collections.
             where_clause = "WHERE FALSE" # Return no rows
-            
-    query = f"SELECT * FROM collection {where_clause} ORDER BY short_name"
+
+    limit_param = len(params) + 1
+    offset_param = len(params) + 2
+
+    params.extend([page_size, offset])
+
+    query = f"SELECT * FROM collection {where_clause} ORDER BY short_name LIMIT ${limit_param} OFFSET ${offset_param}"
     return await conn.fetch(query, *params)
 
 async def update_collection(conn: Connection, collection_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -89,3 +96,18 @@ async def delete_collection(conn: Connection, collection_id: UUID) -> bool:
     except ForeignKeyViolationError as e:
         logger.warning("db.collection.delete.failed_fk", collection_id=str(collection_id), error=str(e))
         raise ValueError("Cannot delete this collection because it is still linked to one or more files.") from e
+
+async def get_collection_count(conn: Connection, ngroup_id: int) -> int:
+    "Retrives the total Count of the collections, filtered by ngroup_id"
+    total_query = """
+        SELECT count(id) as total_count
+        FROM collection
+        WHERE ngroup_id = $1
+    """
+    try:
+        total_row = await conn.fetchrow(total_query, ngroup_id)
+        total_count = total_row["total_count"] if total_row else 0
+        return total_count
+    except Exception as e:
+        logger.error(f"Error fetching count: {e}", exc_info=True)
+        raise
