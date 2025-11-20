@@ -30,6 +30,8 @@ async def get_provider_by_id(conn: Connection, provider_id: UUID) -> Optional[Di
 async def list_providers(
     conn: Connection,
     requesting_user: Dict[str, Any],
+    page_size: int,
+    offset: int,
     active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -57,8 +59,13 @@ async def list_providers(
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its providers.
             where_clause = "WHERE FALSE"  # Return no rows
+    
+    limit_param = len(params) + 1
+    offset_param = len(params) + 2
 
-    query = f"SELECT * FROM provider {where_clause} ORDER BY short_name"
+    params.extend([page_size, offset])
+
+    query = f"SELECT * FROM provider {where_clause} ORDER BY short_name LIMIT ${limit_param} OFFSET ${offset_param}"
     return await conn.fetch(query, *params)
 
 async def list_providers_for_form(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:
@@ -89,3 +96,38 @@ async def delete_provider(conn: Connection, provider_id: UUID) -> bool:
     except ForeignKeyViolationError as e:
         logger.warning("db.provider.delete.failed_fk", provider_id=str(provider_id), error=str(e))
         raise ValueError("Cannot delete this provider because it is still linked to one or more collections.") from e
+    
+async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
+    "Retrives the total Count of the providers, filtered by ngroup_id"
+
+    logger.info(
+        "provider.count.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all providers from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = ""  # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its providers.
+            where_clause = "WHERE FALSE"  # Return no rows
+
+    try:
+        query = f"SELECT count(id) FROM provider {where_clause}"
+        total_row = await conn.fetchrow(query)
+        total_count = total_row["total_count"] if total_row else 0
+        return total_count
+    except Exception as e:
+        logger.error(f"Error fetching count: {e}", error=str(e))
+        raise ValueError("Cannot fetch total count") from e

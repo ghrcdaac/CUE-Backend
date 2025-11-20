@@ -97,17 +97,37 @@ async def delete_collection(conn: Connection, collection_id: UUID) -> bool:
         logger.warning("db.collection.delete.failed_fk", collection_id=str(collection_id), error=str(e))
         raise ValueError("Cannot delete this collection because it is still linked to one or more files.") from e
 
-async def get_collection_count(conn: Connection, ngroup_id: int) -> int:
-    "Retrives the total Count of the collections, filtered by ngroup_id"
-    total_query = """
-        SELECT count(id) as total_count
-        FROM collection
-        WHERE ngroup_id = $1
-    """
+async def get_collection_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
+    "Retrives the total Count of the collection, filtered by ngroup_id"
+
+    logger.info(
+        "collection.count.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all providers from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = ""  # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its providers.
+            where_clause = "WHERE FALSE"  # Return no rows
+
     try:
-        total_row = await conn.fetchrow(total_query, ngroup_id)
+        query = f"SELECT count(id) FROM collection {where_clause}"
+        total_row = await conn.fetchrow(query)
         total_count = total_row["total_count"] if total_row else 0
         return total_count
     except Exception as e:
-        logger.error(f"Error fetching count: {e}", exc_info=True)
-        raise
+        logger.error(f"Error fetching count: {e}", error=str(e))
+        raise ValueError("Cannot fetch total count") from e

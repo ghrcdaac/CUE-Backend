@@ -3,7 +3,7 @@
 # Purpose: Defines Pydantic models for the v2 provider management endpoints.
 # ==============================================================================
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 class ProviderBase(BaseModel):
@@ -43,3 +43,7 @@ class ProviderListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginatedProviderResponse(BaseModel):
+    total: int
+    providers: List[ProviderResponse]

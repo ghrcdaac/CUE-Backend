@@ -57,7 +57,7 @@ async def list_collections(
     async with request.state.pool.acquire() as conn:
         # Call the new, more powerful list_collections function
         result = []
-        total = await collection_db.get_collection_count(conn, ngroup_id_to_filter)
+        total = await collection_db.get_collection_count(conn = conn, requesting_user=user.model_dump(), active_ngroup_id=ngroup_id_to_filter)
         if total > 0:
             records = await collection_db.list_collections(
                 conn, 
