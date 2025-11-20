@@ -18,6 +18,8 @@ install_lambda notification-manager
 # install_lambda email-sender
 # install_lambda file-transfer
 # install_lambda process-athena-query
+# install_lambda cost-update
+install_lambda manual-file-transfer
 install_lambda cost-update
 
 # Cleanup

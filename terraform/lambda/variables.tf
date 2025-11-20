@@ -170,6 +170,10 @@ variable "css_cost_explorer_role_arn" {
   type        = string
 }
 
+variable "manual_file_transfer_role_arn"{
+  description = "IAM Role Arn for the Manual File Transfer Lambda  "
+  type        = string
+}
 
 # --- Archive Bucket ---
 variable "cue_archive_results_bucket" {

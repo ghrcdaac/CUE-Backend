@@ -239,6 +239,40 @@ resource "aws_lambda_function" "cue_cost_update" {
   }
 }
 
+# 8. Manual File Transfer Lambda
+resource "aws_lambda_function" "cue_manual_file_transfer" {
+  filename         = "../artifacts/manual-file-transfer-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/manual-file-transfer-lambda.zip")
+  function_name    = "cue_manual_file_transfer" 
+  role             = var.manual_file_transfer_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
+  publish          = true
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST        = var.db_proxy_host
+      PG_PORT        = var.db_port
+      PG_DB          = var.db_database
+      PG_USER        = var.db_user
+      PG_PASS        = var.db_password
+      LOG_LEVEL      = "INFO"
+      QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
+      DB_SSL_MODE    = "require"
+      ENV = "production"
+      REDEPLOY_TRIGGER = "1"
+      STAGING_BUCKET = var.cue_staging_bucket 
+    }
+  }
+}
+
 
 resource "aws_lambda_alias" "cue_api_live_alias" {
   name             = var.app_env
