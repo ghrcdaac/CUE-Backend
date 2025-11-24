@@ -53,7 +53,7 @@ async def list_providers(
     user: AuthUser, # Accept the full user object for role checks
     active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
     page: int, page_size: int
-) -> Tuple[int, List[Dict[str, Any]]]:
+) -> Dict[str, Any]:
     """Retrieves all provider records based on the user's roles and active ngroup."""
 
     # Convert string UUID from header to UUID object, or None
@@ -78,7 +78,10 @@ async def list_providers(
                 offset = offset
             )
             result = [dict(r) for r in records]
-    return total, result
+    return {
+        "total": total,
+        "providers": result
+    }
 
 async def list_providers_for_form(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Retrieves a simplified list of providers for a given ngroup."""

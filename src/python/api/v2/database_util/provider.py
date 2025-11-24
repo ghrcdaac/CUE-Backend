@@ -125,8 +125,8 @@ async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any],
 
     try:
         query = f"SELECT count(id) FROM provider {where_clause}"
-        total_row = await conn.fetchrow(query)
-        total_count = total_row["total_count"] if total_row else 0
+        total_row = await conn.fetchrow(query,*params)
+        total_count = total_row["count"] if total_row else 0
         return total_count
     except Exception as e:
         logger.error(f"Error fetching count: {e}", error=str(e))

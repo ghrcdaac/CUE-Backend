@@ -47,7 +47,7 @@ async def list_collections(
     user: AuthUser, # Accept the full user object for role checks
     active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
     page: int, page_size: int
-) -> Tuple[int, List[Dict[str, Any]]]:
+) -> Dict[str, Any]:
     """Retrieves all collection records based on the user's roles and active ngroup."""
     
     # Convert string UUID from header to UUID object, or None
@@ -66,7 +66,10 @@ async def list_collections(
                 active_ngroup_id=ngroup_id_to_filter
             )
             result = [dict(r) for r in records]
-    return total,result
+    return {
+        "total": total,
+        "collections": result
+    }
 
 
 async def update_collection(
