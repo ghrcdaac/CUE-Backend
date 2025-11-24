@@ -80,7 +80,9 @@ async def list_providers(
             result = [dict(r) for r in records]
     return {
         "total": total,
-        "providers": result
+        "providers": result,
+        "page": page,
+        "page_size": page_size
     }
 
 async def list_providers_for_form(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:

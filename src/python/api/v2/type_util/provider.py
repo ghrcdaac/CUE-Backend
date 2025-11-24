@@ -45,5 +45,7 @@ class ProviderListResponse(BaseModel):
         from_attributes = True
 
 class PaginatedProviderResponse(BaseModel):
-    total: int
     providers: List[ProviderResponse]
+    page: int
+    page_size: int
+    total: int

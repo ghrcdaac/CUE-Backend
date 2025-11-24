@@ -33,5 +33,7 @@ class CollectionResponse(CollectionBase):
         from_attributes = True
 
 class PaginatedCollectionResponse(BaseModel):
-    total: int
     collections: List[CollectionResponse]
+    page: int
+    page_size: int
+    total: int

@@ -68,7 +68,9 @@ async def list_collections(
             result = [dict(r) for r in records]
     return {
         "total": total,
-        "collections": result
+        "collections": result,
+        "page": page,
+        "page_size": page_size
     }
 
 
