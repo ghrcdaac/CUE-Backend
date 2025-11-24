@@ -1,7 +1,7 @@
 # File: src/python/api/v2/type_util/egress.py
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 
 class EgressBase(BaseModel):
@@ -27,3 +27,9 @@ class EgressResponse(EgressBase):
 
     class Config:
         from_attributes = True
+
+class PaginatedEgressResponse(BaseModel):
+    egress: List[EgressResponse]
+    page: int
+    page_size: int
+    total: int
