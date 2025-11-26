@@ -85,20 +85,37 @@ async def get_user_profile(request: Request, user_id: UUID) -> Dict[str, Any]:
 async def list_users(
     request: Request,
     current_user: AuthUser, # Accept the full user object for role checks
-    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
-) -> List[Dict[str, Any]]:
+    active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
+    page: int, page_size: int
+) -> Dict[str, Any]:
     """Retrieves a list of all users, filtered by the active DAAC and user role."""
     
     # Convert string UUID from header to UUID object, or None
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
+    offset = (page - 1) * page_size
     async with request.state.pool.acquire() as conn:
-        users_data = await user_db.list_users(
-            conn,
-            requesting_user=current_user.model_dump(),
-            active_ngroup_id=ngroup_id_to_filter
-        )
-    return [_parse_user_data(user) for user in users_data]
+        total = await user_db.get_users_count(
+            conn=conn, 
+            requesting_user=current_user.model_dump(), 
+            active_ngroup_id=ngroup_id_to_filter,
+            )
+        result = []
+        if total > 0:
+            users_data = await user_db.list_users(
+                conn,
+                requesting_user=current_user.model_dump(),
+                active_ngroup_id=ngroup_id_to_filter,
+                page_size = page_size,
+                offset = offset
+            )
+            result = [_parse_user_data(user) for user in users_data]
+    return {
+        "users": result,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
 
 async def get_user_profile_by_username(request: Request, cueusername: str) -> Dict[str, Any]:
     """Fetches and parses a user's complete profile by their username."""
