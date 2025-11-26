@@ -42,6 +42,8 @@ async def get_user_from_api_key(conn: Connection, key_hash: str) -> Optional[Dic
 async def list_api_keys(
     conn: Connection,
     requesting_user: Dict[str, Any],
+    page_size: int,
+    offset: int,
     active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -76,10 +78,15 @@ async def list_api_keys(
             # For any other user (Manager, Staff, etc.), if no DAAC is selected,
             # they see an empty list. This forces a DAAC context to be chosen.
             where_conditions.append("1=0")  # A condition that is always false.
+    
+    limit_param = len(params) + 1
+    offset_param = len(params) + 2
+
+    params.extend([page_size, offset])
 
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
     order_clause = "ORDER BY ak.created_at DESC;"
-    query = f"{base_query} {where_clause} {order_clause}"
+    query = f"{base_query} {where_clause} {order_clause} LIMIT ${limit_param} OFFSET ${offset_param}"
     
     # Added logging to help debug why the list might be empty.
     logger.info(
@@ -122,3 +129,43 @@ async def record_key_usage(conn: Connection, key_id: UUID) -> bool:
     query = "UPDATE api_key SET last_used_at = NOW() WHERE id = $1 RETURNING id;"
     result = await conn.fetchval(query, key_id)
     return result is not None
+
+async def count_api_keys(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> int:
+    """
+    Returns the total number of API keys matching the same filters used
+    in list_api_keys(), for pagination support.
+    """
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    where_conditions = ["ak.revoked_at IS NULL"]
+
+    if active_ngroup_id:
+        where_conditions.append("ak.ngroup_id = $1")
+        params.append(active_ngroup_id)
+    else:
+        if 'admin' in user_roles or 'security' in user_roles:
+            pass 
+        else:
+            where_conditions.append("1=0") 
+
+    where_clause = f"WHERE {' AND '.join(where_conditions)}"
+
+    count_query = f"""
+        SELECT COUNT(*)
+        FROM api_key ak
+        {where_clause};
+    """
+
+    logger.info(
+        "api_keys.count.executing_query",
+        user_roles=list(user_roles),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None,
+        final_where_clause=where_clause
+    )
+
+    result = await conn.fetchval(count_query, *params)
+    return result if result else 0
