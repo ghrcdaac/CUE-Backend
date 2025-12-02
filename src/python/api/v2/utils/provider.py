@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
+import json
 
 
 from v2.database_util import provider as provider_db
@@ -77,7 +78,14 @@ async def list_providers(
                 page_size = page_size,
                 offset = offset
             )
-            result = [dict(r) for r in records]
+            for r in records:
+                row = dict(r)
+
+                # convert jsonb string to dict
+                if isinstance(row.get("point_of_contact"), str):
+                    row["point_of_contact"] = json.loads(row["point_of_contact"])
+
+                result.append(row)
     return {
         "total": total,
         "providers": result,

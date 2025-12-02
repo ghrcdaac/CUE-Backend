@@ -65,7 +65,20 @@ async def list_providers(
 
     params.extend([page_size, offset])
 
-    query = f"SELECT * FROM provider {where_clause} ORDER BY short_name LIMIT ${limit_param} OFFSET ${offset_param}"
+    query = f"""
+        SELECT
+            p.*,
+            jsonb_build_object(
+                'id', u.id,
+                'name', u.name
+            ) AS point_of_contact
+        FROM provider p
+        LEFT JOIN cueuser u ON p.point_of_contact = u.id
+        {where_clause}
+        ORDER BY p.short_name
+        LIMIT ${limit_param}
+        OFFSET ${offset_param}
+    """
     return await conn.fetch(query, *params)
 
 async def list_providers_for_form(conn: Connection, ngroup_id: UUID) -> List[Dict[str, Any]]:

@@ -44,8 +44,22 @@ class ProviderListResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PointOfContactUser(BaseModel):
+    id: UUID
+    name: str
+
+class ProviderUserResponse(ProviderBase):
+    """Model for returning a full provider object from the API."""
+    id: UUID
+    ngroup_id: UUID
+    point_of_contact: PointOfContactUser
+    reason:  Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class PaginatedProviderResponse(BaseModel):
-    providers: List[ProviderResponse]
+    providers: List[ProviderUserResponse]
     page: int
     page_size: int
     total: int
