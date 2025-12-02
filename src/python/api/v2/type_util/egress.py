@@ -29,7 +29,7 @@ class EgressResponse(EgressBase):
         from_attributes = True
 
 class PaginatedEgressResponse(BaseModel):
-    egress: List[EgressResponse]
+    egresses: List[EgressResponse]
     page: int
     page_size: int
     total: int

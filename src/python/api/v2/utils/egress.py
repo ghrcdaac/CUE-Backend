@@ -73,7 +73,7 @@ async def list_egresses(
             result = [_process_record(dict(r)) for r in records]
     return {
         "total": total,
-        "egress": result,
+        "egresses": result,
         "page": page,
         "page_size": page_size
     }
