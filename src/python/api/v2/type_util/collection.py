@@ -32,8 +32,26 @@ class CollectionResponse(CollectionBase):
     class Config:
         from_attributes = True
 
+class Provider(BaseModel):
+    id: UUID
+    name: str
+
+class Egress(BaseModel):
+    id: UUID
+    path: str
+
+class CollectionListResponse(CollectionBase):
+    """Model for returning a full collection object from the API."""
+    id: UUID
+    ngroup_id: UUID
+    provider: Provider
+    egress: Egress
+
+    class Config:
+        from_attributes = True
+
 class PaginatedCollectionResponse(BaseModel):
-    collections: List[CollectionResponse]
+    collections: List[CollectionListResponse]
     page: int
     page_size: int
     total: int

@@ -53,7 +53,7 @@ async def list_collections(
     
     # If a DAAC is selected, ALL roles are strictly filtered by it.
     if active_ngroup_id:
-        where_clause = "WHERE ngroup_id = $1"
+        where_clause = "WHERE c.ngroup_id = $1"
         params.append(active_ngroup_id)
     else:
         # If NO DAAC is selected:
@@ -70,7 +70,26 @@ async def list_collections(
 
     params.extend([page_size, offset])
 
-    query = f"SELECT * FROM collection {where_clause} ORDER BY short_name LIMIT ${limit_param} OFFSET ${offset_param}"
+    query = f"""
+        SELECT
+            c.*,
+            jsonb_build_object(
+                'id', p.id,
+                'name', p.short_name
+            ) AS provider,
+            jsonb_build_object(
+                'id', e.id,
+                'path', e.path
+            ) AS egress
+        FROM collection c
+        LEFT JOIN provider p ON c.provider_id = p.id 
+        LEFT JOIN egress e ON c.egress_id = e.id
+        {where_clause}
+        ORDER BY c.short_name
+        LIMIT ${limit_param}
+        OFFSET ${offset_param}
+    """
+    
     return await conn.fetch(query, *params)
 
 async def update_collection(conn: Connection, collection_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:

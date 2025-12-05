@@ -4,6 +4,7 @@
 from uuid import UUID
 from typing import List, Dict, Any, Optional, Tuple
 import structlog
+import json
 from fastapi import Request 
 from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
@@ -65,7 +66,17 @@ async def list_collections(
                 page_size=page_size, offset=offset,
                 active_ngroup_id=ngroup_id_to_filter
             )
-            result = [dict(r) for r in records]
+            for r in records:
+                row = dict(r)
+
+                # convert jsonb string to dict
+                if isinstance(row.get("provider"), str):
+                    row["provider"] = json.loads(row["provider"])
+
+                if isinstance(row.get("egress"), str):
+                    row["egress"] = json.loads(row["egress"])
+
+                result.append(row)
     return {
         "total": total,
         "collections": result,
