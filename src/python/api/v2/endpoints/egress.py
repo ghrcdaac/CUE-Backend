@@ -37,7 +37,7 @@ async def list_egresses_endpoint(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100)
+    page_size: int = Query(50, ge=1, le=50)
 ):
     """Retrieves all egress records, filtered by the user's active ngroup from the header."""
     try:

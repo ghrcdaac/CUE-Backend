@@ -47,7 +47,7 @@ async def list_providers_endpoint(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100)
+    page_size: int = Query(50, ge=1, le=50)
 ):
     """
     Retrieves all provider records, filtered by the user's selected ngroup from the header.

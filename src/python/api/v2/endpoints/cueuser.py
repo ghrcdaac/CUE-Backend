@@ -28,7 +28,7 @@ async def list_users_endpoint(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100)
+    page_size: int = Query(50, ge=1, le=50)
 ):
     """Retrieves a list of all users, filtered by the active DAAC."""
     try:
