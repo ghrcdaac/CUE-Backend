@@ -103,35 +103,18 @@ async def create_api_key(request: Request, create_body: ApiKeyCreateRequest, cre
     return {"id": key_id, "name": create_body.name, "key": raw_key}
 
 # Simplified to pass the full user object to the database layer.
-async def list_api_keys(request: Request, user: AuthUser, page: int, page_size: int, active_ngroup_id: Optional[str] = None) -> Dict[str, Any]:
+async def list_api_keys(request: Request, user: AuthUser, active_ngroup_id: Optional[str] = None) -> List[ApiKeyInfo]:
     """Retrieves API keys based on the user's role and active ngroup from the header."""
-    offset = (page - 1) * page_size
     async with request.state.pool.acquire() as conn:
         # Convert the string ID from the header to a UUID object for the database function
         active_ngroup_uuid = UUID(active_ngroup_id) if active_ngroup_id else None
-
-        total = await api_key_db.count_api_keys(
-            conn=conn, 
-            requesting_user=user.model_dump(), 
-            active_ngroup_id=active_ngroup_uuid,
-            )
-        result = []
-        if total > 0:
-            keys_data = await api_key_db.list_api_keys(
-                conn,
-                requesting_user=user.model_dump(),
-                active_ngroup_id=active_ngroup_uuid,
-                page_size = page_size,
-                offset = offset
-            )
-            result = [dict(r) for r in keys_data]
-            
-    return {
-        "api_keys": result,
-        "page": page,
-        "page_size": page_size,
-        "total": total,
-    }
+        
+        keys_data = await api_key_db.list_api_keys(
+            conn,
+            requesting_user=user.model_dump(),
+            active_ngroup_id=active_ngroup_uuid
+        )
+    return [ApiKeyInfo.model_validate(dict(key)) for key in keys_data]
 
 # Permission check now includes an override for admin/security roles.
 async def update_api_key(request: Request, key_id: UUID, update_request: ApiKeyUpdateRequest, user: AuthUser):

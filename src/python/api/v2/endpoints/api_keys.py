@@ -1,14 +1,14 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/api_keys.py
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from uuid import UUID
 from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import api_keys as api_key_utils
-from v2.type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyUpdateRequest, PaginatedAPIKeyResponse
+from v2.type_util.api_keys import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyInfo, ApiKeyUpdateRequest
 
 router = APIRouter(prefix="/api-keys", tags=["V2 - API Keys"])
 
@@ -25,14 +25,12 @@ async def create_api_key_endpoint(fastapi_request: Request, request_body: ApiKey
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.get("/", response_model=PaginatedAPIKeyResponse, dependencies=[Depends(require_privilege("api-key:read"))])
+@router.get("/", response_model=List[ApiKeyInfo], dependencies=[Depends(require_privilege("api-key:read"))])
 async def list_api_keys_endpoint(
     request: Request, 
     user: AuthUser = Depends(get_current_user),
     # 1. reads the active DAAC/group ID from the HTTP header.
-    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100)
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
 ):
     """
     Lists API keys filtered by the user's active DAAC/ngroup.
@@ -40,7 +38,7 @@ async def list_api_keys_endpoint(
     """
     try:
         # 2. The active_ngroup_id is now passed down to the business logic layer.
-        return await api_key_utils.list_api_keys(request, user, page, page_size, active_ngroup_id)
+        return await api_key_utils.list_api_keys(request, user, active_ngroup_id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
