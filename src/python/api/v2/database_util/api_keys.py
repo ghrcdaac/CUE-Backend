@@ -85,7 +85,7 @@ async def list_api_keys(
     params.extend([page_size, offset])
 
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
-    order_clause = "ORDER BY ak.created_at DESC;"
+    order_clause = "ORDER BY ak.created_at DESC"
     query = f"{base_query} {where_clause} {order_clause} LIMIT ${limit_param} OFFSET ${offset_param}"
     
     # Added logging to help debug why the list might be empty.
