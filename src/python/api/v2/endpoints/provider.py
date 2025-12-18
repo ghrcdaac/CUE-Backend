@@ -47,14 +47,15 @@ async def list_providers_endpoint(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=50)
+    page_size: int = Query(50, ge=1, le=50),
+    can_upload: bool = Query(None, description="Filter by can_upload status")
 ):
     """
     Retrieves all provider records, filtered by the user's selected ngroup from the header.
     """
     try:
         # Pass the header value and the user object to the utility function
-        return await provider_utils.list_providers(request, user, active_ngroup_id, page, page_size)
+        return await provider_utils.list_providers(request, user, active_ngroup_id, page, page_size, can_upload)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

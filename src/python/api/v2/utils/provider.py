@@ -53,7 +53,8 @@ async def list_providers(
     request: Request,
     user: AuthUser, # Accept the full user object for role checks
     active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
-    page: int, page_size: int
+    page: int, page_size: int,
+    can_upload: bool
 ) -> Dict[str, Any]:
     """Retrieves all provider records based on the user's roles and active ngroup."""
 
@@ -68,6 +69,7 @@ async def list_providers(
             conn=conn, 
             requesting_user=user.model_dump(), 
             active_ngroup_id=ngroup_id_to_filter,
+            can_upload = can_upload
             )
         result = []
         if total > 0:
@@ -76,7 +78,8 @@ async def list_providers(
                 requesting_user=user.model_dump(),
                 active_ngroup_id=ngroup_id_to_filter,
                 page_size = page_size,
-                offset = offset
+                offset = offset,
+                can_upload = can_upload
             )
             for r in records:
                 row = dict(r)

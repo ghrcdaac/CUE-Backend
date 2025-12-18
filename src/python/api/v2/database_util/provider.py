@@ -32,6 +32,7 @@ async def list_providers(
     requesting_user: Dict[str, Any],
     page_size: int,
     offset: int,
+    can_upload: bool,
     active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -59,6 +60,17 @@ async def list_providers(
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its providers.
             where_clause = "WHERE FALSE"  # Return no rows
+    
+    can_upload_param = len(params) + 1
+    if can_upload is not None:
+        #test where class with empty string
+        if where_clause:
+            where_clause = f"{where_clause} AND can_upload = ${can_upload_param}"
+            params.append(can_upload)
+        
+        else:
+            where_clause = f"WHERE can_upload = ${can_upload_param}"
+            params.append(can_upload)
     
     limit_param = len(params) + 1
     offset_param = len(params) + 2
@@ -110,7 +122,7 @@ async def delete_provider(conn: Connection, provider_id: UUID) -> bool:
         logger.warning("db.provider.delete.failed_fk", provider_id=str(provider_id), error=str(e))
         raise ValueError("Cannot delete this provider because it is still linked to one or more collections.") from e
     
-async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
+async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int, can_upload: bool) -> int:
     "Retrives the total Count of the providers, filtered by ngroup_id"
 
     logger.info(
@@ -135,6 +147,17 @@ async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any],
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its providers.
             where_clause = "WHERE FALSE"  # Return no rows
+    
+    can_upload_param = len(params) + 1
+    if can_upload is not None:
+        #test where class with empty string
+        if where_clause:
+            where_clause = f"{where_clause} AND can_upload = ${can_upload_param}"
+            params.append(can_upload)
+        
+        else:
+            where_clause = f"where can_upload = ${can_upload_param}"
+            params.append(can_upload)
 
     try:
         query = f"SELECT count(id) FROM provider {where_clause}"
