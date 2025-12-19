@@ -155,8 +155,8 @@ variable "file_transfer_role_arn" {
   type        = string
 }
 
-variable "notification_manager_scheduler_role_arn"{
-  description = "IAM Role ARN for infected notification scheduler role"
+variable "eventbridge_scheduler_lambda_role_arn"{
+  description = "IAM Role ARN for eventbridge scheduler role to invoke Lambdas"
   type        = string
 }
 
@@ -166,12 +166,38 @@ variable "cost_update_role_arn" {
 }
 
 variable "css_cost_explorer_role_arn" {
-  description = "IAM Role ARN for the external css cost explorer role "
+  description = "IAM Role ARN for the external css cost explorer role"
   type        = string
 }
 
 variable "manual_file_transfer_role_arn"{
-  description = "IAM Role Arn for the Manual File Transfer Lambda  "
+  description = "IAM Role Arn for the Manual File Transfer Lambda"
+  type        = string
+}
+
+variable "manual_email_sender_role_arn"{
+  description = "IAM Role Arn for the Manual Email Sender Lambda"
+  type        = string
+}
+variable "manual_notification_manager_role_arn"{
+  description = "IAM Role Arn for the Manual Notification Manager Lambda"
+  type        = string
+}
+variable "manual_process_athena_query_role_arn"{
+  description = "IAM Role Arn for the Manual Process Athena Query Lambda"
+  type        = string
+}
+variable "manual_cost_update_role_arn"{
+  description = "IAM Role Arn for the Manual Cost Update Lambda"
+  type        = string
+}
+variable "manual_infected_logger_role_arn"{
+  description = "IAM Role Arn for the Manual Infected Logger Lambda"
+  type        = string
+}
+
+variable "cleanup_uploads_role_arn"{
+  description = "IAM Role Arn for the Cleanup Uploads Lambda"
   type        = string
 }
 
@@ -227,4 +253,10 @@ variable "notification_schedule_minutes" {
   description = "How often (in minutes) the infected file notification schedule runs and how far back the Lambda looks."
   type        = number
   default     = 30 
+}
+
+variable "cleanup_uploads_schedule" {
+  description = "The cron schedule for the cleanup uploads with 'upload' status runs"
+  type        = string
+  default     = "cron(0 1 * * ? *)"
 }

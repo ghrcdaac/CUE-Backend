@@ -51,7 +51,13 @@ module "lambda_functions" {
   cost_update_role_arn           = module.iam_role.cost_update_role_arn
   css_cost_explorer_role_arn     = var.css_cost_explorer_role_arn
   manual_file_transfer_role_arn  = module.iam_role.manual_file_transfer_role_arn
-  notification_manager_scheduler_role_arn = module.iam_role.notification_manager_scheduler_role_arn
+  eventbridge_scheduler_lambda_role_arn  = module.iam_role.eventbridge_lambda_scheduler_role_arn
+  manual_infected_logger_role_arn        = module.iam_role.manual_infected_logger_role_arn
+  manual_notification_manager_role_arn   = module.iam_role.manual_notification_manager_role_arn
+  manual_process_athena_query_role_arn   = module.iam_role.manual_process_athena_query_role_arn
+  manual_cost_update_role_arn            = module.iam_role.manual_cost_update_role_arn
+  manual_email_sender_role_arn           = module.iam_role.manual_email_sender_role_arn
+  cleanup_uploads_role_arn               = module.iam_role.cleanup_uploads_role_arn
 
 
   # --- Database variables (connecting to the RDS Proxy) ---
@@ -74,6 +80,7 @@ module "lambda_functions" {
   # name for PC env
   app_env                     = var.app_env
   notification_schedule_minutes = var.notification_schedule_minutes
+  cleanup_uploads_schedule      = var.cleanup_uploads_schedule
 
   #delete later
   pool_id                     = var.pool_id

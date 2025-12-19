@@ -150,6 +150,60 @@ data "aws_iam_policy_document" "manual_file_transfer_policy"{
     resources = ["arn:aws:s3:::${var.cue_staging_bucket}", "arn:aws:s3:::${var.cue_staging_bucket}/*" ]
   }
 }
+
+data "aws_iam_policy_document" "manual_email_sender_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_email_sender"]
+  }
+}
+
+data "aws_iam_policy_document" "manual_notification_manager_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
+  }
+}
+
+data "aws_iam_policy_document" "manual_process_athena_query_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_process_athena_query"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "athena:GetQueryExecution"
+    ]
+    resources = ["*"]
+  }
+}
+
+data "aws_iam_policy_document" "manual_cost_update_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_cost_update"]
+  }
+}
+
+data "aws_iam_policy_document" "manual_infected_logger_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
+    resources = ["arn:aws:sqs:${var.region}:${var.account_id}:cue-scan-results-dlq"]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = ["arn:aws:sqs:${var.region}:${var.account_id}:cue-scan-results-queue"]
+  }
+ }
+
 # --- Policies for Glue and Archive Roles (Restored) ---
 
 data "aws_iam_policy_document" "glue_job_policy" {
@@ -198,12 +252,15 @@ data "aws_iam_policy_document" "glue_crawler_policy" {
   }
 }
 
-# --- Policy for EventBridge Scheduler ---
+# --- Policy for EventBridge Lambda Scheduler ---
 
-data "aws_iam_policy_document" "infected_notif_scheduler_policy" {
+data "aws_iam_policy_document" "eventbridge_lambda_scheduler_policy" {
   statement {
     effect = "Allow"
     actions = ["lambda:InvokeFunction"]
-    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager"]
+    resources = [
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:cue_notification_manager",
+      "arn:aws:lambda:${var.region}:${var.account_id}:function:cue_cleanup_uploads",
+    ]
   }
 }

@@ -273,6 +273,173 @@ resource "aws_lambda_function" "cue_manual_file_transfer" {
   }
 }
 
+# 9. Manual Email Sender Lambda
+resource "aws_lambda_function" "manual_email_sender" {
+  filename         = "../artifacts/manual-email-sender-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/manual-email-sender-lambda.zip")
+  function_name    = "cue_manual_email_sender" 
+  role             = var.manual_email_sender_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 60
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      LOG_LEVEL        = "INFO"
+      ENV              = "production"
+      REDEPLOY_TRIGGER = "1"
+      EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
+    }
+  }
+}
+
+#10. Manual Notification Manager
+resource "aws_lambda_function" "manual_notification_manager" {
+  filename         = "../artifacts/manual-notification-manager-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/manual-notification-manager-lambda.zip")
+  function_name    = "cue_manual_notification_manager"
+  role             = var.manual_notification_manager_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 120
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST          = var.db_proxy_host
+      PG_PORT          = var.db_port
+      PG_DB            = var.db_database
+      PG_USER          = var.db_user
+      PG_PASS          = var.db_password
+      DB_SSL_MODE      = "require"
+      LOG_LEVEL        = "INFO"
+      ENV              = "production"
+      REDEPLOY_TRIGGER = "1"
+      NOTIFICATION_MANAGER_ARN = aws_lambda_function.notification_manager.arn 
+    }
+  }
+}
+
+# 11. Manual Process Athena Query
+resource "aws_lambda_function" "manual_process_athena_query" {
+  filename         = "../artifacts/manual-process-athena-query-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/manual-process-athena-query-lambda.zip")
+  function_name    = "cue_manual_process_athena_query"
+  role             = var.manual_process_athena_query_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
+
+  environment {
+    variables = {
+      RESULTS_BUCKET = var.cue_archive_results_bucket
+      LOG_LEVEL      = "INFO"
+      PROCESS_ATHENA_QUERY_ARN = aws_lambda_function.process_athena_query.arn
+    }
+  }
+}
+
+# 12. Manual Cost Update
+resource "aws_lambda_function" "cue_manual_cost_update" {
+  filename         = "../artifacts/manual-cost-update-lambda.zip"
+  source_code_hash = filesha256("../artifacts/manual-cost-update-lambda.zip")
+  function_name    = "cue_manual_cost_update"
+  role             = var.manual_cost_update_role_arn 
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
+
+  environment {
+    variables = {
+      LOG_LEVEL       = "INFO"
+      ENV             = "production"
+      COST_UPDATE_ARN = aws_lambda_function.cue_cost_update.arn
+    }
+  }
+}
+
+# 13. Manual Infected Logger
+resource "aws_lambda_function" "cue_manual_scan_event" {
+  filename         = "../artifacts/manual-infected-logger-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/manual-infected-logger-lambda.zip")
+  function_name    = "cue_manual_scan_event" 
+  role             = var.manual_infected_logger_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180 # depending on how many messages on scan-results-dlq may need to increase
+  publish          = true
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST          = var.db_proxy_host
+      PG_PORT          = var.db_port
+      PG_DB            =  var.db_database
+      PG_USER          = var.db_user
+      PG_PASS          = var.db_password
+      LOG_LEVEL        =  "INFO"
+      DB_SSL_MODE      = "require"
+      ENV              = "production"
+      REDEPLOY_TRIGGER = "1"
+      DLQ_URL          = aws_sqs_queue.scan_results_dlq.url
+      MAX_BATCH        = 10 
+      MAX_SECONDS      = 120 #set to a minute before actual timeout for graceful exit
+      WAIT_SECONDS     = 10
+      MAX_EMPTY_POLLS  = 5
+      SOURCE_QUEUE_URL = aws_sqs_queue.scan_results_queue.url
+    }
+  }
+}
+
+# 14. Cleanup pending uploads 
+resource "aws_lambda_function" "cue_cleanup_uploads" {
+  filename         = "../artifacts/cleanup-uploads-lambda.zip"
+  source_code_hash = filebase64sha256("../artifacts/cleanup-uploads-lambda.zip")
+  function_name    = "cue_cleanup_uploads" 
+  role             = var.cleanup_uploads_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  timeout          = 180
+  publish          = true
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+
+  environment {
+    variables = {
+      PG_HOST          = var.db_proxy_host
+      PG_PORT          = var.db_port
+      PG_DB            = var.db_database
+      PG_USER          = var.db_user
+      PG_PASS          = var.db_password
+      LOG_LEVEL        = "INFO"
+      DB_SSL_MODE      = "require"
+      ENV              = "production"
+      REDEPLOY_TRIGGER = "1"
+    }
+  }
+}
 
 resource "aws_lambda_alias" "cue_api_live_alias" {
   name             = var.app_env
