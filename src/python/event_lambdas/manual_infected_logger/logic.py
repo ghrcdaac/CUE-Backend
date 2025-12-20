@@ -138,8 +138,9 @@ async def poll_and_redrive(file_ids) -> Dict[str, Any]:
 
             # Take the difference between the set of file_ids given and the set of moved_file_ids.
             # If empty set remains break out of loop
-            if not (set_file_ids - moved_ids):
-                break
+        if not (set_file_ids - moved_ids):
+            logger.info("break_loop.all_messages_found")
+            break
 
     not_redriven = sorted([str(file_id) for file_id in list(set_file_ids - moved_ids)])
     logger.info("results", moved_total=moved_total, examined_total=examined_total, errors_total=errors_total)  
