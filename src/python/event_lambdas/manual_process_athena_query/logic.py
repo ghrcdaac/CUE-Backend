@@ -30,7 +30,7 @@ async def check_result_exists(query_id: str):
     try:
         # Attempt to check query executions
         response = athena_client.get_query_execution(QueryExecutionId=query_id)
-        logger.info("athena",response=response)
+        logger.info("athena.get_query_execution", response=response)
         return True  
     except ClientError as e:
         logger.error("query_execution.expired_or_does_not_exists", exc_info=True)
