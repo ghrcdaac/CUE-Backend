@@ -317,15 +317,15 @@ resource "aws_lambda_function" "manual_notification_manager" {
 
   environment {
     variables = {
-      PG_HOST          = var.db_proxy_host
-      PG_PORT          = var.db_port
-      PG_DB            = var.db_database
-      PG_USER          = var.db_user
-      PG_PASS          = var.db_password
-      DB_SSL_MODE      = "require"
-      LOG_LEVEL        = "INFO"
-      ENV              = "production"
-      REDEPLOY_TRIGGER = "1"
+      PG_HOST                  = var.db_proxy_host
+      PG_PORT                  = var.db_port
+      PG_DB                    = var.db_database
+      PG_USER                  = var.db_user
+      PG_PASS                  = var.db_password
+      DB_SSL_MODE              = "require"
+      LOG_LEVEL                = "INFO"
+      ENV                      = "production"
+      REDEPLOY_TRIGGER         = "1"
       NOTIFICATION_MANAGER_ARN = aws_lambda_function.notification_manager.arn 
     }
   }
@@ -344,8 +344,9 @@ resource "aws_lambda_function" "manual_process_athena_query" {
 
   environment {
     variables = {
-      RESULTS_BUCKET = var.cue_archive_results_bucket
-      LOG_LEVEL      = "INFO"
+      LOG_LEVEL                = "INFO"
+      ENV                      = "production"
+      REDEPLOY_TRIGGER         = "1"
       PROCESS_ATHENA_QUERY_ARN = aws_lambda_function.process_athena_query.arn
     }
   }

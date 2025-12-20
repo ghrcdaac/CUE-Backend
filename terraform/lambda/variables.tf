@@ -179,18 +179,22 @@ variable "manual_email_sender_role_arn"{
   description = "IAM Role Arn for the Manual Email Sender Lambda"
   type        = string
 }
+
 variable "manual_notification_manager_role_arn"{
   description = "IAM Role Arn for the Manual Notification Manager Lambda"
   type        = string
 }
+
 variable "manual_process_athena_query_role_arn"{
   description = "IAM Role Arn for the Manual Process Athena Query Lambda"
   type        = string
 }
+
 variable "manual_cost_update_role_arn"{
   description = "IAM Role Arn for the Manual Cost Update Lambda"
   type        = string
 }
+
 variable "manual_infected_logger_role_arn"{
   description = "IAM Role Arn for the Manual Infected Logger Lambda"
   type        = string
