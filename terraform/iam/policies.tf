@@ -62,6 +62,11 @@ data "aws_iam_policy_document" "api_lambda_policy" {
     actions   = ["events:PutEvents"]
     resources = ["arn:aws:events:${var.region}:${var.account_id}:event-bus/cue-application-bus"]
   }
+  statement {
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = ["arn:aws:lambda:${var.region}:${var.account_id}:function:cue_manual_file_transfer"]
+  }
 }
 
 data "aws_iam_policy_document" "infected_logger_policy" {

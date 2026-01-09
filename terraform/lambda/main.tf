@@ -64,7 +64,8 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "11"
+      REDEPLOY_TRIGGER = "13"
+      MAN_TRANSFER_LAMBDA_NAME = aws_lambda_function.cue_manual_file_transfer.function_name
     }
   }
 
