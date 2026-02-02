@@ -26,6 +26,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_REGION=${AWS_REGION}
+      - PYTHONPATH=/app
     ports:
       - "8000:8000"
     depends_on:
@@ -36,6 +37,7 @@ services:
       - ./tests:/app/tests:cached 
       - ./src/python/api:/app:cached
       - ./src/python/lambda_utils:/app/lambda_utils:cached
+      - ./src/python/event_lambdas:/app/event_lambdas:cached
     env_file:
       - ./.env
 
@@ -47,6 +49,9 @@ services:
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_DB: ${PG_DB} # Added to create the main DB on startup
+      POSTGRES_USER_TEST: ${PG_USER_TEST}
+      POSTGRES_PASSWORD_TEST: ${PG_USER_TEST}
+      POSTGRES_DB_TEST: ${PG_DB_TEST}
     volumes:
       - ./src/postgres:/docker-entrypoint-initdb.d/
     ports:
