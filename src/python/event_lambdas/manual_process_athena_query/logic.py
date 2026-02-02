@@ -3,17 +3,14 @@ import structlog
 import boto3
 from botocore.exceptions import ClientError
 import json
-from model import AthenaQueryDetails
+from .model import AthenaQueryDetails
 from pydantic import ValidationError
 
 logger = structlog.get_logger(__name__)
-lambda_client = boto3.client("lambda")
-athena_client = boto3.client("athena")
-
 class ManualProcessAthenaQueryError(Exception):
     pass
 
-async def validate_athena_query_details(athena_query_details: AthenaQueryDetails):
+async def validate_athena_query_details(athena_query_details: dict):
     try:
         athena_details = AthenaQueryDetails(**athena_query_details)
     except ValidationError as e:
@@ -29,6 +26,7 @@ async def validate_athena_query_details(athena_query_details: AthenaQueryDetails
 async def check_result_exists(query_id: str): 
     try:
         # Attempt to check query executions
+        athena_client = boto3.client("athena")
         response = athena_client.get_query_execution(QueryExecutionId=query_id)
         logger.info("athena.get_query_execution", response=response)
         return True  
@@ -42,6 +40,7 @@ async def invoke_process_athena_query(current_state: str, query_id: str ):
 
     payload = {"detail":{"currentState": current_state, "queryExecutionId": query_id}}
     try:
+        lambda_client = boto3.client("lambda")
         logger.info("process_athena_query.invoke.started", payload=payload)
         lambda_client.invoke(
             FunctionName=os.environ['PROCESS_ATHENA_QUERY_ARN'],

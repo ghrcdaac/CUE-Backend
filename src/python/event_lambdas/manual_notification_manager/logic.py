@@ -6,8 +6,8 @@ from datetime import datetime
 import asyncpg 
 import json
 from uuid import UUID
-from model import Notification
-from db import (
+from .model import Notification
+from .db import (
     check_pending_user_application_pending,
     check_user_application_approved,
     check_infected_file_exists
@@ -15,7 +15,6 @@ from db import (
 from pydantic import ValidationError
 
 logger = structlog.get_logger(__name__)
-lambda_client = boto3.client("lambda")
 
 class ManualNotificationError(Exception):
     pass
@@ -50,6 +49,7 @@ async def invoke_notification_manager(detail_type: str, detail: Union[dict, date
 
     payload = {"detail-type": detail_type, "detail": detail}
     try:
+        lambda_client = boto3.client("lambda")
         logger.info("notification_manager.invoke.started", payload=payload)
         lambda_client.invoke(
             FunctionName=os.environ['NOTIFICATION_MANAGER_ARN'],

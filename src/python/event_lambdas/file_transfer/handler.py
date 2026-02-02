@@ -5,12 +5,12 @@ from uuid import UUID
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
-from logic import (
+from .logic import (
     process_messages,
     batch_transfer_and_validate,
     update_database_records
 )
-from db import fetch_batch_transfer_details
+from .db import fetch_batch_transfer_details
 
 setup_logging()
 logger = structlog.get_logger(__name__)

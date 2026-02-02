@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 import boto3
-from logic import validate_notification, invoke_notification_manager, ManualNotificationError
+from .logic import validate_notification, invoke_notification_manager, ManualNotificationError
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool

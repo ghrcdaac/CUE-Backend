@@ -5,8 +5,8 @@ import boto3
 from botocore.exceptions import ClientError
 from uuid import UUID
 import json
-from db import get_collection_id, validate_clean_file
-from model import Event
+from .db import get_collection_id, validate_clean_file
+from .model import Event
 from pydantic import ValidationError
 
 from core.logging_config import setup_logging
@@ -21,9 +21,12 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-S3_CLIENT = boto3.client("s3")
 STAGING_BUCKET = os.environ.get("STAGING_BUCKET")
 CLEAN_FILES_QUEUE_URL = os.environ.get("QUEUE_URL")
+
+def _get_s3_client():
+    return boto3.client("s3")
+
 def handler(event, context):
     """Synchronous entry point for AWS Lambda."""
     return loop.run_until_complete(async_handler(event, context))
@@ -117,7 +120,8 @@ async def async_handler(event, context):
 async def exists_in_staging(file_id:UUID):
     """Checks the existence of the file in the staging bucket"""
     try:
-       result = S3_CLIENT.head_object(Bucket=STAGING_BUCKET, Key=str(file_id))
+       s3 = _get_s3_client()
+       result = s3.head_object(Bucket=STAGING_BUCKET, Key=str(file_id))
        if result:
            logger.info('file_id.staging_bucket.exists', file_id=file_id)
            return True

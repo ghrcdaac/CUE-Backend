@@ -2,10 +2,9 @@ import os
 import boto3
 import json
 import structlog
-from model import EmailPayload
+from .model import EmailPayload
 from pydantic import ValidationError
 
-lambda_client = boto3.client('lambda')
 logger = structlog.get_logger(__name__)
 
 class ManualEmailSenderError(Exception):
@@ -24,6 +23,7 @@ async def invoke_email_sender(recipients: list, subject: str, body_html: str, bo
 
     payload = {"recipients": recipients, "subject": subject, "body_html": body_html, "body_text": body_text}
     try:
+        lambda_client = boto3.client('lambda')
         logger.info("email_sender.invoke.started", payload=payload)
         lambda_client.invoke(
             FunctionName=os.environ['EMAIL_SENDER_ARN'],

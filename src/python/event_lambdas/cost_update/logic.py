@@ -6,7 +6,7 @@ import decimal
 from decimal import Decimal
 import boto3
 import asyncpg
-from db import get_file_data, update_file_status_with_cost
+from .db import get_file_data, update_file_status_with_cost
 from botocore.exceptions import ClientError
 import structlog
 

@@ -1,6 +1,6 @@
 import asyncio
 import structlog
-from logic import validate_files, poll_and_redrive
+from .logic import validate_files, poll_and_redrive
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
