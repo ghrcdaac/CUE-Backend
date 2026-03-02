@@ -47,15 +47,15 @@ async def async_handler(event, context):
     try: 
         await invoke_notification_manager(notification.detail_type, notification.detail)
         return {
+            "status_code": 200,
             "body": {
-                "status_code": 200,
                 "message": "Successfully invoked notification_manager"
             }
         }
     except ManualNotificationError as e:
         return {
+            "status_code": 500,
             "body": {
-                "status_code": 500,
                 "message": "Failed to invoke notification_manager"
             }
         }

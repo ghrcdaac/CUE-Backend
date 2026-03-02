@@ -46,7 +46,7 @@ async def async_handler(event, context):
             status_code = 200
             message = f"Redrive complete: moved={moved_total} errors={errors_total}."
         elif moved_total > 0:
-            status_code = 200  # Partial success 
+            status_code = 207  # Partial success 
             message = f"Partial redrive: moved={moved_total} errors={errors_total}."
         else:
             status_code = 500 if errors_total > 0 else 404

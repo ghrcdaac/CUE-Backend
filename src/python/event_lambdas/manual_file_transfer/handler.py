@@ -93,8 +93,9 @@ async def async_handler(event, context):
                     )
                 except ClientError as e:
                     logger.error("sqs.send_message.failed", file_id=file_id, error=e)
-                    failed_files.append({"file_id":file_id, "message":"Failed to submit file for transfer."})
-                    transferable_file_ids.remove(file_id)
+                    failed_files.append(file_id)
+        transferable_file_ids = [file_id for file_id in transferable_file_ids if file_id not in failed_files]
+        failed_files = [{"file_id": str(file_id), "message":"Failed to submit file for transfer."} for file_id in failed_files]
 
     # 4. If there are any not found or invalid status failures add them 
     #    to the failed_files list.
@@ -106,12 +107,11 @@ async def async_handler(event, context):
         failed_files.extend([{"file_id": str(file_id), "message":"Is not clean."} for file_id in invalid_status_file_ids])
 
     total_files = len(file_ids)
-    failed_files = len(failed_files)
+    num_failed_files = len(failed_files)
 
-    if failed_files > 0 and failed_files < total_files:
-        logger.info('failed_file_ids', file_ids=failed_files)
+    if num_failed_files > 0 and num_failed_files < total_files:
         return {"status_code":207, "body":{"file_ids":json.dumps(failed_files)}}
-    elif failed_files == total_files:
+    elif num_failed_files == total_files:
         logger.info('failed_file_ids', file_ids=failed_files)
         return {"status_code":400, "body":{"file_ids":json.dumps(failed_files)}}
     else:

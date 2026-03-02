@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 import json
-from logic import validate_cleanup_event, get_upload_status_files, delete_upload_status_files
+from .logic import validate_cleanup_event, get_upload_status_files, delete_upload_status_files
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
 

@@ -175,9 +175,11 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
             
             if target_role['short_name'] not in allowed_roles:
                 raise ValueError("You do not have permission to assign this role.")
-
-    async with request.state.pool.acquire() as conn:
-        await user_db.update_user_roles(conn, user_id, [role_id])
+    try:
+        async with request.state.pool.acquire() as conn:
+            await user_db.update_user_roles(conn, user_id, [role_id])
+    except ValueError as e:
+        raise e
     
     logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
     return await get_user_profile(request, user_id)

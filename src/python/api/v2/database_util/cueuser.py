@@ -114,15 +114,27 @@ async def get_user_by_username(conn: Connection, cueusername: str) -> Optional[D
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
-            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
+            (
+                SELECT COALESCE(jsonb_agg(r.short_name), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role r ON ur.role_id = r.id
+                WHERE ur.cueuser_id = u.id
+            ) AS roles,
+            (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', g.id, 'short_name', g.short_name)), '[]'::jsonb)
+                FROM cueuser_ngroup ug
+                JOIN ngroup g ON ug.ngroup_id = g.id
+                WHERE ug.cueuser_id = u.id
+            ) AS ngroups,
+            (
+                SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role_privilege rp ON ur.role_id = rp.role_id
+                JOIN privilege p ON rp.privilege_id = p.id
+                WHERE ur.cueuser_id = u.id
+            ) AS privileges
         FROM cueuser u
-        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
-        LEFT JOIN role r ON ur.role_id = r.id
-        LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
-        LEFT JOIN ngroup g ON ug.ngroup_id = g.id
-        WHERE u.cueusername = $1
-        GROUP BY u.id;
+        WHERE u.cueusername = $1;
     """
     return await conn.fetchrow(query, cueusername)
 
@@ -239,11 +251,14 @@ async def update_user(conn: Connection, user_id: UUID, update_data: Dict[str, An
 
 async def update_user_roles(conn: Connection, user_id: UUID, role_ids: List[UUID]):
     """Replaces a user's existing roles with a new list of roles."""
-    async with conn.transaction():
-        await conn.execute("DELETE FROM cueuser_role WHERE cueuser_id = $1", user_id)
-        if role_ids:
-            await conn.executemany("INSERT INTO cueuser_role (cueuser_id, role_id) VALUES ($1, $2)",
-                                   [(user_id, role_id) for role_id in role_ids])
+    try:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM cueuser_role WHERE cueuser_id = $1", user_id)
+            if role_ids:
+                await conn.executemany("INSERT INTO cueuser_role (cueuser_id, role_id) VALUES ($1, $2)",
+                                    [(user_id, role_id) for role_id in role_ids])
+    except ForeignKeyViolationError as e:
+        raise ValueError("The specified role or user does not exists")
 
 async def remove_all_user_associations(conn: Connection, user_id: UUID):
     """Deletes all associations for a user."""
