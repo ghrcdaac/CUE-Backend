@@ -14,7 +14,7 @@ async def test_trigger_manual_file_transfer(test_admin_user, mock_boto3_client):
 
     response = await trigger_manual_file_transfer(mock_file_payload, test_admin_user)
     assert response["status_code"] == 200
-    assert response["message"] == "All file transfers initiated."
+    assert response["body"]["message"] == "All file transfers initiated."
 
 
 @pytest.mark.asyncio
@@ -38,3 +38,4 @@ async def test_trigger_manual_file_transfer_bad_payload(test_admin_user, mock_bo
     mock_file_payload = FilePayload(file_ids=[uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()])
     with pytest.raises(EventError):
         await trigger_manual_file_transfer(mock_file_payload, test_admin_user)
+

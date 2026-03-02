@@ -1,18 +1,24 @@
+import asyncio
 import pytest
-from fastapi import FastAPI
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
 from urllib.parse import urlparse, urlencode
-import csv
 import os
+import csv
 import uuid
 import boto3
 import httpx
 import re
 import io
+import base64
+import jwt
+from datetime import datetime, timezone, timedelta
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 from urllib.parse import parse_qs
 from datetime import datetime, timezone, timedelta 
 from botocore.response import StreamingBody
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, patch
 
 from tests.fixtures.db import * 
 from tests.fixtures.collection import *
@@ -29,6 +35,8 @@ os.environ['PG_HOST'] = os.getenv('PG_HOST_TEST', 'your_test_database_host')
 os.environ['PG_PORT'] = os.getenv('PG_PORT_TEST', '5432')  # Ensure this is a string
 
 os.environ['KEYCLOAK_ISSUER'] = 'https://localhost/realms/cue'
+os.environ['KEYCLOAK_AUDIENCE'] = "cue-test"
+os.environ['KEYCLOAK_CERTS_FILE'] = "certs_test.json"
 os.environ['KEYCLOAK_ADMIN_CLIENT_ID'] = 'cue-test'
 os.environ['KEYCLOAK_ADMIN_CLIENT_SECRET'] = 'mock_client_secret'
 os.environ['FRONTEND_CALLBACK_URL'] = 'http://localhost:3000/callback'
@@ -36,27 +44,35 @@ os.environ['FRONTEND_CALLBACK_URL'] = 'http://localhost:3000/callback'
 # Set an environment variable for the test ngroup ID
 os.environ['TEST_NGROUP_ID'] = str(uuid.uuid4())
 
+# Archive API
+os.environ["ATHENA_DB_NAME"] = "cue-archive-db"
+os.environ["ATHENA_OUTPUT_BUCKET"] = "cue-results-test"
+
 # Lambda environment variables
-os.environ['QUEUE_URL'] = "https://sqs.us-west2.amazonaws.com/012345678912/mock-file-transfer-queue"
-os.environ['FILE_TRANSFER_LAMBDA_NAME'] = "cue_file_transfer"
-os.environ['TRANSFER_INVOCATION_MODE'] = "LAMBDA"
+os.environ["QUEUE_URL"] = "https://sqs.us-west2.amazonaws.com/012345678912/mock-file-transfer-queue"
+os.environ["FILE_TRANSFER_LAMBDA_NAME"] = "cue_file_transfer"
+os.environ["TRANSFER_INVOCATION_MODE"] = "LAMBDA"
 
 os.environ["INFECTED_FILE_THRESHOLD"] = "5"
 os.environ["BLOCKING_LOOKBACK_HOURS"] = "24"
 
 os.environ["CSS_ROLE_ARN"] = "css_ce_role_test"
 
-os.environ['STAGING_BUCKET'] = "cue_staging_test"
-os.environ['RESULTS_BUCKET'] = "cue_results_test"
-os.environ['EMAIL_SENDER_ARN'] = "cue_email_sender"
+os.environ["STAGING_BUCKET"] = "cue_staging_test"
+os.environ["RESULTS_BUCKET"] = "cue_results_test"
+os.environ["EMAIL_SENDER_ARN"] = "cue_email_sender"
 
 os.environ["DLQ_URL"] = "cue_scan_results_dlq"
 os.environ["SOURCE_QUEUE_URL"] = "cue_scan_results"
 os.environ["MAX_SECONDS"] = "1"
 
-os.environ['NOTIFICATION_MANAGER_ARN'] = "cue_notification_manager"
-os.environ['PROCESS_ATHENA_QUERY_ARN'] = "cue_process_athena_query"
-os.environ['COST_UPDATE_ARN'] = "cue_cost_update"
+os.environ["NOTIFICATION_MANAGER_ARN"] = "cue_notification_manager"
+os.environ["PROCESS_ATHENA_QUERY_ARN"] = "cue_process_athena_query"
+os.environ["COST_UPDATE_ARN"] = "cue_cost_update"
+os.environ["SENDER_EMAIL"] = "cue-no-reply@nasa.gov"
+
+os.environ["SES_REGION"] = "us-west-2"
+
 
 class MockKeyCloakAPI:
    base_url = os.getenv("KEYCLOAK_ISSUER", "")
@@ -81,6 +97,7 @@ async def mock_handler(request):
                      "expires_in": 300,
                      "refresh_expires_in": 1800,
                      "refresh_token": "ey.mock.refresh.jwt",
+                     "id_token": "ey.mock.id.jwt",
                      "token_type": "Bearer",
                     })
         elif grant_type == "client_credentials": 
@@ -130,7 +147,7 @@ async def mock_handler(request):
             ]
         )
 
-    if re.match(rf"{MockKeyCloakAPI.users_url}/[0-9a-f]{{8}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{12}}", request_url):
+    elif re.match(rf"{MockKeyCloakAPI.users_url}/[0-9a-f]{{8}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{12}}", request_url):
         if request.method == "DELETE":
             return httpx.Response(204)
         elif request.method == "PUT" and "redirect_uri" in params:
@@ -145,14 +162,46 @@ async def mock_handler(request):
         RuntimeError("Trying to request unsupported url")
 
 @pytest.fixture(scope="function")
-def app() -> FastAPI:
-    app = FastAPI()
+def mock_app() -> FastAPI:
+    app_ = FastAPI()
     transport = httpx.MockTransport(mock_handler)
-    app.state.http_client = httpx.AsyncClient(transport=transport)
-    return app
+    app_.state.http_client = httpx.AsyncClient(transport=transport)
+    return app_
+
+@pytest.fixture(scope="function")
+def patched_async_client(monkeypatch):
+    transport = httpx.MockTransport(mock_handler)
+    
+    class PatchedAsyncClient(httpx.AsyncClient):
+        def __init__(self, *args, **kwargs):
+            #kwargs.setdefault("base_url", "https://api.example.test")
+            kwargs.setdefault("transport", transport)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr("httpx.AsyncClient", PatchedAsyncClient)
+
+
+# @pytest.fixture(scope="function")
+# def test_client(patched_async_client, generate_test_rsa_and_jwks):
+#     with patch("main.security_utils.KEYCLOAK_ISSUER", os.getenv("KEYCLOAK_ISSUER")):
+#         with patch("main.security_utils.KEYCLOAK_AUDIENCE", os.getenv("KEYCLOAK_AUDIENCE")):
+#             with patch("main.security_utils.KEYCLOAK_CERTS_FILE", os.getenv("KEYCLOAK_CERTS_FILE")):
+#                 test_client = TestClient(app)
+#                 with test_client as client:
+#                     yield client
+
+@pytest.fixture(scope="function")
+def test_client(patched_async_client, generate_test_rsa_and_jwks, mocker, mock_boto3_client):
+    from main import app 
+    mocker.patch("main.security_utils.KEYCLOAK_ISSUER", new=os.getenv("KEYCLOAK_ISSUER"))
+    mocker.patch("main.security_utils.KEYCLOAK_AUDIENCE", new=os.getenv("KEYCLOAK_AUDIENCE"))
+    mocker.patch("main.security_utils.KEYCLOAK_CERTS_FILE", new=os.getenv("KEYCLOAK_CERTS_FILE"))
+    test_client = TestClient(app)
+    with test_client as client:
+        yield client
 
 @pytest.fixture
-def make_request(app, connection_pool):
+def make_request(mock_app, connection_pool):
     """
     Build a FastAPI/Starlette Request from a minimal ASGI scope.
     Example:
@@ -215,7 +264,7 @@ def make_request(app, connection_pool):
             "headers": hdrs,
             "client": client,
             "server": (parsed.hostname or "testserver", parsed.port or (443 if (parsed.scheme or "http") == "https" else 80)),
-            "app": app
+            "app": mock_app
         }
 
         async def receive():
@@ -236,7 +285,7 @@ def aws_credentials(monkeypatch):
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-west-2")
 
 @pytest.fixture(scope="function")
-def mock_boto3_client(monkeypatch):
+def mock_boto3_client(monkeypatch, test_ngroup_id, test_collection, test_provider, test_provider_user):
     clients = {}
 
     def _get_client(name, *args, **kwargs):
@@ -297,17 +346,22 @@ def mock_boto3_client(monkeypatch):
         assert Bucket and Bucket.strip()!= ""
         assert isinstance(Key, uuid.UUID) or (Key and Key.strip() != "")
         body_content = '{"mock_key":"mock_value"}'
-        if Bucket=="cue-results-test":
-            data  = [["id","name","status"],
-                     ["mock_id1","file1","distributed"],
-                     ["mock_id2","file2","infected"]]
-            output = io.StringIO()
-            writer = csv.writer(output)
-            writer.writerows(data)
-            
-            body_content = output.getvalue() 
+        if Bucket=="cue-results-test" :
+            if not Key.endswith(".json"):
+                data  = [["id","name","status"],
+                        [str(uuid.uuid4()),"file1","distributed"],
+                        [str(uuid.uuid4()),"file2","infected"]]
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerows(data)
+                body_content = output.getvalue() 
+            else:
+                body_content = json.dumps([{"id": str(uuid.uuid4()), "name": "file1", "type": "application/octet-stream", "size_bytes": "1024", "collection_path": None, "edpub": "false", "checksum": "7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=", "upload_time": "2025-05-16 00:00:00.000", "scan_start": "2025-05-16 00:00:00.000", "scan_end":  "2025-05-16 00:00:00.000", "egress_start":  "2025-05-16 00:00:00.000", "status": "distributed", "scan_results": None, "ngroup_id": str(test_ngroup_id), "date": "2025-05-16", "collection_id": str(test_collection["id"]), "provider_id": str(test_provider["id"]), "cueuser_uploaded": str(test_provider_user.id)},
+                    {"id": str(uuid.uuid4()), "name": "file2", "type": "application/octet-stream", "size_bytes": "1024", "collection_path": None, "edpub": "false", "checksum": "7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=", "upload_time": "2025-05-16 00:00:00.000", "scan_start": "2025-05-16 00:00:00.000", "scan_end": "2025-05-16 00:00:00.000", "egress_start":  "2025-05-16 00:00:00.000", "status": "distributed", "scan_results": None, "ngroup_id": str(test_ngroup_id), "date": "2025-05-16", "collection_id": str(test_collection["id"]), "provider_id": str(test_provider["id"]), "cueuser_uploaded": str(test_provider_user.id)}])
+        
+
         body = StreamingBody(io.BytesIO(body_content.encode()), len(body_content.encode()))
-        return {"Body":body}
+        return {"Body": body}
     s3.get_object.side_effect = get_object
 
     def put_object(Bucket="", Key="", *args, **kwargs):
@@ -373,9 +427,9 @@ def mock_boto3_client(monkeypatch):
     s3.put_object_tagging.side_effect = put_object_tagging
 
     events = _get_client("events")
-    def put_events(Entries=[{}], *args, **kwargs):
-        failed_entries = len([entry == {} for entry in Entries])
-        return { 'FailedEntryCount': failed_entries,
+    def put_events(Entries=[], *args, **kwargs):
+        assert Entries and len(Entries) > 0
+        return { 'FailedEntryCount': 0,
                  'Entries': Entries,
                  'EventId': 'mock_eventId',
                  'ErrorCode': 'mock_error_code',
@@ -404,7 +458,7 @@ def mock_boto3_client(monkeypatch):
         assert Payload
         payload_content = ""
         if FunctionName == "cue_manual_file_transfer":
-            payload_content = '{"status_code": 200, "message": "All file transfers initiated."}'
+            payload_content = '{"status_code": 200, "body":{"message": "All file transfers initiated."}}'
         elif FunctionName == "cue_file_transfer":
             payload_content = '{"batchItemFailures":[]}'
         else:
@@ -492,6 +546,94 @@ def mock_boto3_client(monkeypatch):
         }
     ce.get_cost_and_usage.side_effect = get_cost_and_usage
 
+    ses = _get_client("ses")
+    def send_email(*args, **kwargs):
+        assert isinstance(kwargs["Source"], str)
+        assert isinstance(kwargs["Destination"], dict)
+        to_address = kwargs["Destination"]
+        assert isinstance(to_address["ToAddresses"], list)
+        source_arn = kwargs.get("SourceArn")
+        if source_arn:
+            assert isinstance(source_arn, str)
+        configuration_set_name = kwargs.get("ConfigurationSetName")
+        if configuration_set_name:
+            assert isinstance(configuration_set_name, str)
+        return {"MessageId": "0000017cd9f0ab34-6d2e1c9b-7f8a-41b2-9e3d-5c7a8b9d0e1f-000000"}
+    ses.send_email.side_effect = send_email
+
     # Patch boto3.client globally
     monkeypatch.setattr(boto3, "client", _get_client)
     yield _get_client 
+
+@pytest.fixture()
+def mock_lambda_context():
+    class LambdaContextMock:
+        def __init__(self, function_name, version="$LATEST", memory_limit_in_mb=128, remaining_time_in_millis=130000):
+            date_str = datetime.now(tz=timezone.utc).date().strftime("%Y/%m/%d")
+            self.function_name = function_name 
+            self.function_version = version 
+            self.invoked_function_arn = f"arn:aws:lambda:us-west-2:123456789012:function:{function_name}"
+            self.memory_limit_in_mb = memory_limit_in_mb
+            self.aws_request_id = "C40B8F9A-4C78-4C2E-9C8B-4B78F8F9A4C7"
+            self.log_group_name = f"/aws/lambda/{function_name}"
+            self.log_stream_name = f"{date_str}/[{version}]abcedf1234567890"
+            self.remaining_time_in_millis = remaining_time_in_millis
+
+        def get_remaining_time_in_millis(self):
+            assert self.remaining_time_in_millis >= 0
+            return self.remaining_time_in_millis
+
+    return LambdaContextMock
+ 
+
+@pytest.fixture()
+def generate_test_rsa_and_jwks():
+
+    def _b64url_uint(n: int) -> str:
+        return base64.urlsafe_b64encode(n.to_bytes((n.bit_length()+7)//8, "big")).rstrip(b"=").decode()
+
+    def gen_rsa_keypair_and_jwks(kid: str = "test-kid"):
+        private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public = private.public_key().public_numbers()
+        jwk = {"kty": "RSA", "use": "sig", "alg": "RS256", "kid": kid, "n": _b64url_uint(public.n), "e": _b64url_uint(public.e)}
+        jwks = {"keys": [jwk]}
+        priv_pem = private.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return priv_pem, jwks
+
+    priv_pem, test_jwks = gen_rsa_keypair_and_jwks()
+    path_to_test_certs = "/app/core/certs_test.json"
+    with open(path_to_test_certs, 'w') as f:
+        f.write(json.dumps(test_jwks))
+
+    yield priv_pem
+
+    if os.path.exists(path_to_test_certs):
+        os.remove(path_to_test_certs)
+
+@pytest.fixture()
+def make_jwt(generate_test_rsa_and_jwks):
+    priv_pem = generate_test_rsa_and_jwks
+    def _make_rs256_jwt(sub: str = "user-123", email=None, cueusername=None, name=None, first_name=None, last_name=None, roles=[], ngroups=[], privileges=[], active_ngroup_id=None, lifetime_seconds: int = 300, kid: str = "test-kid") -> str:
+        now = datetime.now(tz=timezone.utc)
+        claims = {
+            "iss": os.getenv("KEYCLOAK_ISSUER"),
+            "aud": os.getenv("KEYCLOAK_AUDIENCE"),
+            "sub": sub,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(seconds=lifetime_seconds)).timestamp()),
+            "email": email,
+            "preferred_username": cueusername,
+            "name": name,
+            "given_name":first_name,
+            "family_name": last_name,
+            "roles": roles,
+            "ngroups": ngroups,
+            "privileges": privileges,
+            "active_ngroup_id": active_ngroup_id
+        }
+        return jwt.encode(claims, priv_pem, algorithm="RS256", headers={"kid": kid})
+    return _make_rs256_jwt

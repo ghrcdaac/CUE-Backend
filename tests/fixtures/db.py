@@ -1,8 +1,7 @@
 import pytest_asyncio
-import pytest
-import asyncpg
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+import random
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict
 from app.v2.database_util.db_util import get_connection_pool, setup_connection
 from app.v2.type_util.egress import EgressCreate 
 from app.v2.type_util.ngroup import NgroupCreate
@@ -10,7 +9,6 @@ from app.v2.type_util.auth import AuthUser
 from app.v2.type_util.provider import ProviderCreate
 from app.v2.type_util.egress import EgressCreate
 from app.v2.type_util.collection import CollectionCreate
-import inspect
 
 import uuid
 import json
@@ -325,16 +323,53 @@ def seed_file(test_collection, connection_pool):
                    checksum="mock_checksum", status="unscanned",
                    upload_time=datetime.now(tz=timezone.utc),
                    scan_start=None, scan_end=None,
-                   egress_start=None, scan_results=None):
+                   egress_start=None, scan_results=None,
+                   notification_sent_at=None):
         file_db = {}
         async with connection_pool.acquire() as conn:
             file_db["file"] = await conn.fetchrow("INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum, collection_path) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING * ;",
                          *(id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum, collection_path))
-            file_db["file_status"] = await conn.fetchrow("INSERT INTO file_status (id, status, upload_time, scan_start, scan_end, egress_start, scan_results) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING * ;",
-                         *(id, status, upload_time, scan_start, scan_end, egress_start, scan_results))
+            file_db["file_status"] = await conn.fetchrow("INSERT INTO file_status (id, status, upload_time, scan_start, scan_end, egress_start, scan_results, notification_sent_at) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8) RETURNING * ;",
+                         *(id, status, upload_time, scan_start, scan_end, egress_start, scan_results, notification_sent_at))
         return file_db
     return _seed_file
 
+@pytest_asyncio.fixture()
+def seed_test_files(test_collection, seed_file):
+    """Fixture for bulk file seeding"""
+    async def _seed_test_files(uploader_id:uuid.UUID, status_counts:Optional[Dict[str,int]]=None, collection_id:uuid.UUID=test_collection["id"], upload_offset:int=0):
+        status_counts = status_counts if status_counts else {"unscanned":2, "infected": 2, "clean": 2, "distributed": 2, "scan_failed": 2}
+        total_files = sum([count for _, count in status_counts.items()])
+        file_size = 1024
+        total_volume = total_files * file_size
+        file_ids = []
+        date_format = "%Y-%m-%dT%I:%M:%S%fZ"
+        for status, count in status_counts.items():
+            for i in range(count):
+                upload_time = datetime.now(tz=timezone.utc) - timedelta(days=upload_offset)
+                scan_start = upload_time + timedelta(milliseconds=5)
+                scan_end = scan_start + timedelta(milliseconds=random.randint(10,30))
+                file_name = f"{status}_file_{i+1}_{upload_time.date()}"
+                file_id = uuid.uuid4()
+                if status == "unscanned":
+                    await seed_file(file_id, f"unscanned_file{i+1}", "application/octet-stream", uploader_id, file_size, collection_id=collection_id, status=status, upload_time=upload_time)
+                elif status == "infected":
+                    scan_results = json.dumps([{"result":"Infected", "virusName":["EICAR-AV-TEST"], "message":["eicar.com"], "dateScanned":scan_end.strftime(date_format), "engine":"Sophos"}])
+                    await seed_file(file_id, file_name , "application/octet-stream", uploader_id, file_size, collection_id=collection_id, status=status, upload_time=upload_time, scan_start=scan_start, scan_end=scan_end, scan_results=scan_results)
+                elif status == "clean" or status == "distributed":
+                    scan_results = json.dumps([{"result":"Clean", "virusName":[], "message":[], "dateScanned":scan_end.strftime(date_format), "engine":"Sophos"}])
+                    egress_start = None
+                    if status == "distributed": 
+                        egress_start = scan_end + timedelta(seconds=random.randint(2,5))
+                    await seed_file(file_id, file_name , "application/octet-stream", uploader_id, file_size, collection_id=collection_id, status=status, upload_time=upload_time, scan_start=scan_start, scan_end=scan_end, scan_results=scan_results, egress_start=egress_start)
+                else: # status == "scan_failed":
+                    scan_results = json.dumps([{"result":"scan_failed", "virusName":[], "message":["mock_scan_failed"], "dateScanned":scan_end.strftime(date_format), "engine":"Sophos"}])
+                    await seed_file(file_id, file_name , "application/octet-stream", uploader_id, file_size, collection_id=collection_id, status=status, upload_time=upload_time, scan_start=scan_start, scan_end=scan_end, scan_results=scan_results)
+                file_ids.append(file_id)
+
+        seed_file_details = {"total_count":total_files, "total_volume": total_volume, "status_counts": status_counts, "file_ids": file_ids}
+        return seed_file_details
+    return _seed_test_files
 
 # Fixtures to seed generic test data
 
@@ -349,7 +384,7 @@ async def test_ngroup_id(seed_ngroup):
 @pytest_asyncio.fixture(scope='function')
 async def test_admin_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_admin_user@test.com", 
-                    cueusername="test_admin_user", name="test user",
+                    cueusername="test_admin_user", name="test user admin",
                     roles=["admin"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "c924d0d3-55af-49f3-bec1-d7fd4ed475e2")
@@ -358,7 +393,7 @@ async def test_admin_user(test_ngroup_id, seed_user):
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_manager_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_daac_manager_user@test.com", 
-                    cueusername="test_daac_manager_user", name="test user",
+                    cueusername="test_daac_manager_user", name="test user daac manager",
                     roles=["daac_manager"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "ef872fe7-92b9-45ec-ac19-80f4c478fd36")
@@ -367,7 +402,7 @@ async def test_daac_manager_user(test_ngroup_id, seed_user):
 @pytest_asyncio.fixture(scope='function')
 async def test_security_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_security_user@test.com", 
-                    cueusername="test_security_user", name="test user",
+                    cueusername="test_security_user", name="test user security",
                     roles=["security"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "39677929-ba9b-426d-8c18-f607d669fcce")
@@ -376,7 +411,7 @@ async def test_security_user(test_ngroup_id, seed_user):
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_staff_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_daac_staff_user@test.com", 
-                    cueusername="test_daac_staff_user", name="test user",
+                    cueusername="test_daac_staff_user", name="test user daac staff",
                     roles=["daac_staff"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "a8b3757b-dcf9-4943-8f64-5adaf17a17fe")
@@ -385,7 +420,7 @@ async def test_daac_staff_user(test_ngroup_id, seed_user):
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_observer_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_daac_observer_user@test.com", 
-                    cueusername="test_daac_observer_user", name="test user",
+                    cueusername="test_daac_observer_user", name="test user observer",
                     roles=["daac_observer"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "2068cc53-1232-4bc7-9647-3e29e6418e21")
@@ -394,7 +429,7 @@ async def test_daac_observer_user(test_ngroup_id, seed_user):
 @pytest_asyncio.fixture(scope='function')
 async def test_provider_user(test_ngroup_id, seed_user):
     user = AuthUser(id=uuid.uuid4(), email="test_provider_user@test.com", 
-                    cueusername="test_provider_user", name="test user",
+                    cueusername="test_provider_user", name="test user provider",
                     roles=["provider"], ngroups=[str(test_ngroup_id)],
                     active_ngroup_id=str(test_ngroup_id))
     await seed_user(user.id, user.email, user.cueusername, user.name, "0e686dba-e5b2-4302-aea0-e9ed0caff7d3")

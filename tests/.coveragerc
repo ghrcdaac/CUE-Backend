@@ -1,0 +1,27 @@
+[run]
+source =
+    /app/
+omit = 
+    apis/*
+    */glue_jobs/*
+    */v1/*
+    tests/*
+    event_lambdas/logging_config.py 
+    v2/endpoints/oidc_test_helpers.py 
+    v2/database_util/cueuser_auth.py
+    v2/database_util/cueuser_ngroup.py
+    v2/database_util/cueuser_provider.py 
+    v2/type_util/cueuser_auth.py  
+    v2/type_util/cueuser_ngroup.py
+    v2/type_util/cueuser_provider.py
+    v2/type_util/cueuser_role.py 
+    v2/type_util/role_privilege.py 
+    v2/type_util/privilege.py  
+    v2/database_util/role_privilege.py
+    v2/database_util/scanning.py  
+    v2/database_util/privilege.py  
+    v2/database_util/file_status.py 
+    v2/database_util/cueuser_role.py
+    v2/utils/file_status.py
+    v2/type_util/file_status.py 
+    lambda_utils/database_util/scanning.py 

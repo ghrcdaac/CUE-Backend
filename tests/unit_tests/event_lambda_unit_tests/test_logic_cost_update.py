@@ -1,6 +1,6 @@
 import pytest
 import uuid
-from app.src.python.event_lambdas.cost_update.logic import get_css_creds, get_scan_cost, get_aws_cost, calculate_cost_per_file, get_scan_cost, get_aws_cost, update_file_costs, CostUpdateError
+from app.event_lambdas.cost_update.logic import get_css_creds, get_scan_cost, get_aws_cost, calculate_cost_per_file, get_scan_cost, get_aws_cost, update_file_costs, CostUpdateError
 from botocore.exceptions import ClientError
 from unittest.mock import patch
 from decimal import Decimal

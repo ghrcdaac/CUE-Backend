@@ -3,9 +3,10 @@ import uuid
 from botocore.exceptions import ClientError
 from app.v2.utils.archive import start_archive_query, get_query_status, get_query_results, AthenaError
 from app.v2.type_util.file_metrics import MetricsQueryParameters
+import os
 
 @pytest.mark.asyncio
-async def test_start_archive_query(test_ngroup_id,  seed_file, test_admin_user, mock_boto3_client):
+async def test_start_archive_query(test_ngroup_id, seed_file, test_admin_user, mock_boto3_client, connection_pool):
     await seed_file(uuid.uuid4(), "file", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
     mock_params = MetricsQueryParameters()
     query_id = await start_archive_query(test_ngroup_id, mock_params)

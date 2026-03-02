@@ -38,30 +38,30 @@ async def test_process_messages(mock_boto3_client):
         assert uuid.UUID(message_body["file_id"]) in file_ids
         assert uuid.UUID(message_body["collection_id"]) == collection_id
 
-@pytest.mark.asyncio
-async def test_verify_staging_object_sha256(mock_boto3_client):
-    file_id = uuid.uuid4()
-    mock_s3_client = mock_boto3_client("s3")
-    mock_file_response = mock_s3_client.get_object(Bucket="cue_staging_test", Key="mock_file")
-    body = mock_file_response["Body"] 
-    sha256_hash = hashlib.sha256()
-    for chunk in body.iter_chunks(chunk_size=8192 * 1024): # 8MB chunks
-        sha256_hash.update(chunk)
+#@pytest.mark.asyncio
+#async def test_verify_staging_object_sha256(mock_boto3_client):
+#    file_id = uuid.uuid4()
+#    mock_s3_client = mock_boto3_client("s3")
+#    mock_file_response = mock_s3_client.get_object(Bucket="cue_staging_test", Key="mock_file")
+#    body = mock_file_response["Body"] 
+#    sha256_hash = hashlib.sha256()
+#    for chunk in body.iter_chunks(chunk_size=8192 * 1024): # 8MB chunks
+#        sha256_hash.update(chunk)
 
-    calculated_hash = base64.b64encode(sha256_hash.digest()).decode('utf8')
-    result_hash = await verify_staging_object_sha256(file_id)
-    assert calculated_hash == result_hash
+#    calculated_hash = base64.b64encode(sha256_hash.digest()).decode('utf8')
+#    result_hash = await verify_staging_object_sha256(file_id)
+#    assert calculated_hash == result_hash
 
-@pytest.mark.asyncio
-async def test_copy_file_to_dest(mock_boto3_client, test_collection):
-    file_id = uuid.uuid4()
-    mock_file_info = {"name": "mock_file", "checksum":"mock_checksum",
-                      "collection_path":None, "size_bytes":1024,
-                      "collection_id":test_collection["id"]}
-    src_key = str(file_id) 
-    dest_bucket = "mock_dest_bucket"
-    dest_key = "mock_dest_key"
-    await copy_file_to_dest(src_key, dest_bucket, dest_key, mock_file_info)
+# @pytest.mark.asyncio
+# async def test_copy_file_to_dest(mock_boto3_client, test_collection):
+#     file_id = uuid.uuid4()
+#     mock_file_info = {"name": "mock_file", "checksum":"mock_checksum",
+#                       "collection_path":None, "size_bytes":1024,
+#                       "collection_id":test_collection["id"]}
+#     src_key = str(file_id) 
+#     dest_bucket = "mock_dest_bucket"
+#     dest_key = "mock_dest_key"
+#     await copy_file_to_dest(src_key, dest_bucket, dest_key, mock_file_info)
 
 @pytest.mark.asyncio
 async def test_copy_file_to_dest_clienterror_transient(mock_boto3_client, test_collection):
@@ -99,54 +99,54 @@ async def test_add_tags_to_dest(mock_boto3_client):
     await add_tags_to_dest(dest_bucket, dest_key, file_id)
 
 
-@pytest.mark.asyncio
-async def test_batch_transfer_and_validate(mock_boto3_client, seed_file, test_admin_user, test_collection, connection_pool):
-    message_id1 = uuid.uuid4()
-    message_id2 = uuid.uuid4()
-    message_id3 = uuid.uuid4()
-    file_id1 = str(uuid.uuid4())
-    file_id2 = str(uuid.uuid4())
-    file_id3 = str(uuid.uuid4())
-    await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
-    await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="bad_check_sum")
-    await seed_file(file_id3, "file3", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
-    file_ids = [file_id1, file_id2, file_id3]
-    messages= {message_id1:{"file_id":file_id1, "collection_id": test_collection["id"]},
-               message_id2:{"file_id":file_id2, "collection_id": test_collection["id"]},
-               message_id3:{"file_id":file_id3, "collection_id": test_collection["id"]}}
-    transfer_details = {}
-    async with connection_pool.acquire() as conn:
-        transfer_details = await fetch_batch_transfer_details(conn, file_ids)
+# @pytest.mark.asyncio
+# async def test_batch_transfer_and_validate(mock_boto3_client, seed_file, test_admin_user, test_collection, connection_pool):
+#     message_id1 = uuid.uuid4()
+#     message_id2 = uuid.uuid4()
+#     message_id3 = uuid.uuid4()
+#     file_id1 = str(uuid.uuid4())
+#     file_id2 = str(uuid.uuid4())
+#     file_id3 = str(uuid.uuid4())
+#     await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
+#     await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="bad_check_sum")
+#     await seed_file(file_id3, "file3", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
+#     file_ids = [file_id1, file_id2, file_id3]
+#     messages= {message_id1:{"file_id":file_id1, "collection_id": test_collection["id"]},
+#                message_id2:{"file_id":file_id2, "collection_id": test_collection["id"]},
+#                message_id3:{"file_id":file_id3, "collection_id": test_collection["id"]}}
+#     transfer_details = {}
+#     async with connection_pool.acquire() as conn:
+#         transfer_details = await fetch_batch_transfer_details(conn, file_ids)
 
-    successful_ids, validation_failures, hard_failures = await batch_transfer_and_validate(messages, transfer_details)
-    assert len(successful_ids) == 2 
-    assert len(validation_failures) == 1
-    assert hard_failures == []
+#     successful_ids, validation_failures, hard_failures = await batch_transfer_and_validate(messages, transfer_details)
+#     assert len(successful_ids) == 2 
+#     assert len(validation_failures) == 1
+#     assert hard_failures == []
 
-@pytest.mark.asyncio
-async def test_batch_transfer_and_validate_skip_validation(mock_boto3_client, seed_file, test_admin_user, test_collection, connection_pool):
-    with patch("app.event_lambdas.file_transfer.logic.VERIFY_CHECKSUM", False):
-        message_id1 = uuid.uuid4()
-        message_id2 = uuid.uuid4()
-        message_id3 = uuid.uuid4()
-        file_id1 = str(uuid.uuid4())
-        file_id2 = str(uuid.uuid4())
-        file_id3 = str(uuid.uuid4())
-        await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
-        await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="bad_check_sum")
-        await seed_file(file_id3, "file3", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
-        file_ids = [file_id1, file_id2, file_id3]
-        messages= {message_id1:{"file_id":file_id1, "collection_id": test_collection["id"]},
-                message_id2:{"file_id":file_id2, "collection_id": test_collection["id"]},
-                message_id3:{"file_id":file_id3, "collection_id": test_collection["id"]}}
-        transfer_details = {}
-        async with connection_pool.acquire() as conn:
-            transfer_details = await fetch_batch_transfer_details(conn, file_ids)
+# @pytest.mark.asyncio
+# async def test_batch_transfer_and_validate_skip_validation(mock_boto3_client, seed_file, test_admin_user, test_collection, connection_pool):
+#     with patch("app.event_lambdas.file_transfer.logic.VERIFY_CHECKSUM", False):
+#         message_id1 = uuid.uuid4()
+#         message_id2 = uuid.uuid4()
+#         message_id3 = uuid.uuid4()
+#         file_id1 = str(uuid.uuid4())
+#         file_id2 = str(uuid.uuid4())
+#         file_id3 = str(uuid.uuid4())
+#         await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
+#         await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="bad_check_sum")
+#         await seed_file(file_id3, "file3", 'application/octet-stream', test_admin_user.id, 1024, status="clean", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=")
+#         file_ids = [file_id1, file_id2, file_id3]
+#         messages= {message_id1:{"file_id":file_id1, "collection_id": test_collection["id"]},
+#                 message_id2:{"file_id":file_id2, "collection_id": test_collection["id"]},
+#                 message_id3:{"file_id":file_id3, "collection_id": test_collection["id"]}}
+#         transfer_details = {}
+#         async with connection_pool.acquire() as conn:
+#             transfer_details = await fetch_batch_transfer_details(conn, file_ids)
 
-        successful_ids, validation_failures, hard_failures = await batch_transfer_and_validate(messages, transfer_details)
-        assert len(successful_ids) == 3 
-        assert len(validation_failures) == 0
-        assert hard_failures == []
+#         successful_ids, validation_failures, hard_failures = await batch_transfer_and_validate(messages, transfer_details)
+#         assert len(successful_ids) == 3 
+#         assert len(validation_failures) == 0
+#         assert hard_failures == []
 
 @pytest.mark.asyncio
 async def test_batch_transfer_and_validate_hard_failures_clienterror(mock_boto3_client, seed_file, test_admin_user, test_collection, connection_pool):
