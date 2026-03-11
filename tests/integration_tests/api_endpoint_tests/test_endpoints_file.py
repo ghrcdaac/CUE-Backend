@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 @pytest.mark.asyncio
 async def test_list_files_endpoint(test_client, test_admin_user, seed_file, make_jwt):
+    """Test list files endpoint - success. """
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_ids = sorted([uuid.uuid4() for _ in range(8)])
@@ -33,6 +34,7 @@ async def test_list_files_endpoint(test_client, test_admin_user, seed_file, make
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+    """Test list files by api key endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     scopes=["file:upload", "file:read"]
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
@@ -67,6 +69,7 @@ async def test_list_files_by_api_key_endpoint(test_client, test_admin_user, test
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_endpoint_api_scope_error(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+    """Test list files by api_key endpoint - api key lacks correct scope."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     scopes=["file:upload"]
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
@@ -97,6 +100,7 @@ async def test_list_files_by_api_key_endpoint_api_scope_error(test_client, test_
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_endpoint_file_access_error(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+    """Test list files by api key endpoint - specified file does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     scopes=["file:upload", "file:read"]
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
@@ -126,7 +130,8 @@ async def test_list_files_by_api_key_endpoint_file_access_error(test_client, tes
 
 
 @pytest.mark.asyncio
-async def test_find_files_by_name_endpoint(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_find_files_by_name_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test find files by name endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_id = uuid.uuid4()
@@ -141,7 +146,8 @@ async def test_find_files_by_name_endpoint(test_client, test_admin_user, test_ng
 
 
 @pytest.mark.asyncio
-async def test_get_file_endpoint(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_get_file_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Ttest get file endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_id = uuid.uuid4()
@@ -150,11 +156,12 @@ async def test_get_file_endpoint(test_client, test_admin_user, test_ngroup_id, s
     response_json = response.json()
 
     assert response.status_code == 200
-    assert response_json["id"] == str(file_id) 
+    assert response_json["id"] == str(file_id)
     assert response_json["name"] ==  "file1"
 
 @pytest.mark.asyncio
-async def test_get_file_endpoint_not_found(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_get_file_endpoint_not_found(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test get file endpoint - file does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_id = uuid.uuid4()
@@ -162,7 +169,10 @@ async def test_get_file_endpoint_not_found(test_client, test_admin_user, test_ng
     assert response.status_code == 404
 
 @pytest.mark.asyncio
-async def test_get_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user, test_ngroup_id, seed_ngroup, seed_egress, seed_provider, seed_collection, seed_file, make_jwt, mock_boto3_client):
+async def test_get_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user,
+                                           seed_ngroup, seed_egress, seed_provider,
+                                           seed_collection, seed_file, make_jwt, mock_boto3_client):
+    """Test get file endpoint - file belongs to different ngroup."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}", "x-active-ngroup-id":test_daac_manager_user.active_ngroup_id}
 
@@ -177,7 +187,8 @@ async def test_get_file_endpoint_no_access(test_client, test_admin_user, test_da
     assert response.status_code == 403
 
 @pytest.mark.asyncio
-async def test_update_file_endpoint(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_update_file_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test update file endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
 
@@ -198,7 +209,8 @@ async def test_update_file_endpoint(test_client, test_admin_user, test_ngroup_id
     assert response_json["collection_path"] == file_update_request["collection_path"]
 
 @pytest.mark.asyncio
-async def test_update_file_endpoint_not_found(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_update_file_endpoint_not_found(test_client, test_admin_user, make_jwt, mock_boto3_client):
+    """Test update file endpoint - file does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
 
@@ -213,7 +225,8 @@ async def test_update_file_endpoint_not_found(test_client, test_admin_user, test
     assert response.status_code == 404
 
 @pytest.mark.asyncio
-async def test_update_file_endpoint_empty_update(test_client, test_admin_user, test_ngroup_id, seed_file, make_jwt, mock_boto3_client):
+async def test_update_file_endpoint_empty_update(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test update file endpoint - empty update."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
 
@@ -227,7 +240,10 @@ async def test_update_file_endpoint_empty_update(test_client, test_admin_user, t
     assert response.status_code == 400
 
 @pytest.mark.asyncio
-async def test_update_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user, test_ngroup_id, seed_ngroup, seed_egress, seed_provider, seed_collection, seed_file, make_jwt, mock_boto3_client):
+async def test_update_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user,
+                                              seed_ngroup, seed_egress, seed_provider,
+                                              seed_collection, seed_file, make_jwt, mock_boto3_client):
+    """Test update file endpoint - file belongs to different ngroup."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}", "x-active-ngroup-id":test_daac_manager_user.active_ngroup_id}
 
@@ -248,6 +264,7 @@ async def test_update_file_endpoint_no_access(test_client, test_admin_user, test
 
 @pytest.mark.asyncio
 async def test_delete_file_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test delete file endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_id = uuid.uuid4()
@@ -262,7 +279,8 @@ async def test_delete_file_endpoint(test_client, test_admin_user, seed_file, mak
     assert response.status_code ==  404
 
 @pytest.mark.asyncio
-async def test_delete_file_endpoint_not_found(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+async def test_delete_file_endpoint_not_found(test_client, test_admin_user, make_jwt, mock_boto3_client):
+    """Test delete file endpoint - file does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     file_id = uuid.uuid4()
@@ -272,7 +290,10 @@ async def test_delete_file_endpoint_not_found(test_client, test_admin_user, seed
     assert response.status_code == 404
 
 @pytest.mark.asyncio
-async def test_delete_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user, test_ngroup_id, seed_ngroup, seed_egress, seed_provider, seed_collection, seed_file, make_jwt, mock_boto3_client):
+async def test_delete_file_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user,
+                                              seed_ngroup, seed_egress, seed_provider,
+                                              seed_collection, seed_file, make_jwt, mock_boto3_client):
+    """Test delete file endpoint - file belongs to different ngroup."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}", "x-active-ngroup-id":test_daac_manager_user.active_ngroup_id}
 

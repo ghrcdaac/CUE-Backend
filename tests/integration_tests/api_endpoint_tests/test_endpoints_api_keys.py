@@ -4,6 +4,7 @@ from datetime import datetime
 from app.v2.utils.api_keys import ApiKeyNotFoundError, ApiKeyPermissionError 
 
 def test_create_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test create api key endpoint."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_create_request= {"name": "test_key",
@@ -19,14 +20,16 @@ def test_create_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, m
     assert response_json.get('message')
 
 @pytest.mark.asyncio
-async def test_create_managed_user_api_key_manager_not_in_ngroup(test_client, test_daac_manager_user, test_ngroup_id, seed_ngroup, seed_user, make_jwt):
+async def test_create_managed_user_api_key_manager_not_in_ngroup(test_client, test_daac_manager_user, seed_ngroup, seed_user, make_jwt):
+    """Test create api key endpoint - daac manager creating managed user key for user not in manager's ngroup."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}"}
 
     ngroup_id2 = uuid.uuid4()
     await seed_ngroup(ngroup_id2, "test_ngroup2", "Test Ngroup 2")
     mock_obs_user_id = uuid.uuid4()
-    await seed_user(mock_obs_user_id, "test_email@test.com", "test_username_user", "test_user", '2068cc53-1232-4bc7-9647-3e29e6418e21', ngroup_id=ngroup_id2)
+    await seed_user(mock_obs_user_id, "test_email@test.com", "test_username_user",
+                   "test_user", '2068cc53-1232-4bc7-9647-3e29e6418e21', ngroup_id=ngroup_id2)
 
     api_key_create_request = {"name":"test_manager_for_observer_key",
                               "key_type":"managed_user",
@@ -39,6 +42,7 @@ async def test_create_managed_user_api_key_manager_not_in_ngroup(test_client, te
 
 
 def test_list_api_keys_endpoint(test_client, test_admin_user, test_daac_observer_user, test_ngroup_id, make_jwt):
+    """Test list api key endpoint."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_create_request1 = {"name": "test_key",
@@ -70,6 +74,7 @@ def test_list_api_keys_endpoint(test_client, test_admin_user, test_daac_observer
 
 
 def test_update_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test update api key endpoint - succuss."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_create_request= {"name": "test_key",
@@ -92,6 +97,7 @@ def test_update_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, m
 
 
 def test_update_api_key_endpoint_key_does_not_exist(test_client, test_admin_user, make_jwt):
+    """Test update api key endpoint - api key does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_id = str(uuid.uuid4())
@@ -103,6 +109,7 @@ def test_update_api_key_endpoint_key_does_not_exist(test_client, test_admin_user
 
 @pytest.mark.asyncio
 async def test_update_api_key_endpoint_key_cannot_access(test_client, test_daac_manager_user, seed_ngroup, seed_user, make_jwt):
+    """Test update api key endpoint - user lacks privilege."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     ngroup_1_manager_headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}"}
 
@@ -111,7 +118,8 @@ async def test_update_api_key_endpoint_key_cannot_access(test_client, test_daac_
     await seed_ngroup(ngroup_id2, "test_ngroup2", "Test Ngroup 2")
 
     mock_staff_user_id = uuid.uuid4()
-    await seed_user(mock_staff_user_id, "test_email@test.com", "test_username_user", "test_user", "a8b3757b-dcf9-4943-8f64-5adaf17a17fe", ngroup_id=ngroup_id2)
+    await seed_user(mock_staff_user_id, "test_email@test.com", "test_username_user",
+                    "test_user", "a8b3757b-dcf9-4943-8f64-5adaf17a17fe", ngroup_id=ngroup_id2)
 
     mock_staff_user_jwt = make_jwt(sub=str(mock_staff_user_id))
     mock_staff_user_headers = {"Authorization": f"Bearer {mock_staff_user_jwt}"}
@@ -132,6 +140,7 @@ async def test_update_api_key_endpoint_key_cannot_access(test_client, test_daac_
 
 @pytest.mark.asyncio
 async def test_record_key_usage_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt, connection_pool):
+    """Test record key usage endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_create_request= {"name": "test_key",
@@ -151,6 +160,7 @@ async def test_record_key_usage_endpoint(test_client, test_admin_user, test_ngro
 
 @pytest.mark.asyncio
 async def test_revoke_api_key_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt, connection_pool):
+    """Test revoke api key endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     api_key_create_request= {"name": "test_key",
@@ -169,7 +179,8 @@ async def test_revoke_api_key_endpoint(test_client, test_admin_user, test_ngroup
     assert revoked_at.date() == datetime.now().date()
 
 @pytest.mark.asyncio
-async def test_revoke_api_key_endpoint_does_not_exists(test_client, test_admin_user, test_ngroup_id, make_jwt, connection_pool):
+async def test_revoke_api_key_endpoint_does_not_exist(test_client, test_admin_user, test_ngroup_id, make_jwt, connection_pool):
+    """Test revoke api key endpoint - api key does not exist"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
 
@@ -179,6 +190,7 @@ async def test_revoke_api_key_endpoint_does_not_exists(test_client, test_admin_u
 
 @pytest.mark.asyncio
 async def test_revoke_api_key_endpoint_permission_error(test_client, test_daac_manager_user, seed_ngroup, seed_user, make_jwt):
+    """Test revoke api key endpoint - permission error user trying to revoke key in different ngroup."""
     test_daac_manager_user_jwt = make_jwt(sub=str(test_daac_manager_user.id))
     ngroup_1_manager_headers = {"Authorization": f"Bearer {test_daac_manager_user_jwt}"}
 
@@ -186,7 +198,8 @@ async def test_revoke_api_key_endpoint_permission_error(test_client, test_daac_m
     await seed_ngroup(ngroup_id2, "test_ngroup2", "Test Ngroup 2")
 
     mock_staff_user_id = uuid.uuid4()
-    await seed_user(mock_staff_user_id, "test_email@test.com", "test_username_user", "test_user", "a8b3757b-dcf9-4943-8f64-5adaf17a17fe", ngroup_id=ngroup_id2)
+    await seed_user(mock_staff_user_id, "test_email@test.com", "test_username_user",
+                    "test_user", "a8b3757b-dcf9-4943-8f64-5adaf17a17fe", ngroup_id=ngroup_id2)
 
     mock_staff_user_jwt = make_jwt(sub=str(mock_staff_user_id))
     mock_staff_user_headers = {"Authorization": f"Bearer {mock_staff_user_jwt}"}

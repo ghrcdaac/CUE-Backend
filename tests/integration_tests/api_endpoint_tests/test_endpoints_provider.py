@@ -1,7 +1,7 @@
-import pytest
 import uuid
 
 def test_create_provider_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test create provider endpoint - success"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -19,6 +19,7 @@ def test_create_provider_endpoint(test_client, test_admin_user, test_ngroup_id, 
     assert response_json.get("point_of_contact") == create_provider_request["point_of_contact"]
 
 def test_create_provider_endpoint_bad_poc(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test create provider bad point of contact."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -30,27 +31,32 @@ def test_create_provider_endpoint_bad_poc(test_client, test_admin_user, test_ngr
     assert response.status_code == 400
 
 
-def test_list_providers_for_application_form(test_client, test_admin_user, test_ngroup_id, make_jwt):
+def test_list_providers_for_application_form_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test list providers for user application form endpoint."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
+    
     create_provider_request1 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider1",
                                "long_name": "New Provider1",
                                "can_upload":True}
     provider_response1 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request1).json()
+
     create_provider_request2 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider2",
                                "long_name": "New Provider2",
                                "can_upload":True}
     provider_response2 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request2).json()
+
     create_provider_request3 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider3",
                                "long_name": "New Provider3",
                                "can_upload":True}
     provider_response3 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request3).json()
+
     provider_ids = sorted([provider_response1["id"], provider_response2["id"], provider_response3["id"]]) 
     list_response_json = test_client.get("/v2/providers/for-application-form", params={"ngroup_id":str(test_ngroup_id)}, headers=headers).json()
 
@@ -59,26 +65,31 @@ def test_list_providers_for_application_form(test_client, test_admin_user, test_
     assert provider_ids[2] in [provider["id"] for provider in list_response_json]
 
 def test_list_providers_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test list providers endpoint - Success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":str(test_ngroup_id)}
+
     create_provider_request1 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider1",
                                "long_name": "New Provider1",
                                "can_upload":True}
     provider_response1 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request1).json()
+
     create_provider_request2 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider2",
                                "long_name": "New Provider2",
                                "can_upload":True}
     provider_response2 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request2).json()
+
     create_provider_request3 = {"ngroup_id": str(test_ngroup_id),
                                "point_of_contact": str(test_admin_user.id),
                                "short_name": "new_provider3",
                                "long_name": "New Provider3",
                                "can_upload":True}
     provider_response3 = test_client.post("/v2/providers/", headers=headers, json=create_provider_request3).json()
+
     provider_ids = sorted([provider_response1["id"], provider_response2["id"], provider_response3["id"]]) 
     list_response_json = test_client.get("/v2/providers/", headers=headers).json()
 
@@ -87,6 +98,7 @@ def test_list_providers_endpoint(test_client, test_admin_user, test_ngroup_id, m
     assert provider_ids[2] in [provider["id"] for provider in list_response_json]
 
 def test_get_provider_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test get provider endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -107,7 +119,8 @@ def test_get_provider_endpoint(test_client, test_admin_user, test_ngroup_id, mak
     assert response_json.get("ngroup_id") == create_provider_request["ngroup_id"]
     assert response_json.get("point_of_contact") == create_provider_request["point_of_contact"]
 
-def test_get_provider_endpoint_not_found(test_client, test_admin_user, test_ngroup_id, make_jwt):
+def test_get_provider_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test get provider endpoint - provider does not exist"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     provider_id = uuid.uuid4()
@@ -117,6 +130,7 @@ def test_get_provider_endpoint_not_found(test_client, test_admin_user, test_ngro
     assert response.status_code == 404
 
 def test_update_provider_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test update provider endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -141,7 +155,8 @@ def test_update_provider_endpoint(test_client, test_admin_user, test_ngroup_id, 
     assert not response_json.get("can_upload")
     assert response_json.get("reason") == update_provider_request["reason"]
 
-def test_update_provider_endpoint_not_found(test_client, test_admin_user, test_ngroup_id, make_jwt):
+def test_update_provider_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test update provider endpoint - provider does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     provider_id = uuid.uuid4()
@@ -155,6 +170,7 @@ def test_update_provider_endpoint_not_found(test_client, test_admin_user, test_n
     assert response.status_code == 404
 
 def test_update_provider_endpoint_empty_update(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test update provider endpoint - empty update."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -172,6 +188,7 @@ def test_update_provider_endpoint_empty_update(test_client, test_admin_user, tes
     assert response.status_code == 400 
 
 def test_update_provider_endpoint_no_access(test_client, test_admin_user, test_daac_observer_user, test_ngroup_id, make_jwt):
+    """Test update provider endpoint - user lacks privilege."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -194,6 +211,7 @@ def test_update_provider_endpoint_no_access(test_client, test_admin_user, test_d
     assert response.status_code == 403
 
 def test_delete_provider_endpoint(test_client, test_admin_user, test_ngroup_id, make_jwt):
+    """Test delete provider endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_provider_request = {"ngroup_id": str(test_ngroup_id),
@@ -214,7 +232,8 @@ def test_delete_provider_endpoint(test_client, test_admin_user, test_ngroup_id, 
     response = test_client.get(f"/v2/providers/{provider_id}", headers=headers)
     assert response.status_code == 404
 
-def test_delete_provider_endpoint_not_found(test_client, test_admin_user, test_ngroup_id, make_jwt):
+def test_delete_provider_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test delete provider endpoint - provider does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     provider_id = uuid.uuid4()

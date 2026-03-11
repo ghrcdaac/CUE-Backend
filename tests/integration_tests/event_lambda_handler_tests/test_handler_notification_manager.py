@@ -5,87 +5,115 @@ import uuid
 import random
 import os
 from datetime import datetime, timezone, timedelta
-from test_loop_helper import run_handler
+
 from structlog.testing import capture_logs
 
-def test_notification_manager_handler_infected_file_found(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_infected_file_found(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - infected file found."""
     event = {"detail-type":"InfectedFileFound" , "detail": {"key":str(uuid.uuid4())}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
-    with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
-    assert cap_logs[-1]["event"] == "db.pool.initialized_successfully"
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
+    await async_handler(event, context)
 
-def test_notification_manager_handler_other_event_type(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_other_event_type(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - other event type."""
     event = {"detail-type":"OtherNotificationEvent" , "detail": {}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
-    assert cap_logs[-1]["event"] == "event.unhandled_type" 
+        await async_handler(event, context)
+    assert cap_logs[-1]["event"] == "event.unhandled_type"
 
-def test_notification_manager_handler_scheduled_infected_files_provider_block(mock_lambda_context, block_test_provider_with_files, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_scheduled_infected_files_provider_block(mock_lambda_context, block_test_provider_with_files, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - scheduled infected file event provider met infected file threshold block."""
     event = {"detail-type":"ScheduledInfectedFileFound" , "detail": datetime.now(tz=timezone.utc).isoformat()}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "email_sender.invoke.started" 
 
-def test_notification_manager_handler_scheduled_infected_files_no_provider_block(mock_lambda_context, infected_files_no_provider_block, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_scheduled_infected_files_no_provider_block(mock_lambda_context, infected_files_no_provider_block, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - scheduled infected file event provider not blocked."""
     event = {"detail-type":"ScheduledInfectedFileFound" , "detail": datetime.now(tz=timezone.utc).isoformat()}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "email_sender.invoke.started" 
 
-def test_notification_manager_handler_scheduled_infected_files_provider_block_only(mock_lambda_context, block_test_provider_files_previously_notified, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_scheduled_infected_files_provider_block_only(mock_lambda_context, block_test_provider_files_previously_notified, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - scheduled infected file event provider blocked notification only."""
     event = {"detail-type":"ScheduledInfectedFileFound" , "detail": datetime.now(tz=timezone.utc).isoformat()}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "email_sender.invoke.started" 
 
-def test_notification_manager_handler_scheduled_infected_files_no_op(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_scheduled_infected_files_no_op(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - scheduled infected file event no operation."""
     event = {"detail-type":"ScheduledInfectedFileFound" , "detail": datetime.now(tz=timezone.utc).isoformat()}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "No new infected files or provider blocks to report." 
 
-def test_notification_manager_handler_application_submitted(mock_lambda_context, pending_user, test_admin_user, test_daac_manager_user, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_application_submitted(mock_lambda_context, pending_user, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - user application submitted event success."""
     event = {"detail-type":"UserApplicationSubmitted" , "detail":{"application_id": str(pending_user["id"])}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "email_sender.invoke.started" 
 
-def test_notification_manager_handler_application_submitted_application_does_not_exist(mock_lambda_context, pending_user, test_admin_user, test_daac_manager_user, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_application_submitted_application_does_not_exist(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - user application submitted event application does not exist."""
     event = {"detail-type":"UserApplicationSubmitted" , "detail":{"application_id": str(uuid.uuid4())}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "notification.recipients.not_found" 
 
-def test_notification_manager_handler_application_approved(mock_lambda_context, approved_user, test_admin_user, test_daac_manager_user, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_application_approved(mock_lambda_context, approved_user, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - user application approved event success."""
     event = {"detail-type":"UserApplicationApproved" , "detail":{"user_id": str(approved_user)}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event, context)
     assert cap_logs[-1]["event"] == "email_sender.invoke.started" 
 
-def test_notification_manager_handler_application_approved_user_does_not_exist(mock_lambda_context, approved_user, test_admin_user, test_daac_manager_user, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_notification_manager_handler_application_approved_user_not_found(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test notification manager handler - user application approved user does not exist."""
     event = {"detail-type":"UserApplicationApproved" , "detail":{"user_id": str(uuid.uuid4())}}
     context = mock_lambda_context("cue_notification_manager")
-    from app.event_lambdas.notification_manager.handler import handler
+    mocker.patch("app.event_lambdas.notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.notification_manager.handler import async_handler
     with capture_logs() as cap_logs:
-        run_handler(handler, event, context)
+        await async_handler(event,context)
     assert cap_logs[-1]["event"] == "notification.user_details.not_found" 
 
 @pytest_asyncio.fixture()

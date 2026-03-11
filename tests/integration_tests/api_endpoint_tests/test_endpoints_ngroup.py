@@ -1,8 +1,8 @@
-import pytest
 import uuid
 
 
 def test_create_ngroup_endpoint(test_client, test_admin_user, make_jwt):
+    """Test create ngroup endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -14,6 +14,7 @@ def test_create_ngroup_endpoint(test_client, test_admin_user, make_jwt):
     assert create_ngroup_request["long_name"] == response_json.get("long_name")
 
 def test_create_ngroup_endpoint_duplicate(test_client, test_admin_user, make_jwt):
+    """Test create ngroup endpoint - duplicate ngroup"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -25,6 +26,7 @@ def test_create_ngroup_endpoint_duplicate(test_client, test_admin_user, make_jwt
 
 
 def test_list_ngroups_for_application_form(test_client, test_admin_user, make_jwt):
+    """Test list ngroups for application form."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
 
@@ -45,6 +47,7 @@ def test_list_ngroups_for_application_form(test_client, test_admin_user, make_jw
 
 
 def test_list_ngroups_endpoint(test_client, test_admin_user, make_jwt):
+    """Test list ngroups endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
 
@@ -64,6 +67,7 @@ def test_list_ngroups_endpoint(test_client, test_admin_user, make_jwt):
     assert ngroup_ids[2] in [ngroup["id"] for ngroup in list_response_json]
 
 def test_get_ngroup_endpoint(test_client, test_admin_user, make_jwt):
+    """Test get ngroup endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -79,6 +83,7 @@ def test_get_ngroup_endpoint(test_client, test_admin_user, make_jwt):
     assert create_ngroup_request["long_name"] == response_json.get("long_name")
 
 def test_get_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test get ngroup endpoint - ngroup does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     ngroup_id = uuid.uuid4()
@@ -88,6 +93,7 @@ def test_get_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_update_ngroup_endpoint(test_client, test_admin_user, make_jwt):
+    """Test update ngroup endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -104,6 +110,7 @@ def test_update_ngroup_endpoint(test_client, test_admin_user, make_jwt):
     assert update_ngroup_request["long_name"] == response_json["long_name"]
 
 def test_update_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test update ngroup endpoint - ngroup not found."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     ngroup_id = uuid.uuid4() 
@@ -114,6 +121,7 @@ def test_update_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt
     assert response.status_code == 404
 
 def test_update_ngroup_endpoint_empty_update(test_client, test_admin_user, make_jwt):
+    """Test update ngroup endpoint - empty update."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -127,6 +135,7 @@ def test_update_ngroup_endpoint_empty_update(test_client, test_admin_user, make_
     assert response.status_code == 400
 
 def test_update_ngroup_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user, make_jwt):
+    """Test update ngroup endpoint - non-admin trying to update."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -143,6 +152,7 @@ def test_update_ngroup_endpoint_no_access(test_client, test_admin_user, test_daa
     assert response.status_code == 403
 
 def test_delete_ngroup_endpoint(test_client, test_admin_user, make_jwt):
+    """Test delete ngroup endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}
@@ -160,6 +170,7 @@ def test_delete_ngroup_endpoint(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_delete_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test delete ngroup endpoint - ngroup does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     ngroup_id = uuid.uuid4()
@@ -169,6 +180,7 @@ def test_delete_ngroup_endpoint_not_found(test_client, test_admin_user, make_jwt
 
 
 def test_delete_ngroup_endpoint_no_access(test_client, test_admin_user, test_daac_manager_user, make_jwt):
+    """Test delete ngroup endpoint - non-admin trying to delete"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id), roles=test_admin_user.roles, ngroups=test_admin_user.ngroups)
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     create_ngroup_request = {"short_name":"new_ngroup", "long_name":"New Ngroup"}

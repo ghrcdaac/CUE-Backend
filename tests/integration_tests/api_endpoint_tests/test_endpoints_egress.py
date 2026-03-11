@@ -2,6 +2,7 @@ import pytest
 import uuid
 
 def test_create_egress_endpoint(test_client, test_admin_user, make_jwt):
+    """Test create egress endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -12,6 +13,7 @@ def test_create_egress_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json.get("ngroup_id") == test_admin_user.active_ngroup_id
 
 def test_create_egress_endpoint_no_active_ngroup_header(test_client, test_admin_user, make_jwt):
+    """Test create egress endpoint - missing x-active-ngroup-id header."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -20,6 +22,7 @@ def test_create_egress_endpoint_no_active_ngroup_header(test_client, test_admin_
     assert response.status_code == 400
 
 def test_list_egresses_endpoint(test_client, test_admin_user, make_jwt):
+    """Test list egresses endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request1 = {"type": "s3", "path": "test_s3_path1", 
@@ -40,6 +43,7 @@ def test_list_egresses_endpoint(test_client, test_admin_user, make_jwt):
 
 
 def test_get_egress_endpoint(test_client, test_admin_user, make_jwt):
+    """Test get egress endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -57,6 +61,7 @@ def test_get_egress_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json['ngroup_id'] == test_admin_user.active_ngroup_id
 
 def test_get_egress_endpoint_egress_not_found(test_client, test_admin_user, make_jwt):
+    """Test get egress endpoint - egress does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_id = uuid.uuid4() 
@@ -66,6 +71,7 @@ def test_get_egress_endpoint_egress_not_found(test_client, test_admin_user, make
 
 @pytest.mark.asyncio
 async def test_get_egress_endpoint_egress_no_access(test_client, test_admin_user, test_daac_manager_user, seed_ngroup, connection_pool, make_jwt):
+    """Test get egress endpoint - egress belongs to another ngroup."""
     ngroup2 = await seed_ngroup(uuid.uuid4(), "test_ngroup2", "Test Ngroup 2")
     async with connection_pool.acquire() as conn:
         await conn.execute("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2)", *(test_admin_user.id, ngroup2["id"]))
@@ -84,6 +90,7 @@ async def test_get_egress_endpoint_egress_no_access(test_client, test_admin_user
     assert response.status_code == 400 
 
 def test_get_egress_endpoint_egress_no_active_ngroup_header(test_client, test_admin_user, test_daac_manager_user, make_jwt):
+    """Test get egress endpoint - missing x-active-ngroup-header."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -100,6 +107,7 @@ def test_get_egress_endpoint_egress_no_active_ngroup_header(test_client, test_ad
     assert response.status_code == 400 
 
 def test_update_egress_endpoint(test_client, test_admin_user, make_jwt):
+    """Test update egress endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -117,6 +125,7 @@ def test_update_egress_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json['config'] == egress_update_request["config"]
 
 def test_update_egress_endpoint_egress_not_found(test_client, test_admin_user, make_jwt):
+    """Test update egress endpoint - egress does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_id = uuid.uuid4() 
@@ -127,6 +136,7 @@ def test_update_egress_endpoint_egress_not_found(test_client, test_admin_user, m
 
 @pytest.mark.asyncio
 async def test_update_egress_endpoint_egress_no_access(test_client, test_admin_user, test_daac_manager_user, seed_ngroup, connection_pool, make_jwt):
+    """Test update egress endpoint - egress belongs to different ngroup."""
     ngroup2 = await seed_ngroup(uuid.uuid4(), "test_ngroup2", "Test Ngroup 2")
     async with connection_pool.acquire() as conn:
         await conn.execute("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2)", *(test_admin_user.id, ngroup2["id"]))
@@ -146,6 +156,7 @@ async def test_update_egress_endpoint_egress_no_access(test_client, test_admin_u
     assert response.status_code == 400 
 
 def test_update_egress_endpoint_egress_no_active_ngroup_header(test_client, test_admin_user, test_daac_manager_user, make_jwt):
+    """Test update egress endpoint - missing x-active-ngroup-id header."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -163,6 +174,7 @@ def test_update_egress_endpoint_egress_no_active_ngroup_header(test_client, test
 
 
 def test_delete_egress_endpoint(test_client, test_admin_user, make_jwt):
+    """Test delete egress endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -183,6 +195,7 @@ def test_delete_egress_endpoint(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_delete_egress_endpoint_egress_not_found(test_client, test_admin_user, make_jwt):
+    """Test delete egress endpoint egress - does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_id = uuid.uuid4() 
@@ -193,6 +206,7 @@ def test_delete_egress_endpoint_egress_not_found(test_client, test_admin_user, m
 
 @pytest.mark.asyncio
 async def test_delete_egress_endpoint_egress_no_access(test_client, test_admin_user, test_daac_manager_user, seed_ngroup, connection_pool, make_jwt):
+    """Test delete egress endpoint - egress belongs to different ngroup."""
     ngroup2 = await seed_ngroup(uuid.uuid4(), "test_ngroup2", "Test Ngroup 2")
     async with connection_pool.acquire() as conn:
         await conn.execute("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2)", *(test_admin_user.id, ngroup2["id"]))
@@ -211,6 +225,7 @@ async def test_delete_egress_endpoint_egress_no_access(test_client, test_admin_u
     assert response.status_code == 400 
 
 def test_delete_egress_endpoint_egress_no_active_ngroup_header(test_client, test_admin_user, test_daac_manager_user, make_jwt):
+    """Test delete egress endpoint - missing x-active-ngroup-id header. """
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_create_request = {"type": "s3", "path": "test_s3", 
@@ -225,7 +240,8 @@ def test_delete_egress_endpoint_egress_no_active_ngroup_header(test_client, test
     response = test_client.delete(f"v2/egress/{egress_id}", headers=daac_manager_headers)
     assert response.status_code == 400 
 
-def test_delete_egress_endpoint(test_client, test_collection, test_admin_user, make_jwt):
+def test_delete_egress_endpoint_conflict(test_client, test_collection, test_admin_user, make_jwt):
+    """Test delete egress endpoint - conflict, egress in use."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
     egress_id = test_collection["egress_id"]

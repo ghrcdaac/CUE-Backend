@@ -2,6 +2,7 @@ import uuid
 
 
 def test_create_role_endpoint(test_client, test_admin_user, make_jwt):
+    """Test create role endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -13,6 +14,7 @@ def test_create_role_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json.get("long_name") == role_create_request["long_name"]
 
 def test_create_role_endpoint_duplicate(test_client, test_admin_user, make_jwt):
+    """Test create role endpoint - duplicate role."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -24,6 +26,7 @@ def test_create_role_endpoint_duplicate(test_client, test_admin_user, make_jwt):
 
 
 def test_list_roles_endpoint(test_client, test_admin_user, make_jwt):
+    """Test list roles endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
 
@@ -44,6 +47,7 @@ def test_list_roles_endpoint(test_client, test_admin_user, make_jwt):
     assert role_ids[2] in [role["id"] for role in list_response_json] 
 
 def test_lookup_role_endpoint(test_client, test_admin_user, make_jwt):
+    """Test lookup role endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -65,6 +69,7 @@ def test_lookup_role_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json1 == response_json2
 
 def test_lookup_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test lookup role endpoint - bad parameters."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -78,6 +83,7 @@ def test_lookup_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_lookup_role_endpoint_empty_param(test_client, test_admin_user, make_jwt):
+    """Test lookup role endpoint - empty parameters."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -88,6 +94,7 @@ def test_lookup_role_endpoint_empty_param(test_client, test_admin_user, make_jwt
     assert response.status_code == 400
 
 def test_get_role_endpoint(test_client, test_admin_user, make_jwt):
+    """Test get role endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -103,6 +110,7 @@ def test_get_role_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json.get("long_name") == role_create_request["long_name"]
 
 def test_get_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test get role endpoint - role does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_id = uuid.uuid4()
@@ -111,6 +119,7 @@ def test_get_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_update_role_endpoint(test_client, test_admin_user, make_jwt):
+    """Test update role endpoint - success """
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -126,6 +135,7 @@ def test_update_role_endpoint(test_client, test_admin_user, make_jwt):
     assert response_json.get("long_name") == update_role_request.get("long_name")
 
 def test_update_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test update role endpoint - role does not exist"""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_id = uuid.uuid4()
@@ -135,6 +145,7 @@ def test_update_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_update_role_endpoint_empty_update(test_client, test_admin_user, make_jwt):
+    """Test update role endpoint - empty update."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -147,6 +158,7 @@ def test_update_role_endpoint_empty_update(test_client, test_admin_user, make_jw
     assert response.status_code == 400
 
 def test_update_role_endpoint_no_access(test_client, test_admin_user, test_daac_staff_user, make_jwt):
+    """Test update role endpoint - user lacks privilege."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -155,13 +167,14 @@ def test_update_role_endpoint_no_access(test_client, test_admin_user, test_daac_
     role_id = response_json.get("id")
 
     test_daac_staff_user_jwt = make_jwt(sub=str(test_daac_staff_user.id))
-    daac_manager_headers = {"Authorization": f"Bearer {test_daac_staff_user_jwt}"}
+    daac_staff_headers = {"Authorization": f"Bearer {test_daac_staff_user_jwt}"}
     
     update_role_request = {"short_name":"old_new_role", "long_name":"Old New Role"}
-    response = test_client.patch(f"/v2/roles/{role_id}", headers=daac_manager_headers, json=update_role_request)
+    response = test_client.patch(f"/v2/roles/{role_id}", headers=daac_staff_headers, json=update_role_request)
     assert response.status_code == 403
 
 def test_delete_role_endpoint(test_client, test_admin_user, make_jwt):
+    """Test delete role endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}
@@ -178,6 +191,7 @@ def test_delete_role_endpoint(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404 
 
 def test_delete_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
+    """Test delete role endpoint - role does not exist."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_id = uuid.uuid4()
@@ -186,6 +200,7 @@ def test_delete_role_endpoint_not_found(test_client, test_admin_user, make_jwt):
     assert response.status_code == 404
 
 def test_delete_role_endpoint_no_access(test_client, test_admin_user, test_daac_staff_user, make_jwt):
+    """Test delete role endpoint - user lack privilege."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     admin_headers = {"Authorization": f"Bearer {test_admin_user_jwt}"}
     role_create_request = {"short_name":"new_role", "long_name":"New Role"}

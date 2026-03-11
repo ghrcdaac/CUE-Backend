@@ -3,54 +3,71 @@ import pytest_asyncio
 import uuid
 import json
 from datetime import datetime, timezone
-from test_loop_helper import run_handler 
+ 
 from botocore.exceptions import ClientError
 
-def test_manual_notification_manager_handler_user_application_submitted(test_admin_user, pending_application, mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_user_application_submitted(test_admin_user, pending_application, mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test manual notification manager handler - user application submitted success."""
     event = {"detail-type":"UserApplicationSubmitted", "detail":{"application_id": str(pending_application["id"])}, "user_id": str(test_admin_user.id)}
     context = mock_lambda_context("cue_manual_notification_handler")
-    from app.event_lambdas.manual_notification_manager.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
+    response = await async_handler(event, context)
     assert response["status_code"] == 200
 
-def test_manual_notification_manager_handler_user_application_approved(test_admin_user, approved_user, mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_user_application_approved(test_admin_user, approved_user, mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test manual notification manager handler - user application approved success."""
     event = {"detail-type":"UserApplicationApproved", "detail":{"user_id": str(approved_user)}, "user_id": str(test_admin_user.id)}
     context = mock_lambda_context("cue_manual_notification_handler")
-    from app.event_lambdas.manual_notification_manager.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
+    response = await async_handler(event, context)
     assert response["status_code"] == 200
 
 
-def test_manual_notification_manager_handler_infected_file(test_admin_user,test_infected_file, mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_infected_file(test_admin_user,test_infected_file, mock_lambda_context, get_database_pool, mocker, mock_boto3_client,patch_loop):
+    """Test manual notification manager handler - infected file success."""
     event ={"detail-type":"InfectedFileFound", "detail":{"key":str(test_infected_file)}, "user_id":str(test_admin_user.id)} 
     context = mock_lambda_context("cue_manual_notification_handler")
-    from app.event_lambdas.manual_notification_manager.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
+    response = await async_handler(event, context)
     assert response["status_code"] == 200
 
-def test_manual_notification_manager_handler_empty_event(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_empty_event(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test manual notification manager handler - empty event."""
     event = {}
     context = mock_lambda_context("cue_manual_notification_handler")
-    from app.event_lambdas.manual_notification_manager.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
+    response = await async_handler(event, context)
     assert response["status_code"] == 400
 
-def test_manual_notification_manager_handler_user_application_submitted_lambda_invoke_client_error(test_admin_user, pending_application, mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_user_application_submitted_lambda_invoke_client_error(test_admin_user, pending_application, mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test manual notification manager handler - user application submitted lambda fails to invoke notification manager."""
     lambda_ = mock_boto3_client("lambda")
     lambda_.invoke.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"invoke.failed"}}, operation_name="invoke")
     event = {"detail-type":"UserApplicationSubmitted", "detail":{"application_id": str(pending_application["id"])}, "user_id": str(test_admin_user.id)}
     context = mock_lambda_context("cue_manual_notification_handler")
-    from app.event_lambdas.manual_notification_manager.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
+    response = await async_handler(event, context)
     assert response["status_code"] == 500
 
-def test_manual_notification_manager_handler_user_application_submitted_no_db_pool(test_admin_user, pending_application, mock_lambda_context, mock_boto3_client, mocker):
+@pytest.mark.asyncio
+async def test_manual_notification_manager_handler_user_application_submitted_no_db_pool(test_admin_user, pending_application, mock_lambda_context, mocker, mock_boto3_client, patch_loop):
+    """Test manual notification manager handler - user application submitted lambda no database pool."""
     event = {"detail-type":"UserApplicationSubmitted", "detail":{"application_id": str(pending_application["id"])}, "user_id": str(test_admin_user.id)}
     context = mock_lambda_context("cue_manual_notification_handler")
     mocker.patch("app.event_lambdas.manual_notification_manager.handler.get_database_pool", return_value=None)
-    from app.event_lambdas.manual_notification_manager.handler import handler
+    from app.event_lambdas.manual_notification_manager.handler import async_handler
     with pytest.raises(RuntimeError):
-        run_handler(handler, event, context)
+        await async_handler(event, context)
 
 @pytest_asyncio.fixture()
 async def pending_application(connection_pool, test_ngroup_id, test_provider):
@@ -62,7 +79,9 @@ async def pending_application(connection_pool, test_ngroup_id, test_provider):
         RETURNING *;
         """
     async with connection_pool.acquire() as conn:
-        record = await conn.fetchrow(query, user_id, "user_application@test.com", "test userapp", "user_app_submit", "testing user app submit", test_ngroup_id, "provider", test_provider["id"], None)
+        record = await conn.fetchrow(query, user_id, "user_application@test.com",
+                                     "test userapp", "user_app_submit", "testing user app submit",
+                                     test_ngroup_id, "provider", test_provider["id"], None)
     return record 
 
 @pytest_asyncio.fixture()
@@ -81,5 +100,8 @@ async def approved_user(pending_application, test_ngroup_id, connection_pool):
 @pytest_asyncio.fixture()
 async def test_infected_file(seed_file, test_provider_user):
     file_id = uuid.uuid4()
-    await seed_file(file_id, "file1", 'application/octet-stream', test_provider_user.id, 1024, status="infected", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=", scan_results = json.dumps([{"result": "Infected", "virusName":["EICAR-AV-TEST"], "message":["eicar.com"], "dateScanned":datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%I:%M:%S%fZ"), "engine":"Sophos"}]))
+    await seed_file(file_id, "file1", 'application/octet-stream', test_provider_user.id,
+                    1024, status="infected", checksum="7Hwzs/KxphOh7+KgkOmSKRoOYQsqUuU1E9gMQo0UtHM=",
+                    scan_results = json.dumps([{"result": "Infected", "virusName":["EICAR-AV-TEST"], "message":["eicar.com"],
+                                                "dateScanned":datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%I:%M:%S%fZ"), "engine":"Sophos"}]))
     return file_id

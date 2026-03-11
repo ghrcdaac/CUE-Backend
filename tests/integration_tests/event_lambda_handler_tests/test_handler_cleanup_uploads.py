@@ -1,37 +1,49 @@
 import pytest_asyncio
+import pytest
 import uuid 
 from datetime import datetime
-from test_loop_helper import run_handler
 
-def test_cleanup_uploads_handler_all_uploads_with_data(mock_lambda_context, test_data, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_cleanup_uploads_handler_all_uploads_with_data(mock_lambda_context, test_data, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test cleanup uploads handler - all uploads, db has data."""
     event = {"detail-type":"CleanupAllPendingUploads"}
     context = mock_lambda_context("cue_cleanup_uploads")
-    from app.event_lambdas.cleanup_uploads.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.cleanup_uploads.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.cleanup_uploads.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("status_code") == 200
     assert response.get("body").get("message") ==  "Successfully deleted pending uploads."
 
-def test_cleanup_uploads_handler_all_uploads_no_data(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_cleanup_uploads_handler_all_uploads_no_data(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test cleanup uploads handler - all uploads, db has no data."""
     event = {"detail-type":"CleanupAllPendingUploads"}
     context = mock_lambda_context("cue_cleanup_uploads")
-    from app.event_lambdas.cleanup_uploads.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.cleanup_uploads.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.cleanup_uploads.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("status_code") == 200
     assert response.get("body").get("message") == "There are no pending uploads to delete."
 
-def test_cleanup_uploads_targeted_uploads_handler(mock_lambda_context, test_data, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_cleanup_uploads_targeted_uploads_handler(mock_lambda_context, test_data, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test cleanup uploads - targeted success."""
     event = {"detail-type":"CleanupTargetedUploads", "query_parameters":{"end_date": datetime.now().date().strftime("%Y-%m-%d")}}
     context = mock_lambda_context("cue_cleanup_uploads")
-    from app.event_lambdas.cleanup_uploads.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.cleanup_uploads.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.cleanup_uploads.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("status_code") == 200
     assert response.get("body").get("message") == "Successfully deleted pending uploads."
 
-def test_cleanup_uploads_targeted_uploads_handler_invalid_event(mock_lambda_context, test_data, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_cleanup_uploads_targeted_uploads_handler_invalid_event(mock_lambda_context, test_data,  get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test cleanup uploads - targeted failed validation"""  
     event = {"detail-type":"CleanupTargetedUploads"}
     context = mock_lambda_context("cue_cleanup_uploads")
-    from app.event_lambdas.cleanup_uploads.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.cleanup_uploads.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.cleanup_uploads.handler import async_handler
+    response = await async_handler(event, context) 
     assert response.get("status_code") == 400
     assert response.get("body").get("message") 
 

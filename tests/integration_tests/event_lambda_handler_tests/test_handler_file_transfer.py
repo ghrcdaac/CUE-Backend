@@ -2,58 +2,75 @@ import pytest
 import pytest_asyncio
 import uuid
 import json
-from test_loop_helper import run_handler
+
 from botocore.exceptions import ClientError
 
-def test_file_transfer_handler(mock_lambda_context, test_records_checksum, test_collection, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_file_transfer_handler(mock_lambda_context, test_records_checksum, test_collection, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - success."""
     event = {"Records": test_records_checksum}
     context = mock_lambda_context("cue_file_transfer")
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("batchItemFailures") == []
 
-def test_file_transfer_handler_no_checksum(mock_lambda_context, test_records_no_checksum, test_collection, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_file_transfer_handler_no_checksum(mock_lambda_context, test_records_no_checksum, test_collection, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - files have no checksum."""
     event = {"Records": test_records_no_checksum}
     context = mock_lambda_context("cue_file_transfer")
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("batchItemFailures") == []
 
-def test_file_transfer_handler_no_records(mock_lambda_context, mock_boto3_client):
+@pytest.mark.asyncio
+async def test_file_transfer_handler_no_records(mock_lambda_context, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - no files provided."""
     event = {}
     context = mock_lambda_context("cue_file_transfer")
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert response.get("batchItemFailures") == []
 
-def test_file_transfer_handler_no_pool(mock_lambda_context, test_records_checksum, test_collection, mock_boto3_client, mocker):
+@pytest.mark.asyncio
+async def test_file_transfer_handler_no_pool(mock_lambda_context, test_records_checksum, test_collection, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - no database pool."""
     records = test_records_checksum
     event = {"Records": records}
     context = mock_lambda_context("cue_file_transfer")
     mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", return_value=None)
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert len(response.get("batchItemFailures")) > 0
 
-def test_file_transfer_handler_bad_record(mock_lambda_context, test_records_checksum, test_collection, mock_boto3_client, mocker):
+@pytest.mark.asyncio
+async def test_file_transfer_handler_file_not_found(mock_lambda_context, test_records_checksum, test_collection, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - file does not exist."""
     records = test_records_checksum
     new_record = {"messageId": str(uuid.uuid4()),
                   "body": json.dumps({"file_id": str(uuid.uuid4()), "collection_id":str(test_collection['id'])})}
     records.append(new_record)
     event = {"Records": records}
     context = mock_lambda_context("cue_file_transfer")
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert len(response.get("batchItemFailures")) == 0
 
-def test_file_transfer_handler_s3_copy_object_client_error(mock_lambda_context, test_records_checksum, test_collection, mock_boto3_client, mocker):
+@pytest.mark.asyncio
+async def test_file_transfer_handler_s3_copy_object_client_error(mock_lambda_context, test_records_checksum, test_collection, get_database_pool, mocker, mock_boto3_client, patch_loop):
+    """Test file transfer handler - s3 client fails to copy object."""
     event = {"Records": test_records_checksum}
     context = mock_lambda_context("cue_file_transfer")
     s3 = mock_boto3_client("s3")
     s3.copy_object.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"InternalError"}}, operation_name="copy_object") 
+    mocker.patch("app.event_lambdas.file_transfer.handler.get_database_pool", new_callable=mocker.AsyncMock, return_value=get_database_pool)
     mocker.patch("app.event_lambdas.file_transfer.logic.s3_client", new=s3)
-    from app.event_lambdas.file_transfer.handler import handler
-    response = run_handler(handler, event, context)
+    from app.event_lambdas.file_transfer.handler import async_handler
+    response = await async_handler(event, context)
     assert len(response.get("batchItemFailures")) > 0
 
 @pytest_asyncio.fixture()

@@ -2,12 +2,14 @@ import pytest
 import uuid
 import random
 import json
-from app.v2.type_util.file_metrics import MetricsSummaryResponse, CostSummaryResponse, PaginatedCostByCollectionResponse, PaginatedCostByFileResponse
+from app.v2.type_util.file_metrics import (MetricsSummaryResponse, CostSummaryResponse,
+                                           PaginatedCostByCollectionResponse, PaginatedCostByFileResponse)
 from pydantic import ValidationError
 
 
 @pytest.mark.asyncio
 async def test_get_metrics_summary_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get metrics summary endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     # total 10 files
@@ -26,9 +28,9 @@ async def test_get_metrics_summary_endpoint(test_client, test_admin_user, seed_t
             assert seed_status_counts[status_count.status] == status_count.count
 
     except ValidationError as e:
-        pytest.fail("{e}")
+        pytest.fail(f"{e}")
 
-    # total 20 files 
+    # total 20 files
     file_details_seeding2 = await seed_test_files(test_admin_user.id)
     total_count = file_details_seeding1["total_count"] + file_details_seeding2["total_count"]
     total_volume = file_details_seeding1["total_volume"] + file_details_seeding2["total_volume"]
@@ -51,10 +53,11 @@ async def test_get_metrics_summary_endpoint(test_client, test_admin_user, seed_t
             count_for_status = seed_status_counts1[status_count.status] + seed_status_counts2[status_count.status]
             assert count_for_status == status_count.count
     except ValidationError as e:
-        pytest.fail("{e}")
+        pytest.fail(f"{e}")
 
 @pytest.mark.asyncio
 async def test_get_daily_volume_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get daily volume endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, upload_offset=2)
@@ -70,6 +73,7 @@ async def test_get_daily_volume_endpoint(test_client, test_admin_user, seed_test
 
 @pytest.mark.asyncio
 async def test_get_daily_count_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get daily count endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, upload_offset=2)
@@ -85,6 +89,7 @@ async def test_get_daily_count_endpoint(test_client, test_admin_user, seed_test_
 
 @pytest.mark.asyncio
 async def test_get_overall_volume_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get overall volume endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, upload_offset=2)
@@ -99,6 +104,7 @@ async def test_get_overall_volume_endpoint(test_client, test_admin_user, seed_te
 
 @pytest.mark.asyncio
 async def test_get_overall_count_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get overall count endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, upload_offset=2)
@@ -113,6 +119,7 @@ async def test_get_overall_count_endpoint(test_client, test_admin_user, seed_tes
 
 @pytest.mark.asyncio
 async def test_get_status_counts_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get status counts endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, status_counts={"distributed": 5}, upload_offset=2)
@@ -121,7 +128,7 @@ async def test_get_status_counts_endpoint(test_client, test_admin_user, seed_tes
     params = {} 
     response = test_client.get("/v2/file-metrics/status-counts", headers=headers, params=params)
     response_json = response.json()
-    tda_status_counts, yd_status_counts, td_status_counts  = two_days_ago_files["status_counts"], yesterdays_files["status_counts"], todays_files["status_counts"]
+    tda_status_counts, yd_status_counts, td_status_counts = two_days_ago_files["status_counts"], yesterdays_files["status_counts"], todays_files["status_counts"]
     assert response.status_code == 200
     for status_count in response_json:
         status = status_count["status"]
@@ -130,6 +137,7 @@ async def test_get_status_counts_endpoint(test_client, test_admin_user, seed_tes
 
 @pytest.mark.asyncio
 async def test_get_cost_summary_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get cost summary endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     two_days_ago_files = await seed_test_files(test_admin_user.id, upload_offset=2)
@@ -154,6 +162,7 @@ async def test_get_cost_summary_endpoint(test_client, test_admin_user, seed_test
 
 @pytest.mark.asyncio
 async def test_get_cost_by_collection_endpoint(test_client, test_admin_user, test_collection, seed_collection, seed_test_files, make_jwt):
+    """Test get cost by collection endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     # test_collection acts as test_collection0
@@ -180,6 +189,7 @@ async def test_get_cost_by_collection_endpoint(test_client, test_admin_user, tes
 
 @pytest.mark.asyncio
 async def test_get_cost_by_file_endpoint(test_client, test_admin_user, seed_test_files, make_jwt):
+    """Test get cost by file endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
     headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id": test_admin_user.active_ngroup_id}
     file_details = await seed_test_files(test_admin_user.id)
@@ -192,7 +202,7 @@ async def test_get_cost_by_file_endpoint(test_client, test_admin_user, seed_test
     assert response.status_code == 200
     try: 
         validated_model = PaginatedCostByFileResponse.model_validate(response_json)
-        assert validated_model.total == file_details["total_count"] 
+        assert validated_model.total == file_details["total_count"]
         assert validated_model.page == 1
         assert validated_model.page_size == 50
         for item in validated_model.items:

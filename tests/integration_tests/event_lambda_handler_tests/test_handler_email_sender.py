@@ -1,28 +1,29 @@
 import pytest
-from test_loop_helper import run_handler
 from botocore.exceptions import ClientError
 
-
 def test_email_sender_handler(mock_lambda_context, mock_boto3_client):
+    """Test email sender handler - success."""
     event = {"recipients":["test@test.com"],
              "subject": "Hello World!",
              "body_html": "<html><p>Hello World!</p></html>",
              "body_text": "Hello World"}
     context = mock_lambda_context("cue_email_sender")
     from app.event_lambdas.email_sender.handler import handler
-    response = run_handler(handler, event, context)
+    response = handler(event, context)
     assert response.get("statusCode") == 200
 
 def test_email_sender_handler_missing_email_subject(mock_lambda_context, mock_boto3_client):
+    """Test email sender handler - missing subject."""
     event = {"recipients":["test@test.com"],
              "body_html": "<html><p>Hello World!</p></html>",
              "body_text": "Hello World"}
     context = mock_lambda_context("cue_email_sender")
     from app.event_lambdas.email_sender.handler import handler
-    response = run_handler(handler, event, context)
+    response = handler(event, context)
     assert response.get("statusCode") == 400
 
 def test_email_sender_handler_client_error(mock_lambda_context, mock_boto3_client, mocker):
+    """Test email sender handler - ses client failed to send email."""
     event = {"recipients":["test@test.com"],
              "subject": "Hello World!",
              "body_html": "<html><p>Hello World!</p></html>",
@@ -33,4 +34,4 @@ def test_email_sender_handler_client_error(mock_lambda_context, mock_boto3_clien
     mocker.patch("app.event_lambdas.email_sender.handler.get_ses_client", return_value=ses)
     from app.event_lambdas.email_sender.handler import handler
     with pytest.raises(ClientError):
-        run_handler(handler, event, context)
+        handler(event, context)
