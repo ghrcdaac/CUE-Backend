@@ -6,6 +6,7 @@ from app.event_lambdas.manual_infected_logger.logic import validate_files, Manua
 
 @pytest.mark.asyncio
 async def test_validate_files(seed_file, connection_pool, test_admin_user, mock_boto3_client):
+    """Test validating in valid payload."""
     file_ids = [uuid.uuid4() for i in range(0,4)]
     await seed_file(file_ids[0], "file1", 'application/octet-stream', test_admin_user.id, 1024)
     await seed_file(file_ids[1], "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
@@ -13,13 +14,12 @@ async def test_validate_files(seed_file, connection_pool, test_admin_user, mock_
     await seed_file(file_ids[3], "file4", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
     payload = {"file_ids":file_ids, "user_id":test_admin_user.id}
     result = await validate_files(connection_pool, payload)
-    print(result)
-    print(file_ids)
     assert result[0] == [file_ids[0],file_ids[2]]
     assert result[1] == [str(file_ids[1]),str(file_ids[3])]
 
 @pytest.mark.asyncio
 async def test_validate_files_invalid_payload(seed_file, connection_pool, test_admin_user, mock_boto3_client):
+    """Test validating invalid payload."""
     file_ids = [uuid.uuid4() for i in range(0,4)]
     await seed_file(file_ids[0], "file1", 'application/octet-stream', test_admin_user.id, 1024)
     await seed_file(file_ids[1], "file2", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
@@ -33,6 +33,7 @@ async def test_validate_files_invalid_payload(seed_file, connection_pool, test_a
 
 @pytest.mark.asyncio
 async def test_poll_and_redrive(seed_file, test_admin_user, mock_boto3_client):
+    """Test polling and redriving messages from dlq."""
     file_ids = [uuid.uuid4() for i in range(0,3)]
     messages = []
     for file_id in file_ids:
@@ -54,6 +55,7 @@ async def test_poll_and_redrive(seed_file, test_admin_user, mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_poll_and_redrive_empty_receives(seed_file, test_admin_user, mock_boto3_client):
+    """test polling and redriving receiving no messages."""
     file_ids = [uuid.uuid4() for i in range(0,3)]
     sqs = mock_boto3_client("sqs")
     sqs.receive_message.side_effect = None 
@@ -71,6 +73,7 @@ async def test_poll_and_redrive_empty_receives(seed_file, test_admin_user, mock_
 
 @pytest.mark.asyncio
 async def test_poll_and_redrive_receive_message_fail(seed_file, test_admin_user, mock_boto3_client):
+    """Test polling and redirving messages but sqs client fails to receive messages."""
     file_ids = [uuid.uuid4() for i in range(0,3)]
     sqs = mock_boto3_client("sqs")
     sqs.receive_message.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"receive_message.failed"}}, operation_name="receive_message") 
@@ -85,6 +88,7 @@ async def test_poll_and_redrive_receive_message_fail(seed_file, test_admin_user,
 
 @pytest.mark.asyncio
 async def test_poll_and_redrive_send_message_fail(seed_file, test_admin_user, mock_boto3_client):
+    """Test polling and redriving messages, but sqs client fails to redrive messages."""
     sqs = mock_boto3_client("sqs")
     file_ids = [uuid.uuid4() for i in range(0,3)]
     messages = []
@@ -106,6 +110,7 @@ async def test_poll_and_redrive_send_message_fail(seed_file, test_admin_user, mo
 
 @pytest.mark.asyncio
 async def test_poll_and_redrive_delete_message_fail(seed_file, test_admin_user, mock_boto3_client):
+    """Test polling and redriving, but sqs client fails to delete messages from dlq."""
     sqs = mock_boto3_client("sqs")
     file_ids = [uuid.uuid4() for i in range(0,3)]
     messages = []

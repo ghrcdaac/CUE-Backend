@@ -7,7 +7,11 @@ from app.v2.utils.cueuser import get_user_profile
 from app.v2.type_util.auth import AuthUser 
 
 @pytest.mark.asyncio
-async def test_check_user_access_to_file(make_request, test_admin_user, seed_file, seed_user, seed_ngroup, seed_provider, seed_egress, seed_collection):
+async def test_check_user_access_to_file(make_request, test_admin_user, seed_file,
+                                         seed_user, seed_ngroup, seed_provider,
+                                         seed_egress, seed_collection):
+    """Test user's access to file when user is admin or daac manager.
+       Also when user is provider from different ngroup."""
     # Test admin access
     req = make_request()
     file_id = uuid.uuid4()
@@ -17,7 +21,7 @@ async def test_check_user_access_to_file(make_request, test_admin_user, seed_fil
 
     # Test daac_manager access
     # daac_manager 
-    role_id="ef872fe7-92b9-45ec-ac19-80f4c478fd36" 
+    role_id="ef872fe7-92b9-45ec-ac19-80f4c478fd36"
     user_id = uuid.uuid4()
     await seed_user(user_id, "test_email@test.com", "test_username_user", "test_user", role_id)
     dm_profile = await get_user_profile(req, user_id)
@@ -65,6 +69,7 @@ async def test_check_user_access_to_file(make_request, test_admin_user, seed_fil
 
 @pytest.mark.asyncio
 async def test_check_user_access_to_file_not_found(make_request, seed_user):
+    """Test user's access to file, but file does not exist."""
     req = make_request()
     file_id = uuid.uuid4()
 
@@ -85,6 +90,7 @@ async def test_check_user_access_to_file_not_found(make_request, seed_user):
 
 @pytest.mark.asyncio
 async def test_check_user_access_to_file_ngroups_dict(make_request, seed_file, seed_user, test_admin_user):
+    """Test user's access to file when user's ngroups are in dict format"""
     req = make_request()
     file_id = uuid.uuid4()
     role_id="ef872fe7-92b9-45ec-ac19-80f4c478fd36" 

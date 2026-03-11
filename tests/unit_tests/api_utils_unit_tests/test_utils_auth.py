@@ -7,12 +7,14 @@ from app.v2.utils.user_application import submit_application
 
 @pytest.mark.asyncio
 async def test_get_keycloak_client(make_request):
+    """Test getting the KeyCloak client."""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     assert isinstance(keycloak_client, KeycloakClient)
 
 @pytest.mark.asyncio
 async def test_keycloak_client(make_request):
+    """Test KeyCloak client get_login_url has necessary components."""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     result = keycloak_client.get_login_url()
@@ -22,6 +24,7 @@ async def test_keycloak_client(make_request):
     
 @pytest.mark.asyncio
 async def test_exchange_code_for_tokens(make_request):
+    """Test Keycloak client exchange_code_for_tokens."""
     mock_code = "mock_code"
     mock_redirect_uri = "https://localhost:3000/callback_test"
 
@@ -36,6 +39,7 @@ async def test_exchange_code_for_tokens(make_request):
 
 @pytest.mark.asyncio
 async def test_create_user(make_request):
+    """Test KeyCloak client create_user."""
     email = "test_user@test.com"
     username = "test_user"
     first_name = "test"
@@ -49,6 +53,7 @@ async def test_create_user(make_request):
 
 @pytest.mark.asyncio
 async def test_refresh_access_token(make_request):
+    """Test Keycloak client refresh_access_token"""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     mock_token = "mock_token"
@@ -65,6 +70,7 @@ async def test_refresh_access_token(make_request):
 
 @pytest.mark.asyncio
 async def test_delete_user(make_request):
+    """Test KeyCloak client delete_user"""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     user_id = uuid.uuid4()
@@ -72,6 +78,7 @@ async def test_delete_user(make_request):
 
 @pytest.mark.asyncio
 async def test_initiate_password_reset(make_request):
+    """Test KeyCloak client initiate_password_reset"""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     user_id = uuid.uuid4()
@@ -79,6 +86,7 @@ async def test_initiate_password_reset(make_request):
 
 @pytest.mark.asyncio
 async def test_introspect_token(make_request):
+    """Test KeyCloak client introspect_token"""
     req = make_request()
     keycloak_client = get_keycloak_client(req)
     mock_token = "mock_token"
@@ -87,12 +95,13 @@ async def test_introspect_token(make_request):
 
 @pytest.mark.asyncio
 async def test_get_user_login_status(make_request, test_admin_user, make_user_application_create):
+    """Test KeyCloak client get_user_login_status"""
     req = make_request()
     registered_response = await get_user_login_status(req, test_admin_user.id)
-    assert registered_response == "registered" 
+    assert registered_response == "registered"
 
     unregistered_response = await get_user_login_status(req, uuid.uuid4())
-    assert unregistered_response == "unregistered" 
+    assert unregistered_response == "unregistered"
 
     mock_user_application = make_user_application_create("test_user@test.com", "test_user", "test_username", "test", "daac")
     user_id = uuid.uuid4()

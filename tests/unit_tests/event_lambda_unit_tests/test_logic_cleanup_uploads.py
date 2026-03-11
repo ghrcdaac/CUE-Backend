@@ -2,13 +2,14 @@ import pytest
 import uuid
 from pydantic import ValidationError
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from app.event_lambdas.cleanup_uploads.logic import validate_cleanup_event, get_upload_status_files, delete_upload_status_files
-from app.event_lambdas.cleanup_uploads.model import CleanupPayload 
+from app.event_lambdas.cleanup_uploads.model import CleanupPayload
 
 @pytest.mark.asyncio
 async def test_validate_cleanup_event():
-   mock_event = {"detail-type":"CleanupAllPendingUploads"} 
+   """Test validating valid cleanup uploads payloads."""
+   mock_event = {"detail-type":"CleanupAllPendingUploads"}
    valid_payload = await validate_cleanup_event(mock_event)
    assert CleanupPayload(**mock_event) == valid_payload
 
@@ -18,6 +19,7 @@ async def test_validate_cleanup_event():
 
 @pytest.mark.asyncio
 async def test_validate_cleanup_event_fail():
+    """Test validate invalid cleanup uploads payloads."""
     mock_event = {"detail-type":""}
     with pytest.raises(ValidationError):
         await validate_cleanup_event(mock_event)
@@ -28,12 +30,15 @@ async def test_validate_cleanup_event_fail():
 
 @pytest.mark.asyncio
 async def test_get_upload_status_files(seed_file, test_admin_user, connection_pool):
+    """Test getting files with uploading statuses."""
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
-    await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
-    await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id1, "file1", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id2, "file2", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
 
-    mock_event = {"detail-type":"CleanupAllPendingUploads"} 
+    mock_event = {"detail-type":"CleanupAllPendingUploads"}
     payload = CleanupPayload(**mock_event) 
 
     files = await get_upload_status_files(connection_pool, payload) 
@@ -48,10 +53,13 @@ async def test_get_upload_status_files(seed_file, test_admin_user, connection_po
 
 @pytest.mark.asyncio
 async def test_get_upload_status_files_cleanup_targeted_uploads_fail(seed_file, test_admin_user, connection_pool):
+    """Test getting files withing uploading status, but there is a database error."""
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
-    await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
-    await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id1, "file1", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id2, "file2", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
 
     mock_event = {"detail-type":"CleanupTargetedUploads", "query_parameters":{"end_date": datetime.now().date()}}
     payload = CleanupPayload(**mock_event) 
@@ -62,10 +70,13 @@ async def test_get_upload_status_files_cleanup_targeted_uploads_fail(seed_file, 
 
 @pytest.mark.asyncio
 async def test_delete_upload_status_files(seed_file, test_admin_user, connection_pool):
+    """Test deleting file with uploading status."""
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
-    await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
-    await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id1, "file1", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id2, "file2", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
     files = [file_id1, file_id2]
      
     success = await delete_upload_status_files(connection_pool, files)
@@ -73,10 +84,13 @@ async def test_delete_upload_status_files(seed_file, test_admin_user, connection
 
 @pytest.mark.asyncio
 async def test_delete_upload_status_files_fail(seed_file, test_admin_user, connection_pool):
+    """Test deleting files with upload status but there is a database error."""
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
-    await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
-    await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id1, "file1", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
+    await seed_file(file_id2, "file2", 'application/octet-stream',
+                     test_admin_user.id, 1024, status="uploading")
     files = [file_id1, file_id2]
      
     with patch("app.event_lambdas.cleanup_uploads.logic.delete_upload_files") as delete_uploads_mock:

@@ -12,6 +12,8 @@ from app.v2.type_util.collection import CollectionCreate
 
 import uuid
 import json
+import asyncpg
+import os
 
 @pytest_asyncio.fixture(scope="function")
 async def connection_pool():
@@ -25,6 +27,7 @@ async def connection_pool():
         await pool.close()
 
 async def reset_database(pool):
+    """Function to reset database after test completes."""
     # Truncate all user tables, restart sequences, and cascade to dependents.
     # Excludes system schemas.
     async with pool.acquire() as conn:
@@ -54,12 +57,11 @@ async def db_connection(connection_pool):
     async with connection_pool.acquire() as conn:
         yield conn
 
-
-
 # --- seed data fixtures ---
 # privilege
 @pytest_asyncio.fixture(scope='function')
 async def seed_privileges(connection_pool):
+    """Fixture for seeding database with privileges."""
     async with connection_pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO privilege (id, privilege) VALUES
@@ -113,6 +115,7 @@ async def seed_privileges(connection_pool):
 # Roles
 @pytest_asyncio.fixture(scope='function')
 async def seed_roles(connection_pool):
+    """Fixture for seeding database with roles."""
     async with connection_pool.acquire() as conn:
         await conn.execute(
         """INSERT INTO role (id, short_name, long_name) VALUES
@@ -128,6 +131,7 @@ async def seed_roles(connection_pool):
 # Role to Privilege Mappings
 @pytest_asyncio.fixture(scope='function', autouse=True)
 async def seed_role_privilege_mapping(seed_privileges, seed_roles, connection_pool):
+    """Fixture for seeding database with role-privilege mapping."""
     async with connection_pool.acquire() as conn:
         ## Admin (has all privileges)
         await conn.execute("INSERT INTO role_privilege (role_id, privilege_id) SELECT 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2', id FROM privilege;")
@@ -266,31 +270,34 @@ async def seed_role_privilege_mapping(seed_privileges, seed_roles, connection_po
 
 @pytest_asyncio.fixture()
 def seed_ngroup(connection_pool):
-    async def _seed_ngroup(id, short_name, long_name):
+    """Factory fixture for seeding database with ngroups."""
+    async def _seed_ngroup(ngroup_id, short_name, long_name):
         async with connection_pool.acquire() as conn:
             return await conn.fetchrow("INSERT INTO ngroup (id, short_name, long_name) VALUES ($1, $2, $3) RETURNING *;",
 
-                *(id, short_name, long_name)
+                *(ngroup_id, short_name, long_name)
             )
     return _seed_ngroup
 
 @pytest_asyncio.fixture()
 def seed_user(test_ngroup_id, connection_pool):
-    async def _seed_user(id, email, cueusername, name, role_id, ngroup_id=test_ngroup_id, justification="testing", account_type="daac"):
+    """Factory fixture for seeding database with users."""
+    async def _seed_user(user_id, email, cueusername, name, role_id, ngroup_id=test_ngroup_id, justification="testing", account_type="daac"):
         async with connection_pool.acquire() as conn:
             # cueuser
-            await conn.execute("INSERT INTO cueuser (id, email, name, cueusername) VALUES ($1, $2, $3, $4)", *(id, email, name, cueusername))
+            await conn.execute("INSERT INTO cueuser (id, email, name, cueusername) VALUES ($1, $2, $3, $4)", *(user_id, email, name, cueusername))
             # cueuser_role
-            await conn.execute("INSERT INTO cueuser_role (cueuser_id, role_id) VALUES ($1, $2)", *(id, role_id))
+            await conn.execute("INSERT INTO cueuser_role (cueuser_id, role_id) VALUES ($1, $2)", *(user_id, role_id))
             # cueuser_ngroup
-            await conn.execute("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2)", *(id, ngroup_id))
+            await conn.execute("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2)", *(user_id, ngroup_id))
             # user_application
             await conn.execute("INSERT INTO user_application (user_id, email, name, username, ngroup_id, justification, account_type) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                                *(id, email, name, 'approved', test_ngroup_id, justification, account_type ))
+                                *(user_id, email, name, 'approved', test_ngroup_id, justification, account_type ))
     return _seed_user
 
 @pytest_asyncio.fixture()
 def seed_provider(test_ngroup_id, connection_pool):
+    """Factory fixture for seeding database with providers."""
     async def _seed_provider(short_name, long_name, can_upload, point_of_contact, reason="", ngroup_id=test_ngroup_id):
         async with connection_pool.acquire() as conn:
             provider_db_record = await conn.fetchrow("INSERT INTO provider (ngroup_id, short_name, long_name, can_upload, point_of_contact, reason) VALUES ($1, $2, $3, $4, $5,$6) RETURNING *;",
@@ -300,6 +307,7 @@ def seed_provider(test_ngroup_id, connection_pool):
 
 @pytest_asyncio.fixture()
 def seed_egress(test_ngroup_id, connection_pool):
+    """Factory fixture for seeding database with egresses."""
     async def _seed_egress(type, path, config, ngroup_id=test_ngroup_id):
         async with connection_pool.acquire() as conn:
             egress_db_record = await conn.fetchrow("INSERT INTO egress (type, path, config, ngroup_id) VALUES ($1, $2, $3::jsonb, $4) RETURNING *;",
@@ -309,6 +317,7 @@ def seed_egress(test_ngroup_id, connection_pool):
 
 @pytest_asyncio.fixture()
 def seed_collection(test_ngroup_id, test_egress, test_provider, connection_pool):
+    """Factory fixture for seeding database with collections."""
     async def _seed_collection(short_name, active, provider_id=test_provider["id"], egress_id=test_egress["id"], ngroup_id=test_ngroup_id):
         async with connection_pool.acquire() as conn:
             collection_db_record = await conn.fetchrow("INSERT INTO collection (ngroup_id, egress_id, short_name, provider_id, active) VALUES ($1, $2, $3, $4, $5) RETURNING id, ngroup_id, egress_id, short_name, provider_id, active",
@@ -318,6 +327,7 @@ def seed_collection(test_ngroup_id, test_egress, test_provider, connection_pool)
 
 @pytest_asyncio.fixture()
 def seed_file(test_collection, connection_pool):
+    """Factory fixture for seeding database with files."""
     async def _seed_file(id, name, type, cueuser_uploaded, size_bytes,
                    collection_id=test_collection["id"], collection_path=None,
                    checksum="mock_checksum", status="unscanned",
@@ -336,7 +346,7 @@ def seed_file(test_collection, connection_pool):
 
 @pytest_asyncio.fixture()
 def seed_test_files(test_collection, seed_file):
-    """Fixture for bulk file seeding"""
+    """Factory Fixture for bulk file seeding."""
     async def _seed_test_files(uploader_id:uuid.UUID, status_counts:Optional[Dict[str,int]]=None, collection_id:uuid.UUID=test_collection["id"], upload_offset:int=0):
         status_counts = status_counts if status_counts else {"unscanned":2, "infected": 2, "clean": 2, "distributed": 2, "scan_failed": 2}
         total_files = sum([count for _, count in status_counts.items()])
@@ -383,6 +393,7 @@ async def test_ngroup_id(seed_ngroup):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_admin_user(test_ngroup_id, seed_user):
+    """Fixture to create default admin user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_admin_user@test.com", 
                     cueusername="test_admin_user", name="test user admin",
                     roles=["admin"], ngroups=[str(test_ngroup_id)],
@@ -392,6 +403,7 @@ async def test_admin_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_manager_user(test_ngroup_id, seed_user):
+    """Fixture to create default daac manager user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_daac_manager_user@test.com", 
                     cueusername="test_daac_manager_user", name="test user daac manager",
                     roles=["daac_manager"], ngroups=[str(test_ngroup_id)],
@@ -401,6 +413,7 @@ async def test_daac_manager_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_security_user(test_ngroup_id, seed_user):
+    """Fixture to create default security user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_security_user@test.com", 
                     cueusername="test_security_user", name="test user security",
                     roles=["security"], ngroups=[str(test_ngroup_id)],
@@ -410,6 +423,7 @@ async def test_security_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_staff_user(test_ngroup_id, seed_user):
+    """Fixture to create default daac staff user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_daac_staff_user@test.com", 
                     cueusername="test_daac_staff_user", name="test user daac staff",
                     roles=["daac_staff"], ngroups=[str(test_ngroup_id)],
@@ -419,6 +433,7 @@ async def test_daac_staff_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_daac_observer_user(test_ngroup_id, seed_user):
+    """Fixture to create default daac observer user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_daac_observer_user@test.com", 
                     cueusername="test_daac_observer_user", name="test user observer",
                     roles=["daac_observer"], ngroups=[str(test_ngroup_id)],
@@ -428,6 +443,7 @@ async def test_daac_observer_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_provider_user(test_ngroup_id, seed_user):
+    """Fixture to create default provider user for testing."""
     user = AuthUser(id=uuid.uuid4(), email="test_provider_user@test.com", 
                     cueusername="test_provider_user", name="test user provider",
                     roles=["provider"], ngroups=[str(test_ngroup_id)],
@@ -437,6 +453,7 @@ async def test_provider_user(test_ngroup_id, seed_user):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_provider(test_ngroup_id, test_admin_user, seed_provider):
+    """Fixture to create default provider for testing."""
     provider = ProviderCreate(short_name="test_provider",
                               long_name="Test Provider",
                               can_upload=True,
@@ -447,6 +464,7 @@ async def test_provider(test_ngroup_id, test_admin_user, seed_provider):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_egress(test_ngroup_id, seed_egress):
+    """Fixture to create  default egress for testing."""
     egress = EgressCreate(type="s3",
                             path="/data",
                             config={"destination_path":"/data/new_data", "bucket":"mock_s3_dest_bucket"})
@@ -455,9 +473,30 @@ async def test_egress(test_ngroup_id, seed_egress):
 
 @pytest_asyncio.fixture(scope='function')
 async def test_collection(test_egress, test_provider, seed_collection):
+    """Fixture to create default collection for testing."""
     collection = CollectionCreate(short_name="test_collection",
                                   active=True,
                                   provider_id=test_provider["id"],
                                   egress_id=test_egress["id"])
     collection_db_record = await seed_collection(collection.short_name, collection.active)
     yield collection_db_record
+
+@pytest_asyncio.fixture(scope="function")
+async def get_database_pool():
+    """Fixture used to replace database_pool in lambda handler tests."""
+    db_pool = await asyncpg.create_pool(
+        host=os.getenv("PG_HOST"),
+        port=os.getenv("PG_PORT", 5432),
+        database=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASS"),
+        ssl=os.getenv("DB_SSL_MODE", "require"),
+        min_size=1,
+        max_size=3,
+        timeout=8
+    )
+    try:
+        yield db_pool
+    finally:
+        await db_pool.close()
+

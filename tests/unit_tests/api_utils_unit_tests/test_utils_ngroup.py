@@ -5,11 +5,13 @@ from unittest.mock import patch, MagicMock
 import uuid
 import os
 
-from app.v2.utils.ngroup import create_ngroup, get_ngroup, update_ngroup, delete_ngroup, list_ngroups, list_ngroups_for_form, NgroupNotFoundError 
+from app.v2.utils.ngroup import (create_ngroup, get_ngroup, update_ngroup,
+                                 delete_ngroup, list_ngroups, list_ngroups_for_form, NgroupNotFoundError)
 from app.v2.type_util.ngroup import NgroupCreate, NgroupUpdate
 
-@pytest.mark.asyncio(scope="function", loop_scope="function")
+@pytest.mark.asyncio
 async def test_create_ngroup(make_request):
+    """Test creating a ngroup."""
     req = make_request()
 
     mock_ngroup_create = NgroupCreate(short_name="test_ngroup", long_name="Test Ngroup")
@@ -19,8 +21,9 @@ async def test_create_ngroup(make_request):
     assert result["short_name"] == mock_ngroup_create.short_name
     assert result["long_name"] == mock_ngroup_create.long_name
 
-@pytest.mark.asyncio(scope="function", loop_scope="function")
+@pytest.mark.asyncio
 async def test_get_ngroup(make_request, connection_pool):
+    """Test getting a ngroup"""
     # First, create an ngroup record
     req = make_request()
 
@@ -36,8 +39,9 @@ async def test_get_ngroup(make_request, connection_pool):
     assert retrieved_ngroup["short_name"] == created_ngroup["short_name"]
     assert retrieved_ngroup["long_name"] == created_ngroup["long_name"]
 
-@pytest.mark.asyncio(scope="function", loop_scope="function")
+@pytest.mark.asyncio
 async def test_get_ngroup_not_found(make_request, connection_pool):
+    """Test getting a ngroup that does not exist."""
     # Try to get a non-existent ngroup
     get_req = make_request()
     get_req.state.pool = connection_pool
@@ -45,8 +49,9 @@ async def test_get_ngroup_not_found(make_request, connection_pool):
     with pytest.raises(NgroupNotFoundError):
        await get_ngroup(get_req, uuid.uuid4())
 
-@pytest.mark.asyncio(scope="function", loop_scope="function")
+@pytest.mark.asyncio
 async def test_update_ngroup(make_request):
+    """Test updating a ngroup."""
     # Create an ngroup record
     req = make_request()
 
@@ -66,8 +71,9 @@ async def test_update_ngroup(make_request):
     assert updated_ngroup["short_name"] == mock_ngroup_update.short_name
     assert updated_ngroup["long_name"] == mock_ngroup_update.long_name
 
-@pytest.mark.asyncio(scope="function", loop_scope="function")
+@pytest.mark.asyncio
 async def test_update_ngroup_empty_update(make_request):
+    """Test updating a ngroup without a empty update"""
     # Create an ngroup record
     req = make_request()
 
@@ -85,6 +91,7 @@ async def test_update_ngroup_empty_update(make_request):
 
 @pytest.mark.asyncio
 async def test_update_ngroup_not_found(make_request):
+    """Test updating an ngroup that does not exist"""
     req = make_request()
 
     mock_ngroup_update = NgroupUpdate(short_name="updated_group", long_name="Updated Group")
@@ -95,6 +102,7 @@ async def test_update_ngroup_not_found(make_request):
 
 @pytest.mark.asyncio
 async def test_delete_ngroup(make_request, connection_pool):
+    """Test deleting a ngroup"""
     # Create an ngroup record
     req = make_request()
 
@@ -117,6 +125,7 @@ async def test_delete_ngroup(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_delete_ngroup_not_found(make_request):
+    """Test deleting a ngroup that does not exist."""
     # Try to delete a non-existent ngroup
     req = make_request()
     with pytest.raises(NgroupNotFoundError):
@@ -124,6 +133,7 @@ async def test_delete_ngroup_not_found(make_request):
 
 @pytest.mark.asyncio
 async def test_list_ngroups(make_request):
+    """Test getting a list of ngroups."""
     # Create multiple ngroup records
     req = make_request()
 
@@ -141,6 +151,7 @@ async def test_list_ngroups(make_request):
 
 @pytest.mark.asyncio
 async def test_list_ngroup_for_form(make_request):
+    """Test getting a list of ngroups for a form."""
     #Create multiple ngroup records
     req = make_request()
 

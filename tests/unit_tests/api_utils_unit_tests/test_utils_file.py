@@ -5,16 +5,20 @@ from unittest.mock import patch, MagicMock
 import uuid
 import os
 
-from app.v2.utils.file import FileNotFoundError, ApiKeyError, InvalidApiKeyError, ApiKeyScopeError, ApiKeyConfigurationError, FileAccessError, get_file_details, find_files_by_name, list_files, list_files_by_api_key, update_file, delete_file
+from app.v2.utils.file import (FileNotFoundError, InvalidApiKeyError, ApiKeyScopeError,
+                               ApiKeyConfigurationError, FileAccessError, get_file_details,
+                               find_files_by_name, list_files, list_files_by_api_key, update_file, delete_file)
 from app.v2.utils.api_keys import create_api_key
 from app.v2.type_util.file import FileUpdateRequest, FileListRequest 
 from app.v2.type_util.api_keys import ApiKeyCreateRequest
 
 @pytest.mark.asyncio
 async def test_get_file_details(make_request, seed_file, test_admin_user):
+    """Test getting a file's details."""
     req = make_request()
     file_id = uuid.uuid4()
-    mock_file = await seed_file(file_id, "file", "application/octet-stream", test_admin_user.id, 1024, scan_results='{"mock_value":"mock_key"}')
+    mock_file = await seed_file(file_id, "file", "application/octet-stream",
+                                test_admin_user.id, 1024, scan_results='{"mock_value":"mock_key"}')
     file_details = await get_file_details(req, mock_file["file"]["id"])
 
     assert mock_file["file"]["id"] == file_details["id"]
@@ -22,6 +26,7 @@ async def test_get_file_details(make_request, seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_get_file_details_not_found(make_request, seed_file, test_admin_user):
+    """Test getting a file details but file does not exist."""
     req = make_request()
     file_id = uuid.uuid4()
     with pytest.raises(FileNotFoundError):
@@ -30,6 +35,7 @@ async def test_get_file_details_not_found(make_request, seed_file, test_admin_us
 
 @pytest.mark.asyncio
 async def test_find_files_by_name(make_request, seed_file, test_admin_user):
+    """Test getting a file by name."""
     req = make_request()
     file_id=uuid.uuid4()
     mock_file = await seed_file(file_id, "file", 'application/octet-stream', test_admin_user.id, 1024)
@@ -39,6 +45,7 @@ async def test_find_files_by_name(make_request, seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_list_files(make_request, seed_file, test_admin_user):
+    """Test getting a list of files"""
     req = make_request()
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
@@ -51,14 +58,17 @@ async def test_list_files(make_request, seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key(make_request, seed_file, test_admin_user):
+    """Test getting  listing files by user's api key."""
     req = make_request()
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
     mock_file1 = await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024)
     mock_file2 = await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024)
-    mock_api_key_create_request = ApiKeyCreateRequest(name="test_key", key_type="personal", scopes=["file:read", "file:upload"], expires_in_days=10, ngroup_id=uuid.UUID(test_admin_user.ngroups[0]))
+    mock_api_key_create_request = ApiKeyCreateRequest(name="test_key", key_type="personal", scopes=["file:read", "file:upload"],
+                                                      expires_in_days=10, ngroup_id=uuid.UUID(test_admin_user.ngroups[0]))
     mock_api_key = await create_api_key(req, mock_api_key_create_request, test_admin_user)
-    mock_file_list_request = FileListRequest(apiKey=str(mock_api_key["key"]), file_id=None, status=None, page=1, page_size=50, start_date=None, end_date=None)  
+    mock_file_list_request = FileListRequest(apiKey=str(mock_api_key["key"]), file_id=None, status=None,
+                                             page=1, page_size=50, start_date=None, end_date=None)  
 
     file_list, total = await list_files_by_api_key(req, mock_file_list_request)
 
@@ -68,20 +78,26 @@ async def test_list_files_by_api_key(make_request, seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_file_id(make_request, seed_file, test_admin_user):
+    """Test listing a file by api key and file id."""
     req = make_request()
-    file_id = uuid.uuid4()
-    mock_file1 = await seed_file(file_id, "file1", 'application/octet-stream', test_admin_user.id, 1024)
-    mock_api_key_create_request = ApiKeyCreateRequest(name="test_key", key_type="personal", scopes=["file:read", "file:upload"], file_id=file_id, expires_in_days=10, ngroup_id=uuid.UUID(test_admin_user.ngroups[0]))
+    file_id1 = uuid.uuid4()
+    file_id2 = uuid.uuid4()
+    mock_file1 = await seed_file(file_id1, "file1", 'application/octet-stream', test_admin_user.id, 1024)
+    mock_file2 = await seed_file(file_id2, "file2", 'application/octet-stream', test_admin_user.id, 1024)
+    mock_api_key_create_request = ApiKeyCreateRequest(name="test_key", key_type="personal", scopes=["file:read", "file:upload"],
+                                                      expires_in_days=10, ngroup_id=uuid.UUID(test_admin_user.ngroups[0]))
     mock_api_key = await create_api_key(req, mock_api_key_create_request, test_admin_user)
-    mock_file_list_request = FileListRequest(apiKey=str(mock_api_key["key"]), file_id=None, status=None, page=1, page_size=50, start_date=None, end_date=None)  
+    mock_file_list_request = FileListRequest(apiKey=str(mock_api_key["key"]), file_id=str(file_id1), status=None,
+                                             page=1, page_size=50, start_date=None, end_date=None) 
 
     file_list, total = await list_files_by_api_key(req, mock_file_list_request)
 
-    assert file_id == file_list[0]["id"]
+    assert file_id1 == file_list[0]["id"]
     assert total == 1
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_invalid_api_key(make_request, seed_file, test_admin_user):
+    """Test listing files by api key, but api key is invalid."""
     req = make_request()
     file_id = uuid.uuid4()
     await seed_file(file_id, "file1", 'application/octet-stream', test_admin_user.id, 1024)
@@ -91,6 +107,7 @@ async def test_list_files_by_api_key_invalid_api_key(make_request, seed_file, te
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_api_key_no_data(make_request, seed_file, test_admin_user):
+    """Test listing files by api key, but there is no data."""
     req = make_request()
     file_id = uuid.uuid4()
     await seed_file(file_id, "file1", 'application/octet-stream', test_admin_user.id, 1024)
@@ -100,6 +117,7 @@ async def test_list_files_by_api_key_api_key_no_data(make_request, seed_file, te
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_key_scope_error(make_request, test_admin_user):
+    """Test listing files by api key but api key does not have correct scope."""
     req = make_request()
     file_id = uuid.uuid4()
     mock_api_key_create_request = ApiKeyCreateRequest(name="test_key", key_type="personal", scopes=["file:upload"], file_id=file_id, expires_in_days=10, ngroup_id=uuid.UUID(test_admin_user.ngroups[0]))
@@ -112,6 +130,7 @@ async def test_list_files_by_api_key_key_scope_error(make_request, test_admin_us
 
 @pytest.mark.asyncio
 async def test_list_files_by_api_key_file_file_id_file_access_error(make_request, seed_file, test_admin_user, seed_ngroup):
+    """Test listing files by api key but file is in different ngroup."""
     req = make_request()
     file_id = uuid.uuid4()
     ngroup_id2 = uuid.uuid4() 
@@ -127,6 +146,7 @@ async def test_list_files_by_api_key_file_file_id_file_access_error(make_request
 
 @pytest.mark.asyncio
 async def test_update_file(make_request, seed_file, test_admin_user):
+    """Test updating file."""
     req = make_request()
     file_id = uuid.uuid4()
     mock_file = await seed_file(file_id, "file1", 'application/octet-stream', test_admin_user.id, 1024)
@@ -140,6 +160,7 @@ async def test_update_file(make_request, seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_delete_file(make_request, seed_file, test_admin_user):
+    """Test deleting file."""
     req = make_request()
     file_id = uuid.uuid4()
     mock_file = await seed_file(file_id, "file1", 'application/octet-stream', test_admin_user.id, 1024)

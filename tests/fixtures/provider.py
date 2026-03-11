@@ -4,6 +4,7 @@ from uuid import UUID
 
 @pytest.fixture
 def make_provider_create(test_ngroup_id, test_admin_user):
+    """Factory fixture for creating ProviderCreate objects."""
     def _make_provider_create(short_name: str,
                               long_name: str,
                               ngroup_id: UUID = test_ngroup_id, 

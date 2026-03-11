@@ -12,22 +12,24 @@ from app.event_lambdas.notification_manager.db import (
 
 @pytest.mark.asyncio
 async def test_process_infected_scheduled_notification(seed_file, seed_user, test_provider, connection_pool):
-    
+    """Test processing infected scheduled notification.""" 
     user_id = uuid.uuid4()
     await seed_user(user_id, "test_user@test.com", "test_user", "test user","0e686dba-e5b2-4302-aea0-e9ed0caff7d3", account_type="provider")
 
     for i in range(1, 6):
         file_id = uuid.uuid4()
         date_scanned = datetime.now(tz=timezone.utc) + timedelta(milliseconds=30)
-        scan_results = f'[{{"ip_address":"127.0.0.1"}},{{"engine":"Sophos","result":"Infected","message":["{file_id}"],"virusName":["EICAR-AV-Test"],"dateScanned":"{date_scanned}"}}]'
-        await seed_file(file_id, f"file{i}", 'application/octet-stream', user_id, 1024, status="infected", scan_start=date_scanned, scan_end=date_scanned, scan_results=scan_results)
+        scan_results = f'[{{"ip_address":"127.0.0.1"}}, {{"engine":"Sophos","result":"Infected","message":["{file_id}"],"virusName":["EICAR-AV-Test"],"dateScanned":"{date_scanned}"}}]'
+        await seed_file(file_id, f"file{i}", 'application/octet-stream',
+                        user_id, 1024, status="infected",
+                        scan_start=date_scanned, scan_end=date_scanned, scan_results=scan_results)
 
     # simulate can_upload block   
     async with connection_pool.acquire() as conn:
         await conn.execute("""UPDATE provider 
-                        SET can_upload=False,
-                            reason='Provider automatically blocked after uploading 5 infected files within 24 hour(s) (Threshold: 5.'
-                        WHERE id = $1
+                              SET can_upload=False,
+                                  reason='Provider automatically blocked after uploading 5 infected files within 24 hour(s) (Threshold: 5.'
+                              WHERE id = $1
                      """, test_provider["id"])
 
     provider_lookback_window = timedelta(hours=24)
@@ -68,13 +70,12 @@ async def test_process_infected_scheduled_notification(seed_file, seed_user, tes
 
 @pytest.mark.asyncio
 async def test_process_infected_scheduled_notification_single_file(seed_file, seed_user, test_provider, connection_pool):
-    
+    """Test processing infected scheduled notification for one file.""" 
     user_id = uuid.uuid4()
     await seed_user(user_id, "test_user@test.com", "test_user", "test user","0e686dba-e5b2-4302-aea0-e9ed0caff7d3", account_type="provider")
 
     for i in range(1, 2):
         file_id = uuid.uuid4()
-        print(file_id)
         date_scanned = datetime.now(tz=timezone.utc) + timedelta(milliseconds=30)
         scan_results = f'[{{"ip_address":"127.0.0.1"}},{{"engine":"Sophos","result":"Infected","message":["{file_id}"],"virusName":["EICAR-AV-Test"],"dateScanned":"{date_scanned}"}}]'
         await seed_file(file_id, f"file{i}", 'application/octet-stream', user_id, 1024, status="infected", scan_start=date_scanned, scan_end=date_scanned, scan_results=scan_results)
@@ -116,7 +117,8 @@ async def test_process_infected_scheduled_notification_single_file(seed_file, se
         assert html_details.get("header") and html_details.get("files") 
 
 @pytest.mark.asyncio
-async def test_process_infected_scheduled_notification_no_file_details_is_not_list(seed_file, test_provider, connection_pool):
+async def test_process_infected_scheduled_notification_file_details_is_not_list(seed_file, test_provider, connection_pool):
+    """Test processing infected scheduled notification file details is not a list"""
     infected_file_details = {'short_name': 'test_group', 'recipient_emails': ['test_admin_user@test.com'], "file_details":"file_details"}
     providers_exceeding_threshold = []
     
@@ -131,6 +133,7 @@ async def test_process_infected_scheduled_notification_no_file_details_is_not_li
 
 @pytest.mark.asyncio
 async def test_process_infected_scheduled_notification_no_file_details_with_provider(seed_file, test_provider, connection_pool):
+    """Test process infected scheduled notification only block the provider."""
     infected_file_details = {'short_name': 'test_group', 'recipient_emails': ['test_admin_user@test.com']}
     provider_exceeding_threshold = [{'provider_id': f'{test_provider["id"]}', 'provider_name': 'test_provider', 'current_reason': 'Provider automatically blocked after uploading 5 infected files within 24 hour(s) (Threshold: 5.', 'is_currently_blocked': True}]
     
@@ -153,7 +156,7 @@ async def test_process_infected_scheduled_notification_no_file_details_with_prov
 
 @pytest.mark.asyncio
 async def test_create_text_part():
-
+    """Test creating text part."""
     file_details = {'file_name':'mock_file', 'uploader_name':'test_user', 'uploader_ip':'127.0.0.1', 'collection_name':"test_collection", 'virusName_processed':'EICAR AV TEST'}
     result = await create_text_part(file_details)
     expected_text = (
@@ -168,6 +171,7 @@ async def test_create_text_part():
 
 @pytest.mark.asyncio
 async def test_create_file_table():
+    """Test creating file table for email."""
     file_details = {'file_name':'mock_file', 'uploader_name':'test_user', 'uploader_ip':'127.0.0.1', 'collection_name':"test_collection", 'virusName_processed':'EICAR AV TEST'}
     result =  await create_file_table(file_details)
     expected_table = f"""
@@ -211,6 +215,7 @@ async def test_create_file_table():
 
 @pytest.mark.asyncio
 async def test_process_providers_report():
+    """Test process providers portion of report."""
     mock_providers_over_threshold = [{"provider_name":"mock_provider1",
                                      "is_currently_blocked":True,
                                      "current_reason":"testing"},

@@ -1,11 +1,13 @@
 import pytest
 import uuid
 
-from app.v2.utils.collection import create_collection, get_collection, list_collections, update_collection, delete_collection, CollectionNotFoundError
+from app.v2.utils.collection import (create_collection, get_collection, list_collections,
+                                     update_collection, delete_collection, CollectionNotFoundError)
 from app.v2.type_util.collection import CollectionCreate,  CollectionUpdate 
 
 @pytest.mark.asyncio
 async def test_create_collection(make_request, connection_pool, make_collection_create, test_ngroup_id):
+    """Test creating a collection."""
     req = make_request()
     req.state.pool = connection_pool
     mock_collection_create = make_collection_create("mock_collection")
@@ -19,6 +21,7 @@ async def test_create_collection(make_request, connection_pool, make_collection_
 
 @pytest.mark.asyncio
 async def test_get_collection(make_request, make_collection_create, test_ngroup_id):
+    """Test getting a collection."""
     req = make_request()
 
     mock_collection_create = make_collection_create("mock_collection")
@@ -35,6 +38,7 @@ async def test_get_collection(make_request, make_collection_create, test_ngroup_
 
 @pytest.mark.asyncio
 async def test_get_collection_not_found(make_request, connection_pool):
+    """Test getting a collection that does not exist."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -42,9 +46,8 @@ async def test_get_collection_not_found(make_request, connection_pool):
         await get_collection(req, uuid.uuid4())
 
 @pytest.mark.asyncio
-async def test_list_collection(make_request,
-                               make_collection_create, test_admin_user,
-                               test_ngroup_id):
+async def test_list_collection(make_request, make_collection_create, test_admin_user, test_ngroup_id):
+    """Test getting a list of collections."""
     req = make_request()
 
     mock_collection_create1 = make_collection_create("mock_collection")
@@ -60,6 +63,7 @@ async def test_list_collection(make_request,
 
 @pytest.mark.asyncio
 async def test_update_collection(make_request, make_collection_create, seed_provider, seed_egress, test_ngroup_id, test_admin_user):
+    """Test updating a collection."""
     req = make_request()
 
     mock_collection_create = make_collection_create("mock_collection")
@@ -80,6 +84,7 @@ async def test_update_collection(make_request, make_collection_create, seed_prov
     
 @pytest.mark.asyncio
 async def test_update_collection_not_found(make_request, test_ngroup_id):
+    """Test updating a collection that does not exist."""
     req = make_request()
 
     mock_collection_update = CollectionUpdate(short_name="updated_mock_collection", active=False)
@@ -89,6 +94,7 @@ async def test_update_collection_not_found(make_request, test_ngroup_id):
 
 @pytest.mark.asyncio
 async def test_delete_collection(make_request, connection_pool, make_collection_create, test_ngroup_id):
+    """Test deleting a collection."""
     req = make_request()
 
     mock_collection_create = make_collection_create("mock_collection")
@@ -103,6 +109,7 @@ async def test_delete_collection(make_request, connection_pool, make_collection_
 
 @pytest.mark.asyncio
 async def test_delete_collection_not_found(make_request):
+    """Test deleting a collection that does not exist."""
     req = make_request()
 
     with pytest.raises(CollectionNotFoundError):

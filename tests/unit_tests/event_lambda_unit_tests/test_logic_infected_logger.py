@@ -8,6 +8,7 @@ import os
 
 @pytest.mark.asyncio
 async def test_publish_infected_file_event(mock_boto3_client):
+    """Test publish infected file event"""
     from app.event_lambdas.infected_logger.logic import publish_infected_file_event
 
     key = uuid.uuid4()
@@ -28,6 +29,7 @@ async def test_publish_infected_file_event(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_send_clean_file_message_sqs(mock_boto3_client):
+    """Test clean file message to clean file sqs queue."""
     from app.event_lambdas.infected_logger.logic import send_clean_file_message_sqs
 
     mock_file_id = uuid.uuid4()
@@ -37,6 +39,7 @@ async def test_send_clean_file_message_sqs(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_send_clean_file_message_sqs_no_transfer_queue(mock_boto3_client):
+    """Test send clean file message sqs no transfer queue."""
     from app.event_lambdas.infected_logger.logic import send_clean_file_message_sqs
     with patch("app.event_lambdas.infected_logger.logic.CLEAN_FILES_QUEUE_URL", None):
 
@@ -47,6 +50,7 @@ async def test_send_clean_file_message_sqs_no_transfer_queue(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_invoke_transfer_lambda(mock_boto3_client):
+    """Test invoke transfer lambda."""
     from app.event_lambdas.infected_logger.logic import invoke_file_transfer_lambda
 
     mock_file_id = uuid.uuid4()
@@ -56,6 +60,7 @@ async def test_invoke_transfer_lambda(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_invoke_transfer_lambda_no_lambda_name(mock_boto3_client):
+    """Test invoke transfer lambda no lambda name."""
     from app.event_lambdas.infected_logger.logic import invoke_file_transfer_lambda
     with patch("app.event_lambdas.infected_logger.logic.FILE_TRANSFER_LAMBDA_NAME", None):
 
@@ -65,15 +70,14 @@ async def test_invoke_transfer_lambda_no_lambda_name(mock_boto3_client):
         await invoke_file_transfer_lambda(mock_file_id, mock_collection_id)
 
 @pytest.mark.asyncio
-async def test_process_scan_result_clean(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+async def test_process_scan_result_clean(seed_file, test_admin_user, connection_pool, mock_boto3_client):
+    """Test process clean scan result."""
     from app.event_lambdas.infected_logger.logic import process_scan_result
     key = uuid.uuid4()
     result = "Clean"
     date_scanned = datetime.now(tz=timezone.utc)
    
     await seed_file(key, "test_file.txt", "text/plain", test_admin_user.id, 1024, scan_start=date_scanned, scan_end=date_scanned)
-
-
     scan_results = [{"result":result,
                      "virusName":[],
                      "message":[],
@@ -85,21 +89,19 @@ async def test_process_scan_result_clean(mock_boto3_client, seed_file, test_admi
                                                 dateScanned=date_scanned,
                                                 scan_results=scan_results)
     await process_scan_result(mock_scan_result_message, connection_pool)
-    # Check db?
     async with connection_pool.acquire() as conn:
         status = await conn.fetchval("SELECT status FROM file_status WHERE id = $1;", key)
     assert status == "clean"
 
 @pytest.mark.asyncio
-async def test_process_scan_result_clean_transfer_sqs(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+async def test_process_scan_result_clean_transfer_sqs(seed_file, test_admin_user, connection_pool, mock_boto3_client):
     from app.event_lambdas.infected_logger.logic import process_scan_result
     with patch("app.event_lambdas.infected_logger.logic.TRANSFER_INVOCATION_MODE", None):
         key = uuid.uuid4()
         result = "Clean"
         date_scanned = datetime.now(tz=timezone.utc)
-   
-        await seed_file(key, "test_file.txt", "text/plain", test_admin_user.id, 1024, scan_start=date_scanned, scan_end=date_scanned)
 
+        await seed_file(key, "test_file.txt", "text/plain", test_admin_user.id, 1024, scan_start=date_scanned, scan_end=date_scanned)
 
         scan_results = [{"result":result,
                         "virusName":[],
@@ -112,13 +114,13 @@ async def test_process_scan_result_clean_transfer_sqs(mock_boto3_client, seed_fi
                                                     dateScanned=date_scanned,
                                                     scan_results=scan_results)
         await process_scan_result(mock_scan_result_message, connection_pool)
-        # Check db?
         async with connection_pool.acquire() as conn:
             status = await conn.fetchval("SELECT status FROM file_status WHERE id = $1;", key)
         assert status == "clean"
     
 @pytest.mark.asyncio
 async def test_process_scan_result_infected(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+    """Test process infected scan result."""
     from app.event_lambdas.infected_logger.logic import process_scan_result
 
     key = uuid.uuid4()
@@ -145,6 +147,7 @@ async def test_process_scan_result_infected(mock_boto3_client, seed_file, test_a
 
 @pytest.mark.asyncio
 async def test_process_scan_result_infected_at_threshold(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+    """Test processing infected scan result when provider reaches infected file threshold."""
     from app.event_lambdas.infected_logger.logic import process_scan_result
     with patch("app.event_lambdas.infected_logger.logic.INFECTED_FILE_THRESHOLD", 1):
         key = uuid.uuid4()
@@ -170,13 +173,15 @@ async def test_process_scan_result_infected_at_threshold(mock_boto3_client, seed
         assert status == "infected"
 
 @pytest.mark.asyncio
-async def test_process_scan_result_scan_failed(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+async def test_process_scan_result_scan_failed(seed_file, test_admin_user, connection_pool, mock_boto3_client):
+    """Test process scan failed scan result."""
     from app.event_lambdas.infected_logger.logic import process_scan_result
     key = uuid.uuid4()
     result = "Scan Failed"
     date_scanned = datetime.now(tz=timezone.utc)
-   
-    await seed_file(key, "test_file.txt", "text/plain", test_admin_user.id, 1024, scan_start=date_scanned, scan_end=date_scanned)
+
+    await seed_file(key, "test_file.txt", "text/plain", test_admin_user.id,
+                     1024, scan_start=date_scanned, scan_end=date_scanned)
 
 
     scan_results = [{"result":result,

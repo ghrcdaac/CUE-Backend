@@ -7,11 +7,7 @@ from typing import Optional
 
 @pytest.fixture
 def make_user_application_create(test_provider, test_ngroup_id):
-    """Factory fixture for creating UserApplicationCreate.
-       Defaults: 
-        provider_id = test_provider["id"]
-        ngroup_id = test_ngroup_id
-    """ 
+    """Factory fixture for creating UserApplicationCreate objects.""" 
     def _make_user_application_create(email: EmailStr, name: str, username: str,
                                       justification: str, account_type: str, ngroup_id: UUID = test_ngroup_id,
                                        provider_id: Optional[UUID] = test_provider["id"], edpub_id: Optional[UUID] = None):

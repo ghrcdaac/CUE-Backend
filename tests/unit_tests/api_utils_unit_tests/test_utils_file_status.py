@@ -6,16 +6,25 @@ import uuid
 import json
 
 
-from app.v2.utils.file_status import create_file_status, get_file_status, update_file_status, delete_file_status, list_file_statuses, get_file_status_counts, calculate_daily_volume, calculate_daily_count, calculate_overall_volume, calculate_overall_count, list_files_by_status, get_metrics_summary, FileStatusNotFoundError, BYTES_TO_GB, AuthorizationError
-from app.v2.type_util.file_status import FileStatusCreate, FileStatusUpdate, UnscannedFileReturn, CleanFileReturn, ScanFailedFileReturn, CleanFileReturn, InfectedFileReturn, DistributedFileReturn
+from app.v2.utils.file_status import (create_file_status, get_file_status, update_file_status,
+                                      delete_file_status, list_file_statuses, get_file_status_counts,
+                                      calculate_daily_volume, calculate_daily_count, calculate_overall_volume,
+                                      calculate_overall_count, list_files_by_status, get_metrics_summary,
+                                      FileStatusNotFoundError, BYTES_TO_GB, AuthorizationError)
+from app.v2.type_util.file_status import FileStatusCreate, FileStatusUpdate
 from app.v2.type_util.file_metrics import MetricsQueryParameters
 
 @pytest.mark.asyncio
 async def test_create_file_status(connection_pool, test_collection, test_admin_user):
+    """Test creating a file status"""
     file_id = uuid.uuid4()
+    query = """INSERT INTO file
+               (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum)
+               VALUES ($1, $2, $3, $4, $5, $6, $7);"""
+    params = (file_id, "test_file", "application/octet-stream",
+              test_admin_user.id, 1024, test_collection["id"], "mock_checksum")
     async with connection_pool.acquire() as conn:
-        await conn.execute("INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-                     *(file_id, "test_file", "application/octet-stream", test_admin_user.id, 1024, test_collection["id"], "mock_checksum"))
+        await conn.execute(query, *params)
     mock_file_status = FileStatusCreate(id=file_id, status="clean", upload_time=datetime.now(tz=timezone.utc))
     file_status = await create_file_status(mock_file_status, uuid.UUID(test_admin_user.ngroups[0]))
     assert file_status.id == file_id
@@ -23,20 +32,26 @@ async def test_create_file_status(connection_pool, test_collection, test_admin_u
 
 @pytest.mark.asyncio
 async def test_create_file_status_file_not_found(test_admin_user):
+    """Test creating a file status for file that does not exists"""
     file_id = uuid.uuid4()
     mock_file_status = FileStatusCreate(id=file_id, status="clean", upload_time=datetime.now(tz=timezone.utc))
     with pytest.raises(FileStatusNotFoundError):
          await create_file_status(mock_file_status, uuid.UUID(test_admin_user.ngroups[0]))
 
 @pytest.mark.asyncio
-async def test_create_file_status_not_authorized(connection_pool, test_collection, test_admin_user, seed_ngroup, seed_user):
+async def test_create_file_status_not_authorized(connection_pool, test_collection, test_admin_user, seed_ngroup):
+    """Test creating a file status in different ngroup"""
     file_id = uuid.uuid4()
+    query = """INSERT INTO file
+               (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum)
+               VALUES ($1, $2, $3, $4, $5, $6, $7);"""
+    params = (file_id, "test_file", "application/octet-stream",
+              test_admin_user.id, 1024, test_collection["id"], "mock_checksum")
     async with connection_pool.acquire() as conn:
-        await conn.execute("INSERT INTO file (id, name, type, cueuser_uploaded, size_bytes, collection_id, checksum) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-                     *(file_id, "test_file", "application/octet-stream", test_admin_user.id, 1024, test_collection["id"], "mock_checksum"))
+        await conn.execute(query, *params)
 
     ngroup_id2 = uuid.uuid4()
-    await seed_ngroup(ngroup_id2, "test_ngroup2", "Test Ngroup 2") 
+    await seed_ngroup(ngroup_id2, "test_ngroup2", "Test Ngroup 2")
 
     mock_file_status = FileStatusCreate(id=file_id, status="clean", upload_time=datetime.now(tz=timezone.utc))
     with pytest.raises(AuthorizationError):
@@ -44,6 +59,7 @@ async def test_create_file_status_not_authorized(connection_pool, test_collectio
 
 @pytest.mark.asyncio
 async def test_create_file_status_create_duplicate_status(seed_file, test_admin_user):
+    """Test creating a duplicate file status."""
     file_id = uuid.uuid4()
     await seed_file(file_id, "test_file", "application/octet-stream", test_admin_user.id, 1024)
 
@@ -53,6 +69,7 @@ async def test_create_file_status_create_duplicate_status(seed_file, test_admin_
 
 @pytest.mark.asyncio
 async def test_get_file_status(seed_file, test_admin_user):
+    """Test getting a file status."""
     file_id = uuid.uuid4()
     await seed_file(file_id, "file", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
     file_status = await get_file_status(file_id)
@@ -61,6 +78,7 @@ async def test_get_file_status(seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_get_file_status_not_found():
+    """Test getting a file status that does not exists."""
     file_id = uuid.uuid4()
 
     with pytest.raises(FileStatusNotFoundError):
@@ -68,21 +86,26 @@ async def test_get_file_status_not_found():
 
 @pytest.mark.asyncio
 async def test_update_file_status(seed_file, test_admin_user):
+    """Test updating a file status."""
     file_id = uuid.uuid4()
     upload_time = datetime.now(tz=timezone.utc)
     scan_start = timedelta(microseconds=10) + datetime.now(tz=timezone.utc)
     scan_end = timedelta(microseconds=30) + datetime.now(tz=timezone.utc)
     egress_start = timedelta(microseconds=70) + datetime.now(tz=timezone.utc)
 
-    await seed_file(file_id, "file", 'application/octet-stream', test_admin_user.id, 1024, status="clean", upload_time=upload_time, scan_start=scan_start, scan_end=scan_end, scan_results=json.dumps({"mock_result":"mock_value"}))
+    await seed_file(file_id, "file", 'application/octet-stream',
+                    test_admin_user.id, 1024, status="clean",
+                    upload_time=upload_time, scan_start=scan_start, scan_end=scan_end,
+                    scan_results=json.dumps({"mock_result":"mock_value"}))
 
     mock_file_status_update = FileStatusUpdate(status="distributed", egress_start=egress_start)
     file_status = await update_file_status(file_id, mock_file_status_update)
     assert file_status.status == "distributed"
-    assert file_status.egress_start == egress_start 
+    assert file_status.egress_start == egress_start
 
 @pytest.mark.asyncio
 async def test_update_file_status_file_does_not_exists():
+    """Test updating a file status for file that does not exist"""
     file_id = uuid.uuid4()
     egress_start = timedelta(microseconds=70) + datetime.now(tz=timezone.utc)
 
@@ -92,6 +115,7 @@ async def test_update_file_status_file_does_not_exists():
 
 @pytest.mark.asyncio
 async def test_delete_file_status(seed_file, test_admin_user):
+    """Test deleting a file status."""
     file_id = uuid.uuid4()
     await seed_file(file_id, "file", 'application/octet-stream', test_admin_user.id, 1024, status="unscanned")
     success = await delete_file_status(file_id)
@@ -99,12 +123,14 @@ async def test_delete_file_status(seed_file, test_admin_user):
 
 @pytest.mark.asyncio
 async def test_delete_file_status_not_found():
+    """Test deleting a file status that does not exists."""
     file_id = uuid.uuid4()
     with pytest.raises(FileStatusNotFoundError):
         await delete_file_status(file_id)
 
 @pytest.mark.asyncio
 async def test_get_file_status_counts(test_admin_user, test_ngroup_id,  seed_file):
+    """Test getting file status counts"""
     query_params = MetricsQueryParameters()
     upload_time = datetime.now(tz=timezone.utc)
     await seed_file(uuid.uuid4(), "file1", 'application/octet-stream', test_admin_user.id, 1024, status="distributed", upload_time=upload_time)
@@ -123,6 +149,7 @@ async def test_get_file_status_counts(test_admin_user, test_ngroup_id,  seed_fil
 
 @pytest.mark.asyncio
 async def test_calculate_daily_volume( test_admin_user, test_ngroup_id, seed_file):
+    """Test calculating daily volume."""
     query_params = MetricsQueryParameters()
     upload_time = datetime.now(tz=timezone.utc)
     await seed_file(uuid.uuid4(), "file1", 'application/octet-stream', test_admin_user.id, 1024, upload_time=upload_time)
@@ -135,7 +162,7 @@ async def test_calculate_daily_volume( test_admin_user, test_ngroup_id, seed_fil
 
 @pytest.mark.asyncio
 async def test_calculate_daily_count( seed_file, test_admin_user, test_ngroup_id):
-
+    """Test calculating daily count."""
     query_params = MetricsQueryParameters()
     upload_time = datetime.now(tz=timezone.utc)
     await seed_file(uuid.uuid4(), "file1", 'application/octet-stream', test_admin_user.id, 1024, upload_time=upload_time)
@@ -149,6 +176,7 @@ async def test_calculate_daily_count( seed_file, test_admin_user, test_ngroup_id
 
 @pytest.mark.asyncio
 async def test_calculate_overall_volume( seed_file, test_admin_user, test_ngroup_id):
+    """Test calculate overall volume."""
     query_params = MetricsQueryParameters()
     upload_time = datetime.now(tz=timezone.utc)
     await seed_file(uuid.uuid4(), "file1", 'application/octet-stream', test_admin_user.id, 1024, upload_time=upload_time)
@@ -161,6 +189,7 @@ async def test_calculate_overall_volume( seed_file, test_admin_user, test_ngroup
 
 @pytest.mark.asyncio
 async def test_calculate_overall_count( seed_file, test_admin_user, test_ngroup_id):
+    """Test calculating overall count."""
     query_params = MetricsQueryParameters()
     upload_time = datetime.now(tz=timezone.utc)
     await seed_file(uuid.uuid4(), "file1", 'application/octet-stream', test_admin_user.id, 1024, upload_time=upload_time)
@@ -185,8 +214,6 @@ async def test_list_files_by_status(seed_file, test_ngroup_id, test_admin_user):
     await seed_file(uuid.uuid4(), "file6", 'application/octet-stream', test_admin_user.id, 1024*1024*1024, status="clean", upload_time=upload_time)
     await seed_file(uuid.uuid4(), "file7", 'application/octet-stream', test_admin_user.id, 1024*1024*1024, status="unscanned", upload_time=upload_time)
     status_list = await list_files_by_status(test_ngroup_id, "distributed", query_params, 1, 15)
-    #print(status_list[0])
-    #print(DistributedFileReturn)
     assert isinstance(status_list, tuple)
     assert status_list[1] == 3
 

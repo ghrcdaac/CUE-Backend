@@ -2,6 +2,7 @@ import pytest
 
 @pytest.fixture
 def make_cueuser(test_ngroup_id, test_provider):
+    """Fixture for creating a dict containing data needed to create a cueuser"""
     def _make_cueuser(user_id, email, name, cueusername,
                       role_id="2068cc53-1232-4bc7-9647-3e29e6418e21", edpub_id=None,
                       ngroup_ids=[test_ngroup_id], provider_ids=[test_provider["id"]]):

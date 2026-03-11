@@ -1,17 +1,15 @@
 import pytest
-import pytest_asyncio
-from typing import Tuple, Dict
-from unittest.mock import patch, MagicMock
 import uuid
-import os
 from botocore.exceptions import ClientError
 
-from app.v2.utils.upload import prepare_single_file_upload, complete_single_file_upload, start_multipart_upload,  get_multipart_presigned_url, complete_multipart_upload, abort_multipart_upload, get_ip_address, _validate_upload_permissions, S3ClientError, UploadValidationError
+from app.v2.utils.upload import (prepare_single_file_upload, complete_single_file_upload, start_multipart_upload,
+                                 get_multipart_presigned_url, complete_multipart_upload, abort_multipart_upload,
+                                 get_ip_address, _validate_upload_permissions, S3ClientError, UploadValidationError)
 from app.v2.type_util.upload import CompleteUploadRequest, MultipartGetPartUrlRequest, MultipartAbortRequest, PartInfo 
-from app.v2.type_util.auth import AuthUser
 
 @pytest.mark.asyncio
 async def test_prepare_single_file_upload(make_request, connection_pool, test_admin_user, make_prepare_upload_request, mock_boto3_client):
+    """Test preparing a single file upload."""
     req = make_request()
     params = make_prepare_upload_request(file_size_bytes=1024)
     response = await prepare_single_file_upload(req, params, test_admin_user)
@@ -29,18 +27,18 @@ async def test_prepare_single_file_upload(make_request, connection_pool, test_ad
 
 @pytest.mark.asyncio
 async def test_prepare_single_file_upload_generate_presigned_url_fail(make_request, test_admin_user, make_prepare_upload_request, mock_boto3_client):
+    """Test preparing a single file upload, but s3 client fails to generate presigned url."""
     s3 = mock_boto3_client("s3")
-    s3.generate_presigned_url.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"generate_presigned_url.failed"}}, operation_name="generate_presigned_url")
-
+    s3.generate_presigned_url.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"generate_presigned_url.failed"}},
+                                                       operation_name="generate_presigned_url")
     req = make_request()
     params = make_prepare_upload_request(file_size_bytes=1024)
     with pytest.raises(S3ClientError):
         await prepare_single_file_upload(req, params, test_admin_user)
 
 @pytest.mark.asyncio
-async def test_complete_single_upload(make_request, connection_pool,
-                                     test_admin_user, make_prepare_upload_request,
-                                     mock_boto3_client):
+async def test_complete_single_file_upload(make_request, connection_pool, test_admin_user, make_prepare_upload_request, mock_boto3_client):
+    """Test completing a single file_upload."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -62,6 +60,7 @@ async def test_complete_single_upload(make_request, connection_pool,
 
 @pytest.mark.asyncio
 async def test_start_multipart_upload(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test staring a multipart upload."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -82,6 +81,7 @@ async def test_start_multipart_upload(make_request, connection_pool, make_multip
 
 @pytest.mark.asyncio
 async def test_start_multipart_upload_create_multipart_upload_fail(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test starting a multipart upload but s3 client fails to create a multipart upload."""
     s3 = mock_boto3_client("s3")
     s3.create_multipart_upload.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"create_multipart_upload.failed"}}, operation_name="create_multipart_upload")
 
@@ -95,9 +95,9 @@ async def test_start_multipart_upload_create_multipart_upload_fail(make_request,
 
 
 @pytest.mark.asyncio
-async def test_get_multipart_presigned_url(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+async def test_get_multipart_presigned_url(make_request, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test getting a multipart presigned url."""
     req = make_request()
-    req.state.pool = connection_pool
 
     start_params = make_multipart_start_request(final_file_size_bytes=1024*1024*1024)
     start_response = await start_multipart_upload(req, start_params, test_admin_user)
@@ -111,7 +111,8 @@ async def test_get_multipart_presigned_url(make_request, connection_pool, make_m
 
 
 @pytest.mark.asyncio
-async def test_get_multipart_presigned_url_generate_presigned_url_fail(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+async def test_get_multipart_presigned_url_generate_presigned_url_clienterror(make_request, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test getting a multipart presigned url but the s3 client fails to generate a presigned url"""
     req = make_request()
 
     s3 = mock_boto3_client("s3")
@@ -129,8 +130,9 @@ async def test_get_multipart_presigned_url_generate_presigned_url_fail(make_requ
 
 @pytest.mark.asyncio
 async def test_complete_multipart_upload(make_request, connection_pool, make_multipart_start_request, make_multipart_complete_request, test_admin_user, mock_boto3_client):
+    """Test completing a multipart upload."""
     req = make_request()
-    file_size_bytes = 1024*1024*1024 
+    file_size_bytes = 1024*1024*1024
     start_params = make_multipart_start_request(final_file_size_bytes=file_size_bytes)
     start_response = await start_multipart_upload(req, start_params, test_admin_user)
     file_id = start_response["file_id"]
@@ -158,7 +160,8 @@ async def test_complete_multipart_upload(make_request, connection_pool, make_mul
     assert file_status_db == "unscanned"
 
 @pytest.mark.asyncio
-async def test_complete_multipart_upload_fail(make_request, connection_pool, make_multipart_start_request, make_multipart_complete_request, test_admin_user, mock_boto3_client):
+async def test_complete_multipart_upload_clienterror(make_request, make_multipart_start_request, make_multipart_complete_request, test_admin_user, mock_boto3_client):
+    """Test completing a multipart upload, but s3 client fails to complete_multipart_upload """
     req = make_request()
     s3 = mock_boto3_client("s3")
     s3.complete_multipart_upload.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"complete_multipart_upload.failed"}}, operation_name="complete_multipart_upload")
@@ -185,6 +188,7 @@ async def test_complete_multipart_upload_fail(make_request, connection_pool, mak
 
 @pytest.mark.asyncio
 async def test_abort_multipart_upload(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test aborting multipart upload."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -204,6 +208,7 @@ async def test_abort_multipart_upload(make_request, connection_pool, make_multip
 
 @pytest.mark.asyncio
 async def test_abort_multipart_upload_abort_multipart_upload_not_found(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test aborting multipart upload, but multipart upload does not exist."""
     s3 = mock_boto3_client("s3")
     s3.abort_multipart_upload.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"NoSuchUpload"}}, operation_name="abort_multipart_upload")
     req = make_request()
@@ -225,6 +230,7 @@ async def test_abort_multipart_upload_abort_multipart_upload_not_found(make_requ
 
 @pytest.mark.asyncio
 async def test_abort_multipart_upload_abort_multipart_upload_failed(make_request, connection_pool, make_multipart_start_request, test_admin_user, mock_boto3_client):
+    """Test abort multipart upload, but the s3 client fails to abort the multipart upload."""
     s3 = mock_boto3_client("s3")
     s3.abort_multipart_upload.side_effect=ClientError({"Error":{"Message":"Forced Error", "Code":"abort_multipart_upload.failed"}}, operation_name="abort_multipart_upload")
     req = make_request()
@@ -247,12 +253,14 @@ async def test_abort_multipart_upload_abort_multipart_upload_failed(make_request
 
 @pytest.mark.asyncio
 async def test_get_ip_address(make_request):
+    """Test getting the uploader's ip address from the request."""
     req = make_request()
     ip_address = await get_ip_address(req)
     assert ip_address == req.client.host or str(req.headers.get("x-forwarded-for","").split(",")[0])
 
 @pytest.mark.asyncio
 async def test_validate_upload_permissions_collection_does_not_exist(make_request, test_provider_user):
+    """Test validating user's upload permissions to a collection that does not exist."""
     req = make_request()
 
     with pytest.raises(UploadValidationError):
@@ -260,6 +268,7 @@ async def test_validate_upload_permissions_collection_does_not_exist(make_reques
 
 @pytest.mark.asyncio
 async def test_validate_upload_permissions_provider_cannot_upload(make_request, connection_pool, test_collection, test_provider, test_provider_user):
+    """Test validating upload permissions of a provider that cannot upload."""
     req = make_request()
 
     async with connection_pool.acquire() as conn:
@@ -269,7 +278,9 @@ async def test_validate_upload_permissions_provider_cannot_upload(make_request, 
         await _validate_upload_permissions(req, test_collection["short_name"], test_provider_user)
 
 @pytest.mark.asyncio
-async def test_validate_upload_permissions_incorrect_group(make_request, seed_ngroup, seed_provider, seed_egress, seed_collection, test_provider, test_admin_user, test_provider_user):
+async def test_validate_upload_permissions_to_different_group(make_request, seed_ngroup, seed_provider,
+                                                              seed_egress, seed_collection, test_provider, test_admin_user, test_provider_user):
+    """Test validating upload permissions to a different ngroup"""
     req = make_request()
 
     ngroup_id2 = uuid.uuid4()

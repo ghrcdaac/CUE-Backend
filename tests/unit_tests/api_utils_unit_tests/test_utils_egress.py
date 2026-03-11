@@ -7,7 +7,7 @@ from app.v2.type_util.egress import EgressCreate, EgressUpdate
 
 @pytest.mark.asyncio
 async def test_create_egress(make_request, test_ngroup_id):
-
+    """Test creating a egress."""
     req = make_request()
     mock_egress_create = EgressCreate(type="s3", path="some/path", config={"key": "value"})
     result = await create_egress(req, mock_egress_create, ngroup_id=test_ngroup_id)
@@ -19,6 +19,7 @@ async def test_create_egress(make_request, test_ngroup_id):
 
 @pytest.mark.asyncio
 async def test_get_egress(make_request, test_ngroup_id):
+    """Test getting a egress."""
     # First, create an egress record
     req = make_request()
     mock_egress_create = EgressCreate(type="s3", path="some/path", config={"key": "value"})
@@ -34,6 +35,7 @@ async def test_get_egress(make_request, test_ngroup_id):
 
 @pytest.mark.asyncio
 async def test_update_egress(make_request, test_ngroup_id):
+    """Test updating an egress."""
     # Create an egress record
     req = make_request()
     mock_egress_create = EgressCreate(type="s3", path="some/path", config={"key": "value"})
@@ -53,6 +55,7 @@ async def test_update_egress(make_request, test_ngroup_id):
 
 @pytest.mark.asyncio
 async def test_list_egresses(make_request, connection_pool, test_admin_user, test_ngroup_id):
+    """Test listing egresses."""
     # Create multiple egress records
     req = make_request()
     mock_egress_create1 = EgressCreate(type="s3", path="some/path", config={"key": "value"})
@@ -69,6 +72,7 @@ async def test_list_egresses(make_request, connection_pool, test_admin_user, tes
 
 @pytest.mark.asyncio
 async def test_delete_egress(make_request, connection_pool, test_ngroup_id):
+    """Test deleting an egress."""
     # Create an egress record
     req = make_request()
     mock_egress_create = EgressCreate(type="s3", path="some/path", config={"key": "value"})

@@ -1,6 +1,8 @@
 import pytest
 import uuid
-from app.event_lambdas.cost_update.logic import get_css_creds, get_scan_cost, get_aws_cost, calculate_cost_per_file, get_scan_cost, get_aws_cost, update_file_costs, CostUpdateError
+from app.event_lambdas.cost_update.logic import (get_css_creds, get_scan_cost, get_aws_cost,
+                                                 calculate_cost_per_file, get_scan_cost, get_aws_cost,
+                                                 update_file_costs, CostUpdateError)
 from botocore.exceptions import ClientError
 from unittest.mock import patch
 from decimal import Decimal
@@ -8,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 
 @pytest.mark.asyncio
 async def test_get_css_creds(mock_boto3_client):
+    """Test getting credentials for scanner account."""
     credentials = await get_css_creds()
     assert credentials.get("AccessKeyId")
     assert credentials.get("SecretAccessKey")
@@ -15,6 +18,7 @@ async def test_get_css_creds(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_css_creds_clienterror_fail(mock_boto3_client):
+    """Test getting credentials for scanner account, but there is sts client fails to assume role."""
     sts = mock_boto3_client("sts")
     sts.assume_role.side_effect =  ClientError({"Error":{"Message":"Forced Error", "Code":"assume_role.failed"}}, operation_name="assume_role") 
     with pytest.raises(CostUpdateError):
@@ -22,13 +26,15 @@ async def test_get_css_creds_clienterror_fail(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_css_creds_unexpected_error_fail(mock_boto3_client):
+    """Test gettin credentials for scanner account, but there is unexpected error."""
     sts = mock_boto3_client("sts")
-    sts.assume_role.side_effect = Exception("Forced Unexpected Error") 
+    sts.assume_role.side_effect = Exception("Forced Unexpected Error")
     with pytest.raises(CostUpdateError):
         await get_css_creds()
 
 @pytest.mark.asyncio
 async def test_get_scan_cost(mock_boto3_client):
+    """Test getting scan cost."""
     end_time = datetime.now(tz=timezone.utc)
     start_time = end_time - timedelta(days=1)
     cost = await get_scan_cost(start_time, end_time)
@@ -38,8 +44,10 @@ async def test_get_scan_cost(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_scan_cost_get_cost_usage_clienterror_fail(mock_boto3_client):
+    """Test getting scan cost, but there cost explorer client fails to get cost and usage."""
     ce = mock_boto3_client("ce")
-    ce.get_cost_and_usage.side_effect =  ClientError({"Error":{"Message":"Forced Error", "Code":"get_cost_and_usage.failed"}}, operation_name="get_cost_and_usage") 
+    ce.get_cost_and_usage.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"get_cost_and_usage.failed"}},
+                                                    operation_name="get_cost_and_usage") 
     end_time = datetime.now(tz=timezone.utc)
     start_time = end_time - timedelta(days=1)
     with pytest.raises(CostUpdateError):
@@ -47,6 +55,7 @@ async def test_get_scan_cost_get_cost_usage_clienterror_fail(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_scan_cost_get_cost_usage_unexpected_fail(mock_boto3_client):
+    """Test getting scan cost, but there is an unexpected error"""
     ce = mock_boto3_client("ce")
     ce.get_cost_and_usage.side_effect = Exception("Forced Unexpected Error")
     end_time = datetime.now(tz=timezone.utc)
@@ -56,6 +65,7 @@ async def test_get_scan_cost_get_cost_usage_unexpected_fail(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_aws_cost(mock_boto3_client):
+    """Test getting aws cost."""
     end_time = datetime.now(tz=timezone.utc)
     start_time = end_time - timedelta(days=1)
     cost = await get_aws_cost(start_time, end_time)
@@ -65,8 +75,10 @@ async def test_get_aws_cost(mock_boto3_client):
 
 @pytest.mark.asyncio
 async def test_get_aws_cost_get_cost_and_usage_clienterror_fail(mock_boto3_client):
+    """Test getting aws cost, but there cost explorer client fails to get cost and usage."""
     ce = mock_boto3_client("ce")
-    ce.get_cost_and_usage.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"get_cost_and_usage.failed"}}, operation_name="get_cost_and_usage") 
+    ce.get_cost_and_usage.side_effect = ClientError({"Error":{"Message":"Forced Error", "Code":"get_cost_and_usage.failed"}},
+                                                     operation_name="get_cost_and_usage") 
     end_time = datetime.now(tz=timezone.utc)
     start_time = end_time - timedelta(days=1)
     with pytest.raises(CostUpdateError):
@@ -74,15 +86,17 @@ async def test_get_aws_cost_get_cost_and_usage_clienterror_fail(mock_boto3_clien
 
 @pytest.mark.asyncio
 async def test_get_aws_cost_get_cost_and_usage_unexpected_error_fail(mock_boto3_client):
+    """Test getting aws cost but there is an unexpected error."""
     ce = mock_boto3_client("ce")
-    ce.get_cost_and_usage.side_effect = Exception("Forced Unexpected Error") 
+    ce.get_cost_and_usage.side_effect = Exception("Forced Unexpected Error")
     end_time = datetime.now(tz=timezone.utc)
     start_time = end_time - timedelta(days=1)
     with pytest.raises(CostUpdateError):
         await get_aws_cost(start_time, end_time)
 
 @pytest.mark.asyncio
-async def test_calculate_cost_per_file(mock_boto3_client, seed_file, test_admin_user):
+async def test_calculate_cost_per_file(test_admin_user, seed_file, mock_boto3_client):
+    """Test calculating cost per file"""
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
     
@@ -115,7 +129,8 @@ async def test_calculate_cost_per_file(mock_boto3_client, seed_file, test_admin_
     assert (file_id2, '{"type": "aws", "unblended_cost": 50.0, "net_unblended_cost": 50.0}') in aws_file_costs
 
 @pytest.mark.asyncio
-async def test_update_file_costs(mock_boto3_client, seed_file, test_admin_user, connection_pool):
+async def test_update_file_costs(test_admin_user, seed_file, connection_pool, mock_boto3_client):
+    """Test updating file costs"""
 
     file_id1 = uuid.uuid4()
     file_id2 = uuid.uuid4()
@@ -138,7 +153,8 @@ async def test_update_file_costs(mock_boto3_client, seed_file, test_admin_user, 
     assert (file_id2, expected_scan_result) in results_list
 
 @pytest.mark.asyncio
-async def test_update_file_costs_fail(mock_boto3_client, connection_pool):
+async def test_update_file_costs_fail(connection_pool, mock_boto3_client):
+    """Test updating file costs, but there is an unexpected error"""
     ce = mock_boto3_client("ce")
     ce.get_cost_and_usage.side_effect = Exception("Forced Unexpected Error") 
 

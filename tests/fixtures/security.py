@@ -17,8 +17,9 @@ from app.v2.utils.cueuser import _parse_user_data
 logger = structlog.get_logger(__name__)
 
 class MockOIDCValidator:
-    """MOCK Base class to handle the common JWT validation logic."""
+    """Mocks base class to handle the common JWT validation logic."""
     def validate_token(self, request: Request, token: str) -> Dict[str, Any]:
+        """Function to mock validate token"""
         # mock token - header.payload.signature
         # example - mock_header.{"sub":id, "email":email, "preferred_username":cueusername, "name":name}.mock_signature
         components = token.split(".")
@@ -28,7 +29,7 @@ class MockOIDCValidator:
 
 
 class OIDCBearer(HTTPBearer, MockOIDCValidator):
-    """MOCK The main security dependency. Validates the token AND authorizes the user."""
+    """Mocks the main security dependency. Validates the token AND authorizes the user."""
     async def __call__(self, request: Request) -> AuthUser:
         credentials = await super().__call__(request)
         if not credentials or credentials.scheme != "Bearer":
@@ -61,7 +62,7 @@ class OIDCBearer(HTTPBearer, MockOIDCValidator):
 
 
 class OIDCClaimsBearer(HTTPBearer, MockOIDCValidator):
-    """MOCK A lightweight security dependency that ONLY validates the token."""
+    """Mocks a lightweight security dependency that ONLY validates the token."""
     async def __call__(self, request: Request) -> AuthenticatedUserClaims:
         credentials = await super().__call__(request)
         if not credentials or credentials.scheme != "Bearer":

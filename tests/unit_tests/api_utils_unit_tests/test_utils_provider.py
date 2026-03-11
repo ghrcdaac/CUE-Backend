@@ -1,13 +1,14 @@
 import pytest
 import uuid
 
-from app.v2.utils.provider import create_provider, get_provider, list_providers, list_providers_for_form, update_provider, delete_provider, ProviderNotFoundError
+from app.v2.utils.provider import (create_provider, get_provider, list_providers,
+                                   list_providers_for_form, update_provider, delete_provider, ProviderNotFoundError)
 from app.v2.type_util.provider import ProviderUpdate
 
 @pytest.mark.asyncio
-async def test_create_provider(make_request, connection_pool, make_provider_create):
+async def test_create_provider(make_request, make_provider_create):
+    """Test creating a provider."""
     req = make_request()
-    req.state.pool = connection_pool
     mock_provider_create = make_provider_create("test_provider","Test Provider")
 
     created_provider = await create_provider(req, mock_provider_create)
@@ -19,9 +20,9 @@ async def test_create_provider(make_request, connection_pool, make_provider_crea
     assert created_provider["can_upload"] == mock_provider_create.can_upload
 
 @pytest.mark.asyncio
-async def test_create_provider_point_of_contact_does_not_exist(make_request, connection_pool, make_provider_create):
+async def test_create_provider_point_of_contact_does_not_exist(make_request, make_provider_create):
+    """Test creating a provider, but point of contact does not exist."""
     req = make_request()
-    req.state.pool = connection_pool
     mock_provider_create = make_provider_create("test_provider","Test Provider", point_of_contact=uuid.uuid4())
 
     with pytest.raises(ValueError):
@@ -29,9 +30,9 @@ async def test_create_provider_point_of_contact_does_not_exist(make_request, con
  
 
 @pytest.mark.asyncio
-async def test_get_provider(make_request, connection_pool, make_provider_create):
+async def test_get_provider(make_request, make_provider_create):
+    """Test getting a provider."""
     req = make_request()
-    req.state.pool = connection_pool
 
     mock_provider_create = make_provider_create("test_provider","Test Provider")
     created_provider = await create_provider(req, mock_provider_create)
@@ -45,9 +46,9 @@ async def test_get_provider(make_request, connection_pool, make_provider_create)
     assert retrieved_provider["can_upload"] == created_provider["can_upload"]
 
 @pytest.mark.asyncio
-async def test_list_providers(make_request, connection_pool, make_provider_create, test_admin_user, test_ngroup_id):
+async def test_list_providers(make_request, make_provider_create, test_admin_user, test_ngroup_id):
+    """Test getting a list of providers."""
     req = make_request()
-    req.state.pool = connection_pool
 
     mock_provider_create1 = make_provider_create("test_provider","Test Provider")
     mock_provider_create2 = make_provider_create("test_provider2","Test Provider2")
@@ -62,6 +63,7 @@ async def test_list_providers(make_request, connection_pool, make_provider_creat
 
 @pytest.mark.asyncio
 async def test_list_providers_for_form(make_request, connection_pool, make_provider_create, test_ngroup_id):
+    """Test getting a list of provider for a form."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -77,9 +79,9 @@ async def test_list_providers_for_form(make_request, connection_pool, make_provi
     assert provider2["id"] in [p["id"] for p in all_providers]
 
 @pytest.mark.asyncio
-async def test_update_provider(make_request, connection_pool, make_provider_create, test_daac_manager_user):
+async def test_update_provider(make_request, make_provider_create, test_daac_manager_user):
+    """Test updating a provider."""
     req = make_request()
-    req.state.pool = connection_pool
 
     mock_provider_create = make_provider_create("test_provider","Test Provider")
 
@@ -98,9 +100,9 @@ async def test_update_provider(make_request, connection_pool, make_provider_crea
     assert updated_provider["point_of_contact"] == mock_provider_update.point_of_contact
 
 @pytest.mark.asyncio
-async def test_update_provider_empty_update(make_request, connection_pool, make_provider_create, test_daac_manager_user):
+async def test_update_provider_empty_update(make_request, make_provider_create):
+    """Test updating a provider with a empty update."""
     req = make_request()
-    req.state.pool = connection_pool
 
     mock_provider_create = make_provider_create("test_provider","Test Provider")
 
@@ -111,9 +113,9 @@ async def test_update_provider_empty_update(make_request, connection_pool, make_
         await update_provider(req, provider["id"], mock_provider_update)
 
 @pytest.mark.asyncio
-async def test_update_provider_new_point_of_contact_does_not_exist(make_request, connection_pool, make_provider_create, test_daac_manager_user):
+async def test_update_provider_new_point_of_contact_does_not_exist(make_request, connection_pool, make_provider_create):
+    """Testing updating a provider but the point of contact does not exist."""
     req = make_request()
-    req.state.pool = connection_pool
 
     mock_provider_create = make_provider_create("test_provider","Test Provider")
 
@@ -128,6 +130,7 @@ async def test_update_provider_new_point_of_contact_does_not_exist(make_request,
 
 @pytest.mark.asyncio
 async def test_update_provider_provider_does_not_exist(make_request, connection_pool, make_provider_create, test_daac_manager_user):
+    """Test updating a provider, but provider does not exist."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -143,6 +146,7 @@ async def test_update_provider_provider_does_not_exist(make_request, connection_
 
 @pytest.mark.asyncio
 async def test_delete_provider(make_request, connection_pool, make_provider_create):
+    """Test deleting a provider"""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -163,6 +167,7 @@ async def test_delete_provider(make_request, connection_pool, make_provider_crea
 
 @pytest.mark.asyncio
 async def test_delete_provider_provider_not_found(make_request, connection_pool, make_provider_create):
+    """Test deleing a provider, but the provider does exist."""
     req = make_request()
     req.state.pool = connection_pool
 

@@ -1,15 +1,13 @@
 import pytest
-import pytest_asyncio
-from typing import Tuple, Dict
-from unittest.mock import patch, MagicMock
 import uuid
-import os
 
-from app.v2.utils.role import create_role, get_role, get_role_by_lookup, list_roles, update_role, delete_role, RoleNotFoundError
+from app.v2.utils.role import (create_role, get_role, get_role_by_lookup,
+                               list_roles, update_role, delete_role, RoleNotFoundError)
 from app.v2.type_util.role import RoleCreate, RoleUpdate
 
 @pytest.mark.asyncio
 async def test_create_role(make_request, connection_pool):
+    """Test creating a role."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -19,6 +17,7 @@ async def test_create_role(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_get_role(make_request, connection_pool):
+    """Test getting a role."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -33,6 +32,7 @@ async def test_get_role(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_get_role_not_found(make_request, connection_pool):
+    """Test getting a role that doest not exist."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -44,6 +44,7 @@ async def test_get_role_not_found(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_get_role_by_lookup(make_request, connection_pool):
+    """Test getting a role by looking it up by its short name and/or long name"""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -69,11 +70,12 @@ async def test_get_role_by_lookup(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_get_role_by_lookup_not_found(make_request, connection_pool):
+    """Test getting a role by looking up is names, but role does not exist."""
     req = make_request()
     req.state.pool = connection_pool
 
-    role_short_name = "short" 
-    role_long_name = "long" 
+    role_short_name = "short"
+    role_long_name = "long"
      
     with pytest.raises(RoleNotFoundError):
         await get_role_by_lookup(req, role_short_name, None)
@@ -86,6 +88,7 @@ async def test_get_role_by_lookup_not_found(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_list_roles(make_request, connection_pool):
+    """Test getting a list of roles."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -102,6 +105,7 @@ async def test_list_roles(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_update_role(make_request, connection_pool):
+    """Test updating a role."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -119,6 +123,7 @@ async def test_update_role(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_update_role_not_found(make_request, connection_pool):
+    """Testing updating a role, but the role does not exist."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -130,6 +135,7 @@ async def test_update_role_not_found(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_delete_role(make_request, connection_pool):
+    """Test deleting a role."""
     req = make_request()
     req.state.pool = connection_pool
 
@@ -146,6 +152,7 @@ async def test_delete_role(make_request, connection_pool):
 
 @pytest.mark.asyncio
 async def test_delete_role_not_found(make_request, connection_pool):
+    """Test deleting a role."""
     req = make_request()
     req.state.pool = connection_pool
 
