@@ -1,9 +1,9 @@
 from typing import Dict, Any, List
 from uuid import UUID 
 import asyncpg
-from model import CleanupPayload
+from .model import CleanupPayload
 from pydantic import ValidationError
-from db import get_upload_files, delete_upload_files
+from .db import get_upload_files, delete_upload_files
 import structlog
 
 logger = structlog.get_logger(__name__)

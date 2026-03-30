@@ -2,8 +2,8 @@ import asyncio
 import structlog
 import json
 
-from model import parse_and_validate_event_detail
-from logic import (
+from .model import parse_and_validate_event_detail
+from .logic import (
     get_query_results_as_json, 
     get_query_error_reason, 
     store_result_in_s3,

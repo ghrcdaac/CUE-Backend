@@ -140,7 +140,7 @@ async def list_file_statuses(ngroup_id: UUID) -> List[FileStatusReturn]:
     pool: Pool = await get_connection_pool()
     try:
         # Using query helper which handles connection correctly
-        results = await query(pool, file_status_db.list_file_statuses_from_db, (ngroup_id,), row_mapper=FileStatusReturn.from_db_row)
+        results = await query(pool, file_status_db.list_file_statuses_from_db, *(ngroup_id,), row_mapper=FileStatusReturn.from_db_row)
         return results
     except Exception as e:
         logger.error(f"Error listing file_statuses for ngroup {ngroup_id}: {e}", exc_info=True)
@@ -172,7 +172,7 @@ async def calculate_daily_volume(ngroup_id: UUID, filters: MetricsQueryParameter
         # Use async with to ensure connection release
         async with pool.acquire() as conn:
             results = await file_status_db.get_daily_volume_from_db(conn, ngroup_id, filter_dict)
-        return [DailyMetricItem(day=row['day'], value=float(row['value'] * BYTES_TO_GB)) for row in results]
+        return [DailyMetricItem(day=row['day'], value=float(row['value']) * BYTES_TO_GB) for row in results]
     except Exception as e:
         logger.error(f"Error calculating daily volume: {e}", exc_info=True)
         raise
@@ -285,7 +285,7 @@ async def get_metrics_summary(ngroup_id: UUID, filters: MetricsQueryParameters) 
             status_count_rows = await file_status_db.get_status_counts_from_db(conn, ngroup_id, filter_dict)
 
         # Process the results
-        daily_volume_result = [DailyMetricItem(day=row['day'], value=float(row['value'] * BYTES_TO_GB)) for row in daily_volume_rows]
+        daily_volume_result = [DailyMetricItem(day=row['day'], value=float(row['value']) * BYTES_TO_GB) for row in daily_volume_rows]
         daily_count_result = [DailyMetricItem(day=row['day'], value=float(row['value'])) for row in daily_count_rows]
 
         overall_volume_result = OverallMetricResult(

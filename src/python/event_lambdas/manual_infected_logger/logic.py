@@ -6,14 +6,12 @@ from typing import Any, Dict, Set, Tuple, List
 from uuid import UUID
 import asyncpg
 import boto3
-from model import RedrivePayload
-from db import validate_unscanned_file
+from .model import RedrivePayload
+from .db import validate_unscanned_file
 from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 logger = structlog.get_logger()
-
-sqs = boto3.client("sqs")
 
 class ManualInfectedLoggerError(Exception):
     pass
@@ -29,6 +27,8 @@ except ValueError as e:
     logger.info("failed_to_initialize_environment_variables")
     raise ManualInfectedLoggerError(str(e))
 
+def _get_sqs_client():
+    return boto3.client("sqs")
 
 async def validate_files(pool: asyncpg.Pool, redrive_payload: dict) -> Tuple[List[UUID], List[str]]:
     try:
@@ -68,7 +68,8 @@ async def poll_and_redrive(file_ids) -> Dict[str, Any]:
             break
 
         try:
-            resp = sqs.receive_message(
+            sqs_client = _get_sqs_client()
+            resp = sqs_client.receive_message(
                 QueueUrl=DLQ_URL,
                 MaxNumberOfMessages=MAX_BATCH,
                 WaitTimeSeconds=WAIT_SECONDS,
@@ -123,13 +124,14 @@ async def poll_and_redrive(file_ids) -> Dict[str, Any]:
 
             # Forward and delete
             try:
+                sqs_client = _get_sqs_client()
                 logger.info("forwarding_message_from_dlq_to_source_queue", file_id=file_id_uuid, message_body=body)
-                sqs.send_message(
+                sqs_client.send_message(
                     QueueUrl=SOURCE_QUEUE_URL,
                     MessageBody=body_text,
                     MessageAttributes=msg_attrs
                 )
-                sqs.delete_message(QueueUrl=DLQ_URL, ReceiptHandle=msg["ReceiptHandle"])
+                sqs_client.delete_message(QueueUrl=DLQ_URL, ReceiptHandle=msg["ReceiptHandle"])
                 moved_total += 1
                 moved_ids.add(file_id_uuid)
             except Exception as e:

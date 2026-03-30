@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 import boto3
-from logic import invoke_process_athena_query, validate_athena_query_details, ManualProcessAthenaQueryError
+from .logic import invoke_process_athena_query, validate_athena_query_details, ManualProcessAthenaQueryError
 
 from core.logging_config import setup_logging
 

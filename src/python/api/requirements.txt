@@ -9,6 +9,8 @@ requests~=2.32.3
 asyncpg==0.30.0
 pytest ~= 8.0.2
 pytest-asyncio ~= 0.23.5
+pytest-cov ~= 7.0.0
+pytest-mock ~= 3.15.1
 python-jose[cryptography]>=3.3,<4.0
 warrant>=0.6.1,<0.7.0
 structlog~=25.4.0

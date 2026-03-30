@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 import boto3
-from logic import validate_time_range, invoke_cost_update, ManualCostUpdateError
+from .logic import validate_time_range, invoke_cost_update, ManualCostUpdateError
 
 from core.logging_config import setup_logging
 

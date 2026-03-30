@@ -1,6 +1,6 @@
 import asyncio
 import structlog
-from logic import validate_email_payload, invoke_email_sender, ManualEmailSenderError
+from .logic import validate_email_payload, invoke_email_sender, ManualEmailSenderError
 from core.logging_config import setup_logging
 
 

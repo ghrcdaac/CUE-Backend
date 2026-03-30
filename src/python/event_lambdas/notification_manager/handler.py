@@ -10,7 +10,7 @@ import asyncpg
 
 from core.logging_config import setup_logging
 from core.db_pool import get_database_pool
-from db import (
+from .db import (
     get_infected_file_details, 
     get_new_application_details, 
     get_approved_user_details,
@@ -20,7 +20,7 @@ from db import (
     mark_files_as_notified, 
     mark_providers_as_notified
 )
-from logic import process_infected_scheduled_notification 
+from .logic import process_infected_scheduled_notification 
 
 setup_logging()
 logger = structlog.get_logger(__name__)

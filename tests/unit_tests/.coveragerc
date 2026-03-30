@@ -1,0 +1,32 @@
+[run]
+omit = 
+    */glue_jobs/*
+    */handler.py
+    */db.py
+    */v1/*
+    */lambda_utils/*
+    */tests/*
+    */v2/endpoints/*
+    */main.py
+    */core/*
+    */v2/database_util/cueuser_auth.py
+    */v2/database_util/cueuser_ngroup.py
+    */v2/database_util/cueuser_provider.py 
+    */v2/api.py
+    */v2/type_util/cueuser_auth.py  
+    */v2/type_util/cueuser_ngroup.py
+    */v2/type_util/cueuser_provider.py
+    */v2/type_util/cueuser_role.py 
+    */v2/type_util/role_privilege.py 
+    */v2/type_util/privilege.py  
+    */v2/database_util/role_privilege.py
+    */v2/database_util/scanning.py  
+    */v2/database_util/privilege.py  
+    */v2/database_util/file_status.py 
+    */v2/database_util/cueuser_role.py
+    */event_lambdas/logging_config.py       
+    */v2/utils/file_status.py
+    */v2/database_util/db_util.py
+
+
+

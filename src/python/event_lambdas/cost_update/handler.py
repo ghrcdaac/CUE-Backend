@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 import json
 import os 
-from logic import update_file_costs
+from .logic import update_file_costs
 from core.db_pool import get_database_pool
 import structlog
 

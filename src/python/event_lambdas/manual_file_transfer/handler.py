@@ -5,8 +5,8 @@ import boto3
 from botocore.exceptions import ClientError
 from uuid import UUID
 import json
-from db import get_collection_id, validate_clean_file
-from model import Event
+from .db import get_collection_id, validate_clean_file
+from .model import Event
 from pydantic import ValidationError
 
 from core.logging_config import setup_logging
@@ -21,9 +21,12 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-S3_CLIENT = boto3.client("s3")
 STAGING_BUCKET = os.environ.get("STAGING_BUCKET")
 CLEAN_FILES_QUEUE_URL = os.environ.get("QUEUE_URL")
+
+def _get_s3_client():
+    return boto3.client("s3")
+
 def handler(event, context):
     """Synchronous entry point for AWS Lambda."""
     return loop.run_until_complete(async_handler(event, context))
@@ -90,8 +93,9 @@ async def async_handler(event, context):
                     )
                 except ClientError as e:
                     logger.error("sqs.send_message.failed", file_id=file_id, error=e)
-                    failed_files.append({"file_id":file_id, "message":"Failed to submit file for transfer."})
-                    transferable_file_ids.remove(file_id)
+                    failed_files.append(file_id)
+        transferable_file_ids = [file_id for file_id in transferable_file_ids if file_id not in failed_files]
+        failed_files = [{"file_id": str(file_id), "message":"Failed to submit file for transfer."} for file_id in failed_files]
 
     # 4. If there are any not found or invalid status failures add them 
     #    to the failed_files list.
@@ -103,12 +107,11 @@ async def async_handler(event, context):
         failed_files.extend([{"file_id": str(file_id), "message":"Is not clean."} for file_id in invalid_status_file_ids])
 
     total_files = len(file_ids)
-    failed_files = len(failed_files)
+    num_failed_files = len(failed_files)
 
-    if failed_files > 0 and failed_files < total_files:
-        logger.info('failed_file_ids', file_ids=failed_files)
+    if num_failed_files > 0 and num_failed_files < total_files:
         return {"status_code":207, "body":{"file_ids":json.dumps(failed_files)}}
-    elif failed_files == total_files:
+    elif num_failed_files == total_files:
         logger.info('failed_file_ids', file_ids=failed_files)
         return {"status_code":400, "body":{"file_ids":json.dumps(failed_files)}}
     else:
@@ -117,7 +120,8 @@ async def async_handler(event, context):
 async def exists_in_staging(file_id:UUID):
     """Checks the existence of the file in the staging bucket"""
     try:
-       result = S3_CLIENT.head_object(Bucket=STAGING_BUCKET, Key=str(file_id))
+       s3 = _get_s3_client()
+       result = s3.head_object(Bucket=STAGING_BUCKET, Key=str(file_id))
        if result:
            logger.info('file_id.staging_bucket.exists', file_id=file_id)
            return True

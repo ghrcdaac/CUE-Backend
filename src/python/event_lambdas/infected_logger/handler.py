@@ -4,8 +4,8 @@ import structlog
 from typing import Any, Dict, Optional
 
 from core.logging_config import setup_logging
-from model import parse_and_validate_message
-from logic import process_scan_result
+from .model import parse_and_validate_message
+from .logic import process_scan_result
 from core.db_pool import get_database_pool
 
 setup_logging()

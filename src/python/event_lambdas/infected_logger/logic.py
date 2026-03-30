@@ -7,12 +7,12 @@ import asyncpg
 from uuid import UUID, uuid4
 from datetime import timedelta
 
-from db import (
+from .db import (
     process_scan_result_in_database,
     count_provider_infected_files,
     block_provider_instant
 )
-from model import ScanResultMessage, ScanResultDetailJSONEncoder
+from .model import ScanResultMessage, ScanResultDetailJSONEncoder
 
 logger = structlog.get_logger(__name__)
 
