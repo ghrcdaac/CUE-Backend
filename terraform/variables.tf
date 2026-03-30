@@ -187,6 +187,13 @@ variable "notification_schedule_minutes" {
   default     = 30 
 }
 
+variable "cleanup_uploads_schedule" {
+  description = "The cron schedule for the cleanup uploads with 'upload' status runs"
+  type        = string
+  default     = "cron(0 1 * * ? *)"
+}
+
+
 
 # delete later
 

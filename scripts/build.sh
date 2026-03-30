@@ -20,7 +20,12 @@ install_lambda notification-manager
 # install_lambda process-athena-query
 # install_lambda cost-update
 install_lambda manual-file-transfer
-install_lambda cost-update
+install_lambda manual-infected-logger
+install_lambda manual-email-sender
+install_lambda manual-notification-manager
+install_lambda manual-cost-update
+install_lambda manual-process-athena-query
+install_lambda cleanup-uploads
 
 # Cleanup
 remove_temp

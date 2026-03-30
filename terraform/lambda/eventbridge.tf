@@ -68,7 +68,7 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   }
   schedule_expression = "cron(*/${var.notification_schedule_minutes} * * * ? *)"
   target {
-    role_arn = var.notification_manager_scheduler_role_arn
+    role_arn = var.eventbridge_scheduler_lambda_role_arn
     arn = aws_lambda_function.notification_manager.arn
     input = replace(
       replace(
@@ -85,10 +85,35 @@ resource "aws_scheduler_schedule" "infected_file_notification_schedule" {
   }
 }
 
+resource "aws_scheduler_schedule" "cleanup_pending_uploads_schedule" {
+  name = "cue_cleanup_pending_uploads_scheduler"
+  
+  flexible_time_window {
+    mode = "OFF"
+  }
+  schedule_expression = var.cleanup_uploads_schedule
+  target {
+    role_arn = var.eventbridge_scheduler_lambda_role_arn
+    arn = aws_lambda_function.cue_cleanup_uploads.arn
+    input = jsonencode({ "detail-type": "CleanupAllPendingUploads" })
+    retry_policy {
+      maximum_retry_attempts = 3
+    }
+  }
+}
+
 resource "aws_lambda_permission" "allow_eventbridge_scheduler_to_notification_manager" {
   statement_id  = "AllowExecutionFromEventBridgeScheduler"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.notification_manager.function_name
   principal     = "scheduler.amazonaws.com"
   source_arn    = aws_scheduler_schedule.infected_file_notification_schedule.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_to_cleanup_uploads" {
+  statement_id  = "AllowExecutionFromEventBridgeSchedulerForCleanupUploads"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.cue_cleanup_uploads.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_scheduler_schedule.cleanup_pending_uploads_schedule.arn
 }

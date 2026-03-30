@@ -68,22 +68,28 @@ resource "aws_iam_role" "process_athena_query_role" {
   name               = "CUEProcessAthenaQueryRole" # Use static name
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
 }
+
+resource "aws_iam_role_policy_attachment" "process_athena_query_vpc" {
+  role       = aws_iam_role.process_athena_query_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
 resource "aws_iam_role_policy" "process_athena_query_policy" {
   name   = "CUEProcessAthenaQueryPolicy"
   role   = aws_iam_role.process_athena_query_role.id
   policy = data.aws_iam_policy_document.process_athena_query_policy.json
 }
 
-# --- Role for Infected files Eventbridge Scheduler ---
-resource "aws_iam_role" "infected_notif_scheduler_role" {
-  name               = "CUEInfectedFileSchedulerRole" 
+# --- Role for Eventbridge Lambda Scheduler ---
+resource "aws_iam_role" "eventbridge_lambda_scheduler_role" {
+  name               = "CUELambdaSchedulerRole" 
   assume_role_policy = data.aws_iam_policy_document.eventbridge_scheduler_assume_role.json
 }
 
-resource "aws_iam_role_policy" "infected_notif_scheduler_policy" {
-   name       = "CUEInfectedFileSchedulerPolicy"
-   role       = aws_iam_role.infected_notif_scheduler_role.id
-   policy     = data.aws_iam_policy_document.infected_notif_scheduler_policy.json
+resource "aws_iam_role_policy" "eventbridge_lambda_scheduler_policy" {
+   name       = "CUELambdaSchedulerPolicy"
+   role       = aws_iam_role.eventbridge_lambda_scheduler_role.id
+   policy     = data.aws_iam_policy_document.eventbridge_lambda_scheduler_policy.json
 }
 
 # --- Role for the File Transfer Lambda ---
@@ -107,10 +113,17 @@ resource "aws_iam_role_policy" "file_transfer_policy" {
 data "aws_iam_role" "cue_cost_explorer_role" {
  name = var.cue_cost_explorer_role_name
 }
-# resource "aws_iam_role_policy_attachment" "cue_cost_update_lambda_execution_role_attach" {
-#   role       = data.aws_iam_role.cue_cost_explorer_role.name
-#   policy_arn = var.lambda_execution_policy_arn
-# }
+resource "aws_iam_role_policy" "cost_update_policy"{
+  name   = "CUECostUpdatePolicy"
+  role   = data.aws_iam_role.cue_cost_explorer_role.id
+  policy = data.aws_iam_policy_document.cost_update_policy.json
+
+}
+
+ resource "aws_iam_role_policy_attachment" "cue_cost_update_lambda_execution_role_attach" {
+  role       = data.aws_iam_role.cue_cost_explorer_role.name
+  policy_arn = var.lambda_execution_policy_arn
+ }
 
 # -- Role for Manual File Transfer Lambada ---
 resource "aws_iam_role" "manual_file_transfer_role" {
@@ -128,11 +141,101 @@ resource "aws_iam_role_policy" "manual_file_transfer_policy" {
   policy = data.aws_iam_policy_document.manual_file_transfer_policy.json
 }
 
-resource "aws_iam_role_policy" "cost_update_policy"{
-  name   = "CUECostUpdatePolicy"
-  role   = data.aws_iam_role.cue_cost_explorer_role.id
-  policy = data.aws_iam_policy_document.cost_update_policy.json
+# --- Role for the Manual Email Sender Lambda ---
+resource "aws_iam_role" "manual_email_sender_role" {
+  name               = "CUEManualEmailSenderRole" 
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
 
+resource "aws_iam_role_policy_attachment" "manual_email_sender_vpc" {
+  role       = aws_iam_role.manual_email_sender_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_email_sender_policy" {
+  name   = "CUEManualEmailSenderPolicy"
+  role   = aws_iam_role.manual_email_sender_role.id
+  policy = data.aws_iam_policy_document.manual_email_sender_policy.json
+}
+
+# --- Role for the Manual Notification Manager Lambda ---
+resource "aws_iam_role" "manual_notification_manager_role" {
+  name               = "CUEManualNotificationManagerRole" 
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "manual_notification_manager_vpc" {
+  role       = aws_iam_role.manual_file_transfer_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_notification_manager_policy" {
+  name   = "CUEManualNotificationManagerPolicy"
+  role   = aws_iam_role.manual_notification_manager_role.id
+  policy = data.aws_iam_policy_document.manual_notification_manager_policy.json
+}
+ 
+# --- Role for the Manual Process Athena Query Lambda ---
+resource  "aws_iam_role" "manual_process_athena_query_role" {
+  name               = "CUEManualProcessAthenaQueryRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "manual_process_athena_vpc" {
+  role       = aws_iam_role.manual_process_athena_query_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_process_athena_query_policy" {
+  name   = "CUEManualAthenaQueryPolicy"
+  role   = aws_iam_role.manual_process_athena_query_role.id
+  policy = data.aws_iam_policy_document.manual_process_athena_query_policy.json
+}
+
+# --- Role for the Manual Cost Update Lambda ---
+resource "aws_iam_role" "manual_cost_update_role" {
+  name               = "CUEManualCostUpdateRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "manual_cost_update_vpc" {
+  role       = aws_iam_role.manual_cost_update_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_cost_update_policy" {
+ name   = "CUEManualCostUpdatePolicy"
+ role   = aws_iam_role.manual_cost_update_role.id
+ policy = data.aws_iam_policy_document.manual_cost_update_policy.json
+}
+
+# --- Role for the Manual Infected Logger Lambda ---
+
+resource "aws_iam_role" "manual_infected_logger_role" {
+  name = "CUEManualScanEventRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+resource "aws_iam_role_policy_attachment" "manual_infected_logger_vpc" {
+  role       = aws_iam_role.manual_infected_logger_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_infected_logger_policy" {
+  name   = "CUEManualScanEventPolicy"
+  role   = aws_iam_role.manual_infected_logger_role.id
+  policy = data.aws_iam_policy_document.manual_infected_logger_policy.json
+}
+
+# --- Role for the Cleanup Uploads Lambda ---
+
+resource "aws_iam_role" "cleanup_uploads_role"{
+  name = "CUECleanupUploadsRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "cleanup_uploads_vpc" {
+  role       = aws_iam_role.cleanup_uploads_role.id
+  policy_arn = var.lambda_execution_policy_arn
 }
 
 # --- Role for the RDS Proxy ---
