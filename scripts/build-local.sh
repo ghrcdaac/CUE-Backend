@@ -51,7 +51,7 @@ echo "---"
 
 # --- Build Lambda Artifacts ---
 echo "STEP 1: Building Lambda artifacts..."
-bash ./scripts/build.sh
+# bash ./scripts/build.sh
 
 #--- Build and Push API Docker Image ---
 echo "STEP 2: Building and pushing API Docker image..."
@@ -146,7 +146,8 @@ terraform init \
 #     echo "Plan not applied. Exiting."
 #     exit 0
 # fi
-
+# terraform state rm module.iam_role.aws_iam_role_policy.cost_update_policy
+# terraform import module.iam_role.aws_iam_role_policy.cost_update_policy NGAPShCUECostExplorerRole:CUECostUpdatePolicy
 
 terraform apply -auto-approve
 

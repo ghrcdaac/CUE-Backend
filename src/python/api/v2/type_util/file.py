@@ -35,7 +35,7 @@ class FileUpdateRequest(BaseModel):
 class FileListRequest(BaseModel):
     """Request body for listing/getting files via API Key."""
     apiKey: str = Field(..., description="The cue_sk_... application API key.")
-    file_id: Optional[UUID] = Field(None, description="If provided, fetches this specific file. Otherwise, lists files.")
+    file_ids: Optional[List[UUID]] = Field(None, description="List of file IDs to filter by. Optional")
     status: Optional[str] = None
     page: int = 1
     page_size: int = 50

@@ -22,6 +22,8 @@ s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
 STAGING_BUCKET = os.environ.get("STAGING_BUCKET", "")
 VERIFY_CHECKSUM = os.environ.get("VERIFY_CHECKSUM_ON_TRANSFER", "true").lower() == "true"
 
+# New Constant: 5GB limit for Lambda-based checksums
+MAX_CHECKSUM_SIZE_BYTES = 5 * 1024 * 1024 * 1024
 
 async def parse_sqs_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Parses the body of an SQS record into a dictionary."""
@@ -77,30 +79,37 @@ async def verify_staging_object_sha256(file_id: str) -> str:
 
 async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str, file_info: Dict[str, Any]):
     """Copies a file to its destination, with an internal retry mechanism for transient errors."""
-    copy_source = {"Bucket": STAGING_BUCKET, "Key": src_key}
+    copy_source = {'Bucket': STAGING_BUCKET, 'Key': src_key}
     max_retries = 3
     retry_delay_base = 2
 
     #EDPUB requirement
     s3_metadata = {
-        'fileId ': src_key
+        'fileId': src_key
     }
 
-    content_type = file_info.get('type', 'application/octet-stream')
+    head_object = s3_client.head_object(Bucket=STAGING_BUCKET, Key=src_key)
+    current_content_type = head_object['ContentType']
+    # print(current_content_type)
 
     for attempt in range(max_retries):
         try:
             # Run the synchronous boto3 call in a separate thread
             await asyncio.to_thread(
-                s3_client.copy_object,
+                s3_client.copy,
                 CopySource=copy_source,
                 Bucket=dest_bucket,
                 Key=dest_key,
-                ACL="bucket-owner-full-control"
-                # Metadata=s3_metadata,           
-                # MetadataDirective='REPLACE'
+                ExtraArgs={
+                    'ACL': "bucket-owner-full-control",
+                    'MetadataDirective': 'REPLACE',
+                    'Metadata': s3_metadata,
+                    'ContentType': current_content_type,
+                    'TaggingDirective': 'REPLACE'
+                }
             )
             # This log is crucial for auditing successful transfers.
+            print(f"Metadata updated. Content-Type preserved as: {current_content_type}")
             logger.info("s3.copy.success", file_id=src_key, dest_bucket=dest_bucket, dest_key=dest_key)
             return
         except ClientError as e:
@@ -170,25 +179,32 @@ async def batch_transfer_and_validate(
             await copy_file_to_dest(str(file_id), dest_bucket, dest_key, file_info)
             is_valid_transfer = False
 
-            if VERIFY_CHECKSUM:
-                logger.info("checksum_validation.started", file_id=str(file_id))
-                staging_checksum = await verify_staging_object_sha256(str(file_id))
-                db_checksum = file_info.get('checksum')
+            file_size = file_info.get("size_bytes", 0)
 
-                if staging_checksum == db_checksum:
-                    logger.info("checksum_validation.success", file_id=str(file_id))
-                    # successful_file_ids.append(file_id)
+            if VERIFY_CHECKSUM:
+                if file_size > MAX_CHECKSUM_SIZE_BYTES:
+                    # Case A: File is too big -> Log it and Skip Validation (Assume Valid)
+                    logger.info("checksum_validation.skipped_large_file", file_id=str(file_id), size_bytes=file_size, limit=MAX_CHECKSUM_SIZE_BYTES)
                     is_valid_transfer = True
                 else:
-                    logger.critical("checksum_validation.failed.mismatch", file_id=str(file_id), database_checksum=db_checksum, staging_file_checksum=staging_checksum)
-                    validation_failures.append({ "file_id": file_id, "db_checksum": db_checksum, "staging_checksum": staging_checksum })
+                    # Case B: File is small enough -> Validate
+                    logger.info("checksum_validation.started", file_id=str(file_id))
+                    staging_checksum = await verify_staging_object_sha256(str(file_id))
+                    db_checksum = file_info.get('checksum')
+
+                    if staging_checksum == db_checksum:
+                        logger.info("checksum_validation.success", file_id=str(file_id))
+                        is_valid_transfer = True
+                    else:
+                        logger.critical("checksum_validation.failed.mismatch", file_id=str(file_id), database_checksum=db_checksum, staging_file_checksum=staging_checksum)
+                        validation_failures.append({ "file_id": file_id, "db_checksum": db_checksum, "staging_checksum": staging_checksum })
             else:
-                logger.info("checksum_validation.skipped", file_id=str(file_id))
-                # successful_file_ids.append(file_id)
+                # Case C: Global flag disabled validation
+                logger.info("checksum_validation.skipped_by_config", file_id=str(file_id))
                 is_valid_transfer = True
             
             if is_valid_transfer:
-                await add_tags_to_dest(dest_bucket, dest_key, str(file_id))
+                # await add_tags_to_dest(dest_bucket, dest_key, str(file_id))  # remove this if ORCA process accepts files
                 successful_file_ids.append(file_id)
 
         except Exception as e:

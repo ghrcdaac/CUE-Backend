@@ -129,7 +129,12 @@ async def list_files_by_api_key(
     request: Request,
     body: FileListRequest
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """Validates an API key and fetches files, raising custom exceptions on failure."""
+    """
+    Validates an API key and fetches files. 
+    If file_ids are provided, filters by them.
+    If status/dates are provided, filters by them.
+    All filters are additive (AND logic).
+    """
     
     api_key = body.apiKey
     if not api_key or not api_key.startswith("cue_sk_"):
@@ -147,23 +152,35 @@ async def list_files_by_api_key(
     
     ngroup_id_to_filter = key_data.get("ngroup_id")
     if not ngroup_id_to_filter:
-        # This is a server-side configuration issue, not a client error.
         raise ApiKeyConfigurationError("API Key is not associated with a group.")
 
     async with request.state.pool.acquire() as conn:
-        if body.file_id:
-            file_details = await file_db.get_file_details_for_group(conn, body.file_id, ngroup_id_to_filter)
-            if not file_details:
-                raise FileAccessError("File not found or you do not have permission to access it.")
-            return [_process_record(dict(file_details))], 1
-        else:
-            offset = (body.page - 1) * body.page_size
-            proxy_user_for_db = {"roles": ["proxy"]}
-            total = await file_db.count_files_for_ngroup(conn, proxy_user_for_db, ngroup_id_to_filter, body.status, body.start_date, body.end_date)
-            files = await file_db.list_files_paginated(
-                conn, proxy_user_for_db, ngroup_id_to_filter, body.page_size, offset, body.status, body.start_date, body.end_date
-            )
-            return [_process_record(f) for f in files], total
+        offset = (body.page - 1) * body.page_size
+        proxy_user_for_db = {"roles": ["proxy"]}
+                
+        total = await file_db.count_files_for_ngroup(
+            conn, 
+            requesting_user=proxy_user_for_db, 
+            active_ngroup_id=ngroup_id_to_filter, 
+            status=body.status, 
+            start_date=body.start_date, 
+            end_date=body.end_date,
+            file_ids=body.file_ids 
+        )
+        
+        files = await file_db.list_files_paginated(
+            conn, 
+            requesting_user=proxy_user_for_db, 
+            active_ngroup_id=ngroup_id_to_filter, 
+            limit=body.page_size, 
+            offset=offset, 
+            status=body.status, 
+            start_date=body.start_date, 
+            end_date=body.end_date,
+            file_ids=body.file_ids
+        )
+        
+        return [_process_record(f) for f in files], total
 
 
 async def update_file(request: Request, file_id: UUID, file_update: FileUpdateRequest) -> Dict[str, Any]:

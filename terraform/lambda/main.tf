@@ -23,6 +23,7 @@ resource "aws_lambda_function" "cue_api" {
   image_uri     = var.api_docker_uri
   package_type  = "Image"
   timeout       = 30 # API Gateway timeout is 29s
+  memory_size      = 1024
   publish = true # This enables versioning, which is required for an alias
 
   
@@ -64,7 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "11"
+      REDEPLOY_TRIGGER = "14"
     }
   }
 
@@ -218,7 +219,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       DB_SSL_MODE    = "require"
       ENV = "production"
       VERIFY_CHECKSUM_ON_TRANSFER = "true"
-      REDEPLOY_TRIGGER = "10"
+      REDEPLOY_TRIGGER = "15"
     }
   }
 

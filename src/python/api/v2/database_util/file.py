@@ -136,7 +136,8 @@ async def list_files_paginated(
     offset: int,
     status: Optional[str] = None,
     start_date: Optional[date] = None, 
-    end_date: Optional[date] = None    
+    end_date: Optional[date] = None,
+    file_ids: Optional[List[UUID]] = None
 ) -> List[Dict[str, Any]]:
     user_roles = set(requesting_user.get('roles', []))
     params: list[Any] = []
@@ -155,9 +156,12 @@ async def list_files_paginated(
         params.append(active_ngroup_id)
         where_conditions.append(f"c.ngroup_id = ${len(params)}")
     else:
-        # For JWT users without an active group, only admins can see results
         if 'admin' not in user_roles and 'security' not in user_roles:
             where_conditions.append("FALSE")
+
+    if file_ids:
+        params.append(file_ids)
+        where_conditions.append(f"f.id = ANY(${len(params)}::uuid[])")
 
     if status:
         params.append(status)
@@ -169,9 +173,9 @@ async def list_files_paginated(
     
     if end_date:
         params.append(end_date)
-        # To include the entire end day, we check for less than the start of the next day
         where_conditions.append(f"fs.upload_time < (${len(params)}::date + 1)")
 
+    # The JOIN here ensures ALL conditions must be true
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
     query = f"{base_query} {where_clause} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
     params.extend([limit, offset])
@@ -185,7 +189,8 @@ async def count_files_for_ngroup(
     active_ngroup_id: Optional[UUID],
     status: Optional[str] = None,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None    
+    end_date: Optional[date] = None,
+    file_ids: Optional[List[UUID]] = None 
 ) -> int:
     params: list[Any] = []
     join_conditions = ["JOIN collection c ON f.collection_id = c.id"]
@@ -200,6 +205,10 @@ async def count_files_for_ngroup(
         params.append(active_ngroup_id)
         where_conditions.append(f"c.ngroup_id = ${len(params)}")
     
+    if file_ids:
+        params.append(file_ids)
+        where_conditions.append(f"f.id = ANY(${len(params)}::uuid[])")
+
     if status:
         params.append(status)
         where_conditions.append(f"fs.status = ${len(params)}")
