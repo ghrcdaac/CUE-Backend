@@ -45,6 +45,15 @@ def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
     if not record:
         return None
     processed_record = dict(record)
+    collection_id = processed_record.get('collection_id')
+    if 'collection_name' in processed_record:
+        collection_name = processed_record.pop('collection_name')
+        if collection_id and collection_name:
+            processed_record['collection'] = {
+                'id': collection_id,
+                'name': collection_name
+            }
+
     scan_results = processed_record.get('scan_results')
     
     if scan_results and isinstance(scan_results, str):

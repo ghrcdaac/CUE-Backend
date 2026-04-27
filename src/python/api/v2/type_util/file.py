@@ -3,6 +3,10 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, date
 
+class FileCollectionResponse(BaseModel):
+    id: UUID
+    name: str
+
 class FileResponse(BaseModel):
     id: UUID
     name: str
@@ -18,6 +22,7 @@ class FileResponse(BaseModel):
     scan_end: Optional[datetime] = None
     egress_start: Optional[datetime] = None
     scan_results: Optional[List[Dict[str, Any]]] = None
+    collection: Optional[FileCollectionResponse] = None
 
     class Config:
         from_attributes = True
