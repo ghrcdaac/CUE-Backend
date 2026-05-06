@@ -33,6 +33,10 @@ INFECTED_FILE_THRESHOLD = int(os.getenv("INFECTED_FILE_THRESHOLD", "5"))
 # Defaults to 24 hours if not set
 BLOCKING_LOOKBACK_HOURS = int(os.getenv("BLOCKING_LOOKBACK_HOURS", "24"))
 
+# HDF Vulnerability Scanner configuration
+ENABLE_HDF5_SCANNER = os.environ.get("ENABLE_HDF5_SCANNER", "false").lower() == "true"
+HDF_VULNERABILITY_SCANNER_LAMBDA_NAME = os.environ.get("HDF_VULNERABILITY_SCANNER_LAMBDA_NAME")
+
 STATUS_MAP = {"Clean": "clean", "Infected": "infected"}
 DEFAULT_STATUS = "scan_failed"
 
@@ -105,6 +109,36 @@ async def invoke_file_transfer_lambda(file_id: UUID, collection_id: UUID):
         logger.error("lambda.invoke.failed", file_id=str(file_id), exc_info=True)
         raise
 
+async def invoke_hdf_vulnerability_scanner(file_id: UUID, collection_id: UUID):
+    """Asynchronously invokes the hdf_vulnerability_scanner lambda."""
+    if not HDF_VULNERABILITY_SCANNER_LAMBDA_NAME:
+        logger.error("lambda.invoke.failed.no_hdf_scanner_lambda_name_configured")
+        return
+
+    logger.info("lambda.invoke.hdf_scanner.started", file_id=str(file_id), lambda_name=HDF_VULNERABILITY_SCANNER_LAMBDA_NAME)
+    
+    payload = {
+        "Records": [{
+            "messageId": str(uuid4()),
+            "body": json.dumps({
+                "file_id": str(file_id),
+                "collection_id": str(collection_id)
+            })
+        }]
+    }
+
+    try:
+        await asyncio.to_thread(
+            lambda_client.invoke,
+            FunctionName=HDF_VULNERABILITY_SCANNER_LAMBDA_NAME,
+            InvocationType='Event',
+            Payload=json.dumps(payload)
+        )
+        logger.info("lambda.invoke.hdf_scanner.success", file_id=str(file_id))
+    except Exception:
+        logger.error("lambda.invoke.hdf_scanner.failed", file_id=str(file_id), exc_info=True)
+        raise
+
 async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool):
     """
     Processes a validated scan result, updates the database, triggers the next
@@ -131,10 +165,11 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
     collection_id = None
     final_status = "unknown"
     provider_id = None # Initialize provider_id
+    filename = None
     
     async with db_pool.acquire() as conn:
        
-        collection_id, final_status, provider_id = await process_scan_result_in_database(conn, file_id, update_data)
+        collection_id, final_status, provider_id, filename = await process_scan_result_in_database(conn, file_id, update_data)
 
       
         if final_status == 'infected' and provider_id:
@@ -158,10 +193,16 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
 
   
     if final_status == 'clean' and collection_id:
-        if TRANSFER_INVOCATION_MODE == "LAMBDA":
-            await invoke_file_transfer_lambda(file_id, collection_id)
-        else: # Default to SQS for safety
-            await send_clean_file_message_sqs(file_id, collection_id)
+        is_hdf5 = filename and (filename.lower().endswith('.h5') or filename.lower().endswith('.hdf5') or filename.lower().endswith('.he5'))
+        
+        if ENABLE_HDF5_SCANNER and is_hdf5:
+            logger.info("hdf_scanner.intercept", file_id=str(file_id), filename=filename)
+            await invoke_hdf_vulnerability_scanner(file_id, collection_id)
+        else:
+            if TRANSFER_INVOCATION_MODE == "LAMBDA":
+                await invoke_file_transfer_lambda(file_id, collection_id)
+            else: # Default to SQS for safety
+                await send_clean_file_message_sqs(file_id, collection_id)
             
     # elif final_status == 'infected':
     #     await publish_infected_file_event(message)

@@ -103,6 +103,23 @@ resource "aws_iam_role_policy" "file_transfer_policy" {
   policy = data.aws_iam_policy_document.file_transfer_policy.json
 }
 
+# --- Role for the HDF Vulnerability Scanner Lambda ---
+resource "aws_iam_role" "hdf_vulnerability_scanner_role"{
+  name               = "CUEHdfVulnerabilityScannerRole"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "hdf_vulnerability_scanner_vpc" {
+  role       = aws_iam_role.hdf_vulnerability_scanner_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "hdf_vulnerability_scanner_policy" {
+  name   = "CUEHdfVulnerabilityScannerPolicy" 
+  role   = aws_iam_role.hdf_vulnerability_scanner_role.id
+  policy = data.aws_iam_policy_document.hdf_vulnerability_scanner_policy.json
+}
+
 # --- Role for Update File Cost Lambda ---
 data "aws_iam_role" "cue_cost_explorer_role" {
  name = var.cue_cost_explorer_role_name
@@ -127,8 +144,8 @@ resource "aws_iam_role" "db_proxy_iam_role" {
 
 
 
-# This policy grants the Infected Logger Role permission to invoke the File Transfer Lambda.
-# It is required for the faster, direct invocation workflow.
+# This policy grants the Infected Logger Role permission to invoke the File Transfer Lambda
+# and the HDF Vulnerability Scanner Lambda. It is required for the faster, direct invocation workflow.
 resource "aws_iam_role_policy" "allow_invoke_file_transfer_lambda" {
   name = "AllowInvokeFileTransferLambda"
   role = aws_iam_role.infected_logger_role.id
@@ -140,7 +157,30 @@ resource "aws_iam_role_policy" "allow_invoke_file_transfer_lambda" {
         Effect   = "Allow",
         Action   = "lambda:InvokeFunction",
         # Use the input variable here, which will contain the alias ARN
-        Resource = var.file_transfer_lambda_arn
+        Resource = [
+          var.file_transfer_lambda_arn,
+          var.hdf_vulnerability_scanner_lambda_arn
+        ]
+      }
+    ]
+  })
+}
+
+# This policy grants the HDF Vulnerability Scanner permission to invoke the File Transfer Lambda
+# to continue the pipeline for clean files.
+resource "aws_iam_role_policy" "hdf_allow_invoke_file_transfer_lambda" {
+  name = "HDFAllowInvokeFileTransferLambda"
+  role = aws_iam_role.hdf_vulnerability_scanner_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Resource = [
+          var.file_transfer_lambda_arn
+        ]
       }
     ]
   })

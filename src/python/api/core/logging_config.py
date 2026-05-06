@@ -40,6 +40,7 @@ def setup_logging():
     # Configure the standard logging library to be a sink for structlog
     logging.basicConfig(
         format="%(message)s",
+        stream=sys.stdout,
         level=log_level,
         force=True
     )

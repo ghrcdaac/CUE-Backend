@@ -8,11 +8,11 @@ from datetime import timedelta
 logger = structlog.get_logger(__name__)
 
 
-async def process_scan_result_in_database(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> Tuple[Optional[UUID], str, Optional[UUID]]:
+async def process_scan_result_in_database(conn: Connection, file_id: UUID, update_data: Dict[str, Any]) -> Tuple[Optional[UUID], str, Optional[UUID], Optional[str]]:
     """
     Atomically updates the file_status with scan results and advances the status.
-    Returns the collection_id (if clean), the final status, and the provider_id
-    associated with the file's collection.
+    Returns the collection_id (if clean), the final status, the provider_id
+    associated with the file's collection, and the original filename.
     """
     target_status = update_data['status']
     
@@ -38,7 +38,8 @@ async def process_scan_result_in_database(conn: Connection, file_id: UUID, updat
         SELECT
             u.status,
             CASE WHEN u.status = 'clean' THEN f.collection_id ELSE NULL END as collection_id,
-            c.provider_id -- Select the provider_id from the collection
+            c.provider_id, -- Select the provider_id from the collection
+            f.name         -- Select the original filename for extension checking
         FROM updated u
         JOIN file f ON u.id = f.id
         JOIN collection c ON f.collection_id = c.id; -- Join collection to get its provider_id
@@ -56,14 +57,15 @@ async def process_scan_result_in_database(conn: Connection, file_id: UUID, updat
         if not result:
             logger.warning("db.scan_update.noop", file_id=str(file_id), target_status=target_status,
                            detail="Status not advanced or ID invalid.")
-            return None, "unchanged", None # Return None for provider_id
+            return None, "unchanged", None, None # Return None for provider_id and filename
 
         final_status = result['status']
         collection_id = result['collection_id']
         provider_id = result['provider_id'] # Get collection's provider_id
+        filename = result['name']
         
         logger.info("db.scan_update.success", file_id=str(file_id), final_status=final_status, collection_provider_id=str(provider_id) if provider_id else "N/A")
-        return collection_id, final_status, provider_id # Return collection's provider_id
+        return collection_id, final_status, provider_id, filename # Return filename
 
     except ForeignKeyViolationError as e:
         logger.warning(

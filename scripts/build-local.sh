@@ -51,7 +51,7 @@ echo "---"
 
 # --- Build Lambda Artifacts ---
 echo "STEP 1: Building Lambda artifacts..."
-# bash ./scripts/build.sh
+bash ./scripts/build.sh
 
 #--- Build and Push API Docker Image ---
 echo "STEP 2: Building and pushing API Docker image..."
@@ -92,6 +92,7 @@ export TF_VAR_cue_cost_explorer_role_name="${bamboo_CUE_COST_EXPLORER_ROLE_NAME}
 export TF_VAR_css_cost_explorer_role_arn="${bamboo_CSS_COST_EXPLORER_ROLE_ARN}"
 
 # S3 Buckets
+export TF_VAR_state_bucket="${bamboo_STATE_BUCKET}"
 export TF_VAR_cue_staging_bucket="${bamboo_S3_STAGING_BUCKET}"
 export TF_VAR_s3_upload_bucket="${bamboo_S3_UPLOAD_BUCKET}"
 export TF_VAR_cue_archive_bucket="${bamboo_S3_ARCHIVE_BUCKET}"
@@ -116,7 +117,7 @@ export TF_VAR_glue_availability_zone="${bamboo_GLUE_AVAILABILITY_ZONE}"
 export TF_VAR_glue_subnet_id="${bamboo_GLUE_SUBNET_ID}"
 export TF_VAR_cue_archive_database_name="${bamboo_CUE_ARCHIVE_DATABASE_NAME}"
 export TF_VAR_notification_schedule_minutes="${bamboo_NOTIFICATION_SCHEDULE_MINUTES}"
-
+export TF_VAR_cue_quarantine_bucket="${bamboo_S3_QUARANTINE_BUCKET}"
 
 # Terraform will automatically use the AWS_PROFILE exported at the top
 echo "Initializing Terraform..."

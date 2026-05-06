@@ -65,7 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "14"
+      REDEPLOY_TRIGGER = "15"
     }
   }
 
@@ -104,11 +104,13 @@ resource "aws_lambda_function" "cue_scan_event" {
       QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "9"
+      REDEPLOY_TRIGGER = "13"
       FILE_TRANSFER_LAMBDA_NAME = aws_lambda_alias.cue_file_transfer_live_alias.arn
       TRANSFER_INVOCATION_MODE  = "LAMBDA"  # This can take 2 values: LAMBDA or SQS
       INFECTED_FILE_THRESHOLD = "5"
       BLOCKING_LOOKBACK_HOURS = "1"
+      ENABLE_HDF5_SCANNER = "true"
+      HDF_VULNERABILITY_SCANNER_LAMBDA_NAME = aws_lambda_alias.hdf_vulnerability_scanner_live_alias.arn
     }
   }
 }
@@ -141,9 +143,9 @@ resource "aws_lambda_function" "notification_manager" {
       LOG_LEVEL        = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "9"
+      REDEPLOY_TRIGGER = "10"
       NOTIFICATION_SCHEDULE_MINUTES = tostring(var.notification_schedule_minutes)
-      INFECTED_FILE_THRESHOLD       = "5"
+      INFECTED_FILE_THRESHOLD       = "6"
       BLOCKING_LOOKBACK_HOURS = "1"
     }
   }
@@ -219,7 +221,52 @@ resource  "aws_lambda_function" "cue_file_transfer"{
       DB_SSL_MODE    = "require"
       ENV = "production"
       VERIFY_CHECKSUM_ON_TRANSFER = "true"
-      REDEPLOY_TRIGGER = "15"
+      REDEPLOY_TRIGGER = "17"
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = var.security_group_ids
+  }
+}
+
+resource "aws_s3_object" "hdf_vulnerability_scanner_zip" {
+  bucket = var.state_bucket
+  key    = "deployments/hdf-vulnerability-scanner-lambda.zip"
+  source = "../artifacts/hdf-vulnerability-scanner-lambda.zip"
+  etag   = filemd5("../artifacts/hdf-vulnerability-scanner-lambda.zip")
+}
+
+# 7. HDF Vulnerability Scanner Lambda
+resource "aws_lambda_function" "hdf_vulnerability_scanner" {
+  function_name    = "cue_hdf_vulnerability_scanner"
+  role             = var.hdf_vulnerability_scanner_role_arn
+  handler          = "handler.handler"
+  runtime          = "python3.13"
+  architectures    = ["x86_64"]
+  
+  s3_bucket        = aws_s3_object.hdf_vulnerability_scanner_zip.bucket
+  s3_key           = aws_s3_object.hdf_vulnerability_scanner_zip.key
+  source_code_hash = filebase64sha256("../artifacts/hdf-vulnerability-scanner-lambda.zip")
+  timeout          = 180
+  memory_size      = 512
+  publish          = true
+
+  environment {
+    variables = {
+      PG_USER                   = var.db_user
+      PG_HOST                   = var.db_proxy_host
+      PG_DB                     = var.db_database
+      PG_PASS                   = var.db_password
+      PG_PORT                   = var.db_port
+      STAGING_BUCKET            = var.cue_staging_bucket
+      QUARANTINE_BUCKET         = var.cue_quarantine_bucket
+      FILE_TRANSFER_LAMBDA_NAME = aws_lambda_alias.cue_file_transfer_live_alias.arn
+      LOG_LEVEL                 = "INFO"
+      DB_SSL_MODE               = "require"
+      ENV                       = "production"
+      REDEPLOY_TRIGGER = "4"
     }
   }
 
@@ -354,6 +401,28 @@ resource "aws_lambda_provisioned_concurrency_config" "file_transfer_pc" {
   provisioned_concurrent_executions = 1
   qualifier                         = aws_lambda_alias.cue_file_transfer_live_alias.name
    depends_on = [aws_lambda_alias.cue_file_transfer_live_alias]
+
+  provisioner "local-exec" {
+    command = "aws lambda wait function-updated --function-name ${self.function_name} --qualifier ${self.qualifier}"
+  }
+}
+
+resource "aws_lambda_alias" "hdf_vulnerability_scanner_live_alias" {
+  name             = var.app_env
+  description      = "The ${var.app_env} alias for the hdf vulnerability scanner function"
+  function_name    = aws_lambda_function.hdf_vulnerability_scanner.function_name
+  function_version = aws_lambda_function.hdf_vulnerability_scanner.version
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_lambda_provisioned_concurrency_config" "hdf_vulnerability_scanner_pc" {
+  function_name                     = aws_lambda_function.hdf_vulnerability_scanner.function_name
+  provisioned_concurrent_executions = 1
+  qualifier                         = aws_lambda_alias.hdf_vulnerability_scanner_live_alias.name
+  depends_on                        = [aws_lambda_alias.hdf_vulnerability_scanner_live_alias]
 
   provisioner "local-exec" {
     command = "aws lambda wait function-updated --function-name ${self.function_name} --qualifier ${self.qualifier}"

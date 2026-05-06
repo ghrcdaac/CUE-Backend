@@ -71,6 +71,11 @@ variable "s3_upload_bucket" {
   type        = string
 }
 
+variable "state_bucket" {
+  description = "S3 bucket for terraform state and lambda deployments."
+  type        = string
+}
+
 variable "frontend_url" {
   description = "The root URL of the CUE dashboard frontend, used for email links."
   type        = string
@@ -155,6 +160,11 @@ variable "file_transfer_role_arn" {
   type        = string
 }
 
+variable "hdf_vulnerability_scanner_role_arn" {
+  description = "IAM Role ARN for the HDF Vulnerability Scanner Lambda."
+  type        = string
+}
+
 variable "notification_manager_scheduler_role_arn"{
   description = "IAM Role ARN for infected notification scheduler role"
   type        = string
@@ -180,6 +190,11 @@ variable "cue_archive_results_bucket" {
 # --- File Transfer ---
 variable cue_staging_bucket {
   description = "The S3 bucket for clean scanned files" 
+  type        = string
+}
+
+variable "cue_quarantine_bucket" {
+  description = "The S3 bucket where infected files are quarantined."
   type        = string
 }
 

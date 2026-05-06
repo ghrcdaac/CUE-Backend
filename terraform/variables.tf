@@ -89,9 +89,19 @@ variable "cue_staging_bucket" {
   type        = string
 }
 
+variable "cue_quarantine_bucket" {
+  description = "The name of the S3 bucket where infected files are quarantined."
+  type        = string
+}
+
 # --- API & ECR ---
 variable "api_id" {
   description = "The ID of the pre-existing API Gateway."
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "The name of the bucket used for tf state and lambda deployments."
   type        = string
 }
 

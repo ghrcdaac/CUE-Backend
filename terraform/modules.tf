@@ -14,9 +14,11 @@ module "iam_role" {
   cue_archive_bucket           = var.cue_archive_bucket
   cue_archive_results_bucket   = var.cue_archive_results_bucket
   cue_staging_bucket           = var.cue_staging_bucket
+  cue_quarantine_bucket        = var.cue_quarantine_bucket
   cue_cost_explorer_role_name  = var.cue_cost_explorer_role_name
   css_cost_explorer_role_arn   = var.css_cost_explorer_role_arn
   file_transfer_lambda_arn = module.lambda_functions.cue_file_transfer_lambda_alias_arn
+  hdf_vulnerability_scanner_lambda_arn = module.lambda_functions.hdf_vulnerability_scanner_lambda_alias_arn
 }
 
 module "lambda_functions" {
@@ -33,6 +35,8 @@ module "lambda_functions" {
   s3_upload_bucket               = var.s3_upload_bucket
   cue_archive_results_bucket     = var.cue_archive_results_bucket
   cue_staging_bucket             = var.cue_staging_bucket
+  cue_quarantine_bucket          = var.cue_quarantine_bucket
+  state_bucket                   = var.state_bucket
 
   # --- Pass in V2 Keycloak variables ---
   keycloak_issuer                = var.keycloak_issuer
@@ -48,6 +52,7 @@ module "lambda_functions" {
   email_sender_role_arn          = module.iam_role.email_sender_role_arn
   process_athena_query_role_arn  = module.iam_role.process_athena_query_role_arn
   file_transfer_role_arn         = module.iam_role.file_transfer_role_arn  
+  hdf_vulnerability_scanner_role_arn = module.iam_role.hdf_vulnerability_scanner_role_arn
   cost_update_role_arn           = module.iam_role.cost_update_role_arn
   css_cost_explorer_role_arn     = var.css_cost_explorer_role_arn
   notification_manager_scheduler_role_arn = module.iam_role.notification_manager_scheduler_role_arn

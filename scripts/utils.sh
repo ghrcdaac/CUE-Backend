@@ -47,6 +47,13 @@ build_common_dependencies() {
         echo "ERROR: pip install failed inside the Docker container."
         exit 1
     fi
+    
+    echo "Size before stripping out boto3 and botocore:"
+    du -sh temp/common_deps/botocore temp/common_deps/boto3
+
+    echo "Stripping out boto3 and botocore to drastically reduce lambda deployment size..."
+    rm -rf "${common_deps_dir}/boto3"* "${common_deps_dir}/botocore"* "${common_deps_dir}/s3transfer"* "${common_deps_dir}/urllib3"*
+
     # Create a 'core' package in the build layer and copy ONLY the db.py file into it.
     echo "Copying shared core database utility..."
     local core_target_dir="${common_deps_dir}/core"
@@ -89,8 +96,26 @@ install_lambda() {
         fi
     fi
 
+    # Install Lambda-specific requirements if they exist
+    if [ -f "${source_path}/requirements.txt" ]; then
+        echo "Installing specific requirements for ${lambda_name_arg}..."
+        docker run --rm \
+            --entrypoint "/bin/sh" \
+            -v "${source_path}/requirements.txt:/var/task/requirements.txt:ro" \
+            -v "${build_dir}:/var/task/package_out" \
+            public.ecr.aws/lambda/python:3.13 \
+            -c "pip install -r /var/task/requirements.txt -t /var/task/package_out"
+            
+        echo "Stripping out boto3 and botocore again from specific requirements..."
+        rm -rf "${build_dir}/boto3"* "${build_dir}/botocore"* "${build_dir}/s3transfer"* "${build_dir}/urllib3"*
+    fi
+
     # 3. Zip the complete package.
     cd "${build_dir}" || exit
+    
+    # Remove the old zip so we don't accidentally merge old ghost files into the new zip
+    rm -f "${DIR}/artifacts/${lambda_name_arg}-lambda.zip"
+    
     zip -r -q "${DIR}/artifacts/${lambda_name_arg}-lambda.zip" .
     cd "${DIR}" || exit
     

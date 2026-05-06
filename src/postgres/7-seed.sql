@@ -175,8 +175,21 @@ INSERT INTO ngroup (id, short_name, long_name) VALUES ('f47ac10b-58cc-4372-a567-
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('f2c806ff-0362-41c8-b67e-1c589ef5b728', 'EDPub', 'Earthdata Pub');
 INSERT INTO ngroup (id, short_name, long_name) VALUES('0259fb55-1146-4461-ade2-57504e0c3ace', 'ESDIS Security', 'ESDIS Security');
 INSERT INTO ngroup (id, short_name, long_name) VALUES ('1675f412-7468-4cd4-adb0-20b08236079b', 'CUE', 'Cloud Upload Environment');
+INSERT INTO ngroup (id, short_name, long_name) VALUES ('7b3e5a1c-9d2f-4e8a-b1c0-d3e4f5a6b7c8', 'OB', 'OB DAAC');
 
+--  Add users from the ESDIS Security GROUP to OB DAAC
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+SELECT cueuser_id, '7b3e5a1c-9d2f-4e8a-b1c0-d3e4f5a6b7c8'
+FROM cueuser_ngroup
+WHERE ngroup_id = '0259fb55-1146-4461-ade2-57504e0c3ace'
+ON CONFLICT DO NOTHING;
 
+--  Add users with the Admin ROLE to OB DAAC
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+SELECT cueuser_id, '7b3e5a1c-9d2f-4e8a-b1c0-d3e4f5a6b7c8'
+FROM cueuser_role
+WHERE role_id = 'c924d0d3-55af-49f3-bec1-d7fd4ed475e2'
+ON CONFLICT DO NOTHING;
 -- Cueuser
 
 -- SIT - NVD0831b3b0-b071-70ca-9c91-7c0994e79aaf
@@ -228,6 +241,8 @@ INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', 'f2c806ff-0362-41c8-b67e-1c589ef5b728');
 INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
    VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '1675f412-7468-4cd4-adb0-20b08236079b');
+INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id)
+   VALUES ('6259ccb9-a4a3-4136-9822-56d87988d24b', '7b3e5a1c-9d2f-4e8a-b1c0-d3e4f5a6b7c8');
 
 INSERT INTO user_application (user_id, email, name, username, status, ngroup_id, justification, account_type)
     VALUES (

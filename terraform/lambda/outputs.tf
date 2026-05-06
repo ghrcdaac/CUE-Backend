@@ -46,3 +46,8 @@ output "cue_file_transfer_lambda_alias_arn" {
   description = "The ARN of the CUE file transfer Lambda function's alias."
   value       = aws_lambda_alias.cue_file_transfer_live_alias.arn
 }
+
+output "hdf_vulnerability_scanner_lambda_alias_arn" {
+  description = "The ARN of the CUE HDF vulnerability scanner Lambda function's alias."
+  value       = aws_lambda_alias.hdf_vulnerability_scanner_live_alias.arn
+}

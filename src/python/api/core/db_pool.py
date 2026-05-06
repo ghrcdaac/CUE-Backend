@@ -30,7 +30,8 @@ async def get_database_pool():
             ssl=os.getenv("DB_SSL_MODE", "require"),
             min_size=1,
             max_size=3,
-            timeout=8
+            timeout=8,
+            max_inactive_connection_lifetime=15
         )
         logger.info("db.pool.initialized_successfully")
         return db_pool

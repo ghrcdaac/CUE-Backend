@@ -130,6 +130,19 @@ data "aws_iam_policy_document" "file_transfer_policy" {
   }
 }
 
+data "aws_iam_policy_document" "hdf_vulnerability_scanner_policy" {
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:GetObject","s3:GetObjectTagging","s3:ListBucket"]
+    resources = ["arn:aws:s3:::${var.cue_staging_bucket}", "arn:aws:s3:::${var.cue_staging_bucket}/*" ]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:PutObject","s3:PutObjectTagging","s3:PutObjectAcl"]
+    resources = ["arn:aws:s3:::${var.cue_quarantine_bucket}", "arn:aws:s3:::${var.cue_quarantine_bucket}/*"]
+  }
+}
+
 data "aws_iam_policy_document" "cost_update_policy"{
   statement{
     effect    = "Allow"

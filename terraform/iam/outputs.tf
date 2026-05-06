@@ -47,3 +47,8 @@ output "cost_update_role_arn" {
   description = "ARN for the Cost Update Lambda Role"
   value = data.aws_iam_role.cue_cost_explorer_role.arn
 }
+
+output "hdf_vulnerability_scanner_role_arn" {
+  description = "ARN for the HDF Vulnerability Scanner Lambda Role"
+  value       = aws_iam_role.hdf_vulnerability_scanner_role.arn
+}

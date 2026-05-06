@@ -77,7 +77,6 @@ async def get_infected_scheduled_file_details(conn: Connection) -> Optional[Dict
             LIMIT 500 -- Safety valve for large backlogs
         ),
         FileDetailsGroupedByCollectionNgroup AS (
-            -- Aggregate file details, linking through collection to get ngroup and provider
             SELECT
                 c.ngroup_id,
                 ng.short_name AS ngroup_short_name,
@@ -88,10 +87,10 @@ async def get_infected_scheduled_file_details(conn: Connection) -> Optional[Dict
                         'uploader_name', rif.uploader_name,
                         'collection_name', c.short_name,
                         'scan_result', scan_res ->> 'result',
-                        'virusName', scan_res -> 'scanResults' -> 0 -> 'virusName',
+                        'virusName', COALESCE(scan_res -> 'scanResults' -> 0 -> 'virusName', scan_res -> 'virusName'),
                         'date_scanned', scan_res ->> 'dateScanned',
                         'uploader_ip', rif.scan_results -> 0 ->> 'ip_address'
-                    ) ORDER BY rif.scan_end ASC -- Order files within the group if desired
+                    ) ORDER BY rif.scan_end ASC
                 ) AS file_details_json
             FROM RelevantInfectedFiles rif
             JOIN collection c ON rif.collection_id = c.id
@@ -99,6 +98,9 @@ async def get_infected_scheduled_file_details(conn: Connection) -> Optional[Dict
             JOIN LATERAL jsonb_array_elements(
                 CASE
                     WHEN jsonb_typeof(rif.scan_results) = 'array' THEN rif.scan_results
+                    WHEN jsonb_typeof(rif.scan_results) = 'object' THEN 
+                        -- Wraps single event objects in an array safely
+                        jsonb_build_array(rif.scan_results) 
                     ELSE '[]'::jsonb
                 END
             ) AS scan_res ON TRUE
