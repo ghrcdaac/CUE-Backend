@@ -27,6 +27,8 @@ class PaginatedFileResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    next_last_time: Optional[datetime] = None
+    next_last_id: Optional[UUID] = None
 
 class FileUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1)
@@ -39,5 +41,7 @@ class FileListRequest(BaseModel):
     status: Optional[str] = None
     page: int = 1
     page_size: int = 50
+    last_time: Optional[datetime] = Field(None, description="Upload timestamp from the last file in the previous page.")
+    last_id: Optional[UUID] = Field(None, description="File ID from the last file in the previous page.")
     start_date: Optional[date] = Field(None, description="Filter for files uploaded on or after this date (YYYY-MM-DD).")
     end_date: Optional[date] = Field(None, description="Filter for files uploaded on or before this date (YYYY-MM-DD).")

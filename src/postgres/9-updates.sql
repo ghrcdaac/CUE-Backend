@@ -134,3 +134,6 @@ COMMIT;
 -- CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
 -- ON file_status(status)
 -- WHERE (status = 'infected' AND notification_sent_at IS NULL);
+
+CREATE INDEX IF NOT EXISTS idx_file_status_upload_time_id
+ON file_status(upload_time DESC, id DESC);

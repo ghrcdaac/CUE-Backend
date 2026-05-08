@@ -11,7 +11,7 @@ import hashlib
 from v2.database_util import file as file_db
 from v2.database_util import api_keys as api_key_db
 from v2.type_util.file import FileUpdateRequest, FileListRequest 
-from datetime import date
+from datetime import date, datetime
 
 logger = structlog.get_logger(__name__)
 
@@ -96,10 +96,14 @@ async def list_files(
     page_size: int,
     status: Optional[str] = None,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None
+    end_date: Optional[date] = None,
+    last_time: Optional[datetime] = None,
+    last_id: Optional[UUID] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Retrieves a paginated list of files for a specific ngroup, optionally by status."""
-    offset = (page - 1) * page_size
+    if (last_time is None) != (last_id is None):
+        raise ValueError("Both last_time and last_id must be provided for keyset pagination.")
+
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
     async with request.state.pool.acquire() as conn:
@@ -117,7 +121,8 @@ async def list_files(
             requesting_user=user_dump,
             active_ngroup_id=ngroup_id_to_filter,
             limit=page_size,
-            offset=offset,
+            last_time=last_time,
+            last_id=last_id,
             status=status,
             start_date=start_date,
             end_date=end_date
@@ -156,11 +161,13 @@ async def list_files_by_api_key(
                 raise FileAccessError("File not found or you do not have permission to access it.")
             return [_process_record(dict(file_details))], 1
         else:
-            offset = (body.page - 1) * body.page_size
+            if (body.last_time is None) != (body.last_id is None):
+                raise ValueError("Both last_time and last_id must be provided for keyset pagination.")
+
             proxy_user_for_db = {"roles": ["proxy"]}
             total = await file_db.count_files_for_ngroup(conn, proxy_user_for_db, ngroup_id_to_filter, body.status, body.start_date, body.end_date)
             files = await file_db.list_files_paginated(
-                conn, proxy_user_for_db, ngroup_id_to_filter, body.page_size, offset, body.status, body.start_date, body.end_date
+                conn, proxy_user_for_db, ngroup_id_to_filter, body.page_size, body.last_time, body.last_id, body.status, body.start_date, body.end_date
             )
             return [_process_record(f) for f in files], total
 

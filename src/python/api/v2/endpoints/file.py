@@ -10,7 +10,7 @@ from v2.type_util.auth import AuthUser
 from v2.utils import file as file_utils
 from v2.type_util.file import FileResponse, PaginatedFileResponse, FileUpdateRequest, FileListRequest 
 from v2.utils.authorization import check_user_access_to_file
-from datetime import date
+from datetime import date, datetime
 
 router = APIRouter(prefix="/files", tags=["V2 - Files"])
 
@@ -22,6 +22,8 @@ async def list_files_endpoint(
     status: Optional[str] = Query(None, description="Filter files by status (e.g., 'infected', 'clean')."),
     page: int = Query(1, ge=1, description="Page number."),
     page_size: int = Query(50, ge=1, le=100, description="Items per page."),
+    last_time: Optional[datetime] = Query(None, description="Upload timestamp from the last file in the previous page."),
+    last_id: Optional[UUID] = Query(None, description="File ID from the last file in the previous page."),
     start_date: Optional[date] = Query(None, description="Filter for files uploaded on or after this date (YYYY-MM-DD)."),
     end_date: Optional[date] = Query(None, description="Filter for files uploaded on or before this date (YYYY-MM-DD).")
 ):
@@ -30,10 +32,27 @@ async def list_files_endpoint(
     Optionally filters the list by file status.
     """
     try:
+        if (last_time is None) != (last_id is None):
+            raise HTTPException(
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail="Both last_time and last_id must be provided for keyset pagination."
+            )
+
         items, total = await file_utils.list_files(
-            request, user, active_ngroup_id, page, page_size, status, start_date, end_date
+            request, user, active_ngroup_id, page, page_size, status, start_date, end_date, last_time, last_id
         )
-        return PaginatedFileResponse(items=items, total=total, page=page, page_size=page_size)
+        next_last_time = items[-1]["upload_time"] if len(items) == page_size else None
+        next_last_id = items[-1]["id"] if len(items) == page_size else None
+        return PaginatedFileResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            next_last_time=next_last_time,
+            next_last_id=next_last_id
+        )
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -48,7 +67,19 @@ async def list_files_by_api_key_endpoint(
     """
     try:
         items, total = await file_utils.list_files_by_api_key(request, body)
-        return PaginatedFileResponse(items=items, total=total, page=body.page, page_size=body.page_size)
+        has_possible_next_page = body.file_id is None and len(items) == body.page_size
+        next_last_time = items[-1]["upload_time"] if has_possible_next_page else None
+        next_last_id = items[-1]["id"] if has_possible_next_page else None
+        return PaginatedFileResponse(
+            items=items,
+            total=total,
+            page=body.page,
+            page_size=body.page_size,
+            next_last_time=next_last_time,
+            next_last_id=next_last_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code= status.HTTP_400_BAD_REQUEST, detail=str(e))
     except (file_utils.InvalidApiKeyError, file_utils.ApiKeyScopeError) as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except file_utils.FileAccessError as e:

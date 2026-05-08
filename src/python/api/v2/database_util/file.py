@@ -133,7 +133,8 @@ async def list_files_paginated(
     requesting_user: Dict[str, Any],
     active_ngroup_id: Optional[UUID],
     limit: int,
-    offset: int,
+    last_time: Optional[datetime] = None,
+    last_id: Optional[UUID] = None,
     status: Optional[str] = None,
     start_date: Optional[date] = None, 
     end_date: Optional[date] = None    
@@ -172,10 +173,14 @@ async def list_files_paginated(
         # To include the entire end day, we check for less than the start of the next day
         where_conditions.append(f"fs.upload_time < (${len(params)}::date + 1)")
 
+    if last_time is not None and last_id is not None:
+        params.extend([last_time, last_id])
+        where_conditions.append(f"(fs.upload_time, f.id) < (${len(params) - 1}, ${len(params)})")
+
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
-    query = f"{base_query} {where_clause} ORDER BY fs.upload_time DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
-    params.extend([limit, offset])
-    
+    query = f"{base_query} {where_clause} ORDER BY fs.upload_time DESC, f.id DESC LIMIT ${len(params) + 1}"
+    params.append(limit)
+
     return await conn.fetch(query, *params)
 
 
