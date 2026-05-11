@@ -250,6 +250,51 @@ async def find_files_by_name(
     return await conn.fetch(query, *params)
 
 
+async def search_files_by_name(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID],
+    partial_file_name: str,
+    limit: int,
+    offset: int,
+    status: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Searches files by partial name using pg_trgm-backed ILIKE matching."""
+    user_roles = set(requesting_user.get('roles', []))
+    params: list[Any] = [f"%{partial_file_name}%"]
+
+    base_query = """
+        SELECT
+            f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, c.short_name AS collection_name,
+            f.collection_path, f.checksum,
+            fs.status, fs.upload_time, fs.scan_results, fs.egress_start
+        FROM file f
+        JOIN collection c ON f.collection_id = c.id
+        LEFT JOIN file_status fs ON f.id = fs.id
+    """
+    where_conditions = ["f.name != 'pending_upload'", "f.name ILIKE $1"]
+
+    if active_ngroup_id:
+        params.append(active_ngroup_id)
+        where_conditions.append(f"c.ngroup_id = ${len(params)}")
+    else:
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            where_conditions.append("FALSE")
+
+    if status:
+        params.append(status)
+        where_conditions.append(f"fs.status = ${len(params)}")
+
+    query = f"""
+        {base_query}
+        WHERE {' AND '.join(where_conditions)}
+        ORDER BY similarity(f.name, ${len(params) + 1}) DESC, fs.upload_time DESC
+        LIMIT ${len(params) + 2} OFFSET ${len(params) + 3};
+    """
+    params.extend([partial_file_name, limit, offset])
+    return await conn.fetch(query, *params)
+
+
 async def delete_file(conn: Connection, file_id: UUID) -> bool:
     """Deletes a file record. Assumes ON DELETE CASCADE is set for related tables."""
     try:

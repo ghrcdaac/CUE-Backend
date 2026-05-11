@@ -146,6 +146,68 @@ async def test_find_files_by_name_endpoint(test_client, test_admin_user, seed_fi
 
 
 @pytest.mark.asyncio
+async def test_search_files_by_name_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test search files by partial name endpoint - success."""
+    test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
+    headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
+    file_id1 = uuid.uuid4()
+    file_id2 = uuid.uuid4()
+    file_id3 = uuid.uuid4()
+    await seed_file(file_id1, "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(file_id2, "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+    await seed_file(file_id3, "metadata.json", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    params = {"q": "gran", "page": 1, "page_size": 10}
+
+    response = test_client.get("/v2/files/search", headers=headers, params=params)
+    response_json = response.json()
+
+    assert response.status_code == 200
+    assert response_json["has_more"] is False
+    assert response_json["page"] == 1
+    assert response_json["page_size"] == 10
+    assert {str(file_id1), str(file_id2)} == {file["id"] for file in response_json["items"]}
+    assert str(file_id3) not in [file["id"] for file in response_json["items"]]
+    assert all(file["collection"]["id"] == file["collection_id"] for file in response_json["items"])
+    assert all(file["collection"]["name"] for file in response_json["items"])
+
+
+@pytest.mark.asyncio
+async def test_search_files_by_name_endpoint_has_more(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test search files by partial name endpoint returns has_more."""
+    test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
+    headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
+    await seed_file(uuid.uuid4(), "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(uuid.uuid4(), "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+    params = {"q": "granule", "page": 1, "page_size": 1}
+
+    response = test_client.get("/v2/files/search", headers=headers, params=params)
+    response_json = response.json()
+
+    assert response.status_code == 200
+    assert len(response_json["items"]) == 1
+    assert response_json["has_more"] is True
+
+
+@pytest.mark.asyncio
+async def test_search_files_by_name_endpoint_with_status(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
+    """Test search files by partial name endpoint with status filter."""
+    test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
+    headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
+    distributed_file_id = uuid.uuid4()
+    clean_file_id = uuid.uuid4()
+    await seed_file(distributed_file_id, "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(clean_file_id, "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+    params = {"q": "granule", "status": "distributed", "page": 1, "page_size": 10}
+
+    response = test_client.get("/v2/files/search", headers=headers, params=params)
+    response_json = response.json()
+
+    assert response.status_code == 200
+    assert response_json["has_more"] is False
+    assert response_json["items"][0]["id"] == str(distributed_file_id)
+
+
+@pytest.mark.asyncio
 async def test_get_file_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
     """Ttest get file endpoint - success."""
     test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))

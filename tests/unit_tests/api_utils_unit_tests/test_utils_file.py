@@ -7,7 +7,8 @@ import os
 
 from app.v2.utils.file import (FileNotFoundError, InvalidApiKeyError, ApiKeyScopeError,
                                ApiKeyConfigurationError, FileAccessError, get_file_details,
-                               find_files_by_name, list_files, list_files_by_api_key, update_file, delete_file)
+                               find_files_by_name, search_files_by_name, list_files,
+                               list_files_by_api_key, update_file, delete_file)
 from app.v2.utils.api_keys import create_api_key
 from app.v2.type_util.file import FileUpdateRequest, FileListRequest 
 from app.v2.type_util.api_keys import ApiKeyCreateRequest
@@ -42,6 +43,53 @@ async def test_find_files_by_name(make_request, seed_file, test_admin_user):
     file = await find_files_by_name(req, test_admin_user, None, mock_file["file"]["name"])
     assert file_id == file[0]["id"]
     assert mock_file["file"]["name"] == file[0]["name"]
+
+@pytest.mark.asyncio
+async def test_search_files_by_name(make_request, seed_file, test_admin_user):
+    """Test searching files by partial name."""
+    req = make_request()
+    file_id1 = uuid.uuid4()
+    file_id2 = uuid.uuid4()
+    file_id3 = uuid.uuid4()
+    await seed_file(file_id1, "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(file_id2, "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+    await seed_file(file_id3, "metadata.json", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+
+    files, has_more = await search_files_by_name(req, test_admin_user, None, "gran", 1, 15)
+
+    assert has_more is False
+    assert {file_id1, file_id2} == {f["id"] for f in files}
+    assert file_id3 not in [f["id"] for f in files]
+    assert all(file["collection"]["id"] == file["collection_id"] for file in files)
+    assert all(file["collection"]["name"] for file in files)
+
+@pytest.mark.asyncio
+async def test_search_files_by_name_has_more(make_request, seed_file, test_admin_user):
+    """Test searching files fetches one extra row to detect more results."""
+    req = make_request()
+    file_id1 = uuid.uuid4()
+    file_id2 = uuid.uuid4()
+    await seed_file(file_id1, "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(file_id2, "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+
+    files, has_more = await search_files_by_name(req, test_admin_user, None, "granule", 1, 1)
+
+    assert len(files) == 1
+    assert has_more is True
+
+@pytest.mark.asyncio
+async def test_search_files_by_name_with_status(make_request, seed_file, test_admin_user):
+    """Test searching files by partial name and status."""
+    req = make_request()
+    distributed_file_id = uuid.uuid4()
+    clean_file_id = uuid.uuid4()
+    await seed_file(distributed_file_id, "granule-alpha.nc", 'application/octet-stream', test_admin_user.id, 1024, status="distributed")
+    await seed_file(clean_file_id, "granule-beta.nc", 'application/octet-stream', test_admin_user.id, 1024, status="clean")
+
+    files, has_more = await search_files_by_name(req, test_admin_user, None, "granule", 1, 15, "distributed")
+
+    assert has_more is False
+    assert files[0]["id"] == distributed_file_id
 
 @pytest.mark.asyncio
 async def test_list_files(make_request, seed_file, test_admin_user):

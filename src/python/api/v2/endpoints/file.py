@@ -8,7 +8,7 @@ from typing import List, Optional
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import file as file_utils
-from v2.type_util.file import FileResponse, PaginatedFileResponse, FileUpdateRequest, FileListRequest 
+from v2.type_util.file import FileResponse, PaginatedFileResponse, FileSearchResponse, FileUpdateRequest, FileListRequest 
 from v2.utils.authorization import check_user_access_to_file
 from datetime import date
 
@@ -73,6 +73,25 @@ async def find_files_by_name_endpoint(
         return await file_utils.find_files_by_name(request, user, active_ngroup_id, name)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error finding files: {e}")
+
+@router.get("/search", response_model=FileSearchResponse, dependencies=[Depends(require_privilege("file:read"))])
+async def search_files_by_name_endpoint(
+    request: Request,
+    q: str = Query(..., min_length=1, description="Partial file name to search for."),
+    file_status: Optional[str] = Query(None, alias="status", description="Optional file status filter."),
+    page: int = Query(1, ge=1, description="Page number."),
+    page_size: int = Query(10, ge=1, le=100, description="Items per page."),
+    user: AuthUser = Depends(get_current_user),
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+):
+    """Searches file records by partial name within the selected ngroup."""
+    try:
+        items, has_more = await file_utils.search_files_by_name(
+            request, user, active_ngroup_id, q, page, page_size, file_status
+        )
+        return FileSearchResponse(items=items, has_more=has_more, page=page, page_size=page_size)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error searching files: {e}")
 
 @router.get("/{file_id}", response_model=FileResponse, dependencies=[Depends(require_privilege("file:read"))])
 async def get_file_endpoint(
