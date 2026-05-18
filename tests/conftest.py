@@ -311,6 +311,7 @@ def mock_boto3_client(mocker, test_ngroup_id, test_collection, test_provider, te
         assert Bucket and Bucket.strip() != ""
         assert Key and Key.strip() != ""
         assert UploadId and UploadId != ""
+        assert MultipartUpload.get("Parts")
         return {
             'Location': 'mock_location',
             'Bucket': Bucket,
@@ -330,6 +331,15 @@ def mock_boto3_client(mocker, test_ngroup_id, test_collection, test_provider, te
             'RequestCharged': 'requester'
         }
     s3.complete_multipart_upload.side_effect = complete_multipart_upload
+
+    def upload_part(Bucket="", Key="", UploadId="", PartNumber=0, Body=b"", *args, **kwargs):
+        assert Bucket and Bucket.strip() != ""
+        assert Key and Key.strip() != ""
+        assert UploadId and UploadId != ""
+        assert PartNumber > 0
+        assert Body
+        return {"ETag": f"mock_etag_{PartNumber}"}
+    s3.upload_part.side_effect = upload_part
 
     def abort_multipart_upload(Bucket="", Key="", UploadId="", *args, **kwargs):
         assert Bucket and Bucket.strip() != ""

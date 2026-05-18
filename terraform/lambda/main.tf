@@ -66,6 +66,13 @@ resource "aws_lambda_function" "cue_api" {
       ENV = "production"
       REDEPLOY_TRIGGER = "13"
       MAN_TRANSFER_LAMBDA_NAME = aws_lambda_function.cue_manual_file_transfer.function_name
+      FILE_REPORT_BUCKET                   = var.file_report_bucket
+      FILE_REPORT_PRESIGNED_URL_EXPIRATION = "604800"
+      FILE_REPORT_S3_PART_SIZE             = "16777216"
+      SENDER_EMAIL                         = var.sender_email
+      SES_REGION                           = var.ses_region
+      SES_SOURCE_ARN                       = var.ses_source_arn
+      SES_CONFIGURATION_SET_NAME           = var.ses_configuration_set_name
     }
   }
 

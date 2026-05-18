@@ -17,6 +17,7 @@ module "iam_role" {
   cue_cost_explorer_role_name  = var.cue_cost_explorer_role_name
   css_cost_explorer_role_arn   = var.css_cost_explorer_role_arn
   file_transfer_lambda_arn = module.lambda_functions.cue_file_transfer_lambda_alias_arn
+  file_report_bucket           = var.file_report_bucket
 }
 
 module "lambda_functions" {
@@ -33,6 +34,7 @@ module "lambda_functions" {
   s3_upload_bucket               = var.s3_upload_bucket
   cue_archive_results_bucket     = var.cue_archive_results_bucket
   cue_staging_bucket             = var.cue_staging_bucket
+  file_report_bucket             = var.file_report_bucket
 
   # --- Pass in V2 Keycloak variables ---
   keycloak_issuer                = var.keycloak_issuer

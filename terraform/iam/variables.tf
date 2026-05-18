@@ -38,6 +38,11 @@ variable "cue_staging_bucket" {
   type        = string
 }
 
+variable "file_report_bucket" {
+  description = "The S3 bucket for generated file PDF reports."
+  type        = string
+}
+
 variable "cue_cost_explorer_role_name" {
   description = "IAM Role name for the external cost explorer role"
   type        = string

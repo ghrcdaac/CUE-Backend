@@ -58,6 +58,20 @@ data "aws_iam_policy_document" "api_lambda_policy" {
     resources = ["arn:aws:s3:::${var.s3_upload_bucket}/*"]
   }
   statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:PutObjectTagging"
+    ]
+    resources = ["arn:aws:s3:::${var.file_report_bucket}/*"]
+  }
+  statement {
+    effect    = "Allow"
+    actions   = ["ses:SendEmail", "ses:SendRawEmail"]
+    resources = ["*"]
+  }
+  statement {
     effect    = "Allow"
     actions   = ["events:PutEvents"]
     resources = ["arn:aws:events:${var.region}:${var.account_id}:event-bus/cue-application-bus"]

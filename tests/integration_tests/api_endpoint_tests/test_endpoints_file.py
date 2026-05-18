@@ -144,6 +144,24 @@ async def test_find_files_by_name_endpoint(test_client, test_admin_user, seed_fi
     assert response_json[0]["id"] == str(file_id) 
     assert response_json[0]["name"] ==  "file1"
 
+@pytest.mark.asyncio
+async def test_request_file_status_pdf_report_endpoint(test_client, test_admin_user, make_jwt, mock_boto3_client):
+    """Test file status PDF report request endpoint starts a background task."""
+    test_admin_user_jwt = make_jwt(sub=str(test_admin_user.id))
+    headers = {"Authorization": f"Bearer {test_admin_user_jwt}", "x-active-ngroup-id":test_admin_user.active_ngroup_id}
+    payload = {"status": "distributed"}
+
+    response = test_client.post("/v2/reports/status-pdf", headers=headers, json=payload)
+    response_json = response.json()
+
+    assert response.status_code == 200
+    assert response_json["status"] == "distributed"
+    assert "email" in response_json["message"]
+    assert mock_boto3_client("s3").create_multipart_upload.called
+    assert mock_boto3_client("s3").upload_part.called
+    assert mock_boto3_client("s3").complete_multipart_upload.called
+    assert mock_boto3_client("ses").send_email.called
+
 
 @pytest.mark.asyncio
 async def test_get_file_endpoint(test_client, test_admin_user, seed_file, make_jwt, mock_boto3_client):
