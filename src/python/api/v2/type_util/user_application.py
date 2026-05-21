@@ -54,6 +54,7 @@ class UserApplicationResponse(BaseModel):
     account_type: AccountType
     edpub_id: Optional[str] = None
     status: ApplicationStatus
+    is_spam: bool = False
     applied: datetime
 
     class Config:

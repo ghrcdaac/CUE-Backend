@@ -29,6 +29,8 @@ async def submit_user_application(
         new_app = await app_utils.submit_application(request, application_data, claims.id)
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
+        if "spam" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This email address has been marked as spam and is not permitted to submit applications.")
         if "already exists" in str(e):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A pending application for this user already exists.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -89,10 +91,14 @@ async def approve_application_endpoint(
 
 
 @router.post("/{application_id}/reject", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("application:approve"))])
-async def reject_application_endpoint(request: Request, application_id: UUID):
+async def reject_application_endpoint(
+    request: Request,
+    application_id: UUID,
+    mark_as_spam: bool = Query(False, description="Mark the applicant email as spam and block future applications from it.")
+):
     """Rejects a pending user application."""
     try:
-        rejected_app = await app_utils.reject_application(request, application_id)
+        rejected_app = await app_utils.reject_application(request, application_id, mark_as_spam=mark_as_spam)
         return UserApplicationResponse.model_validate(rejected_app)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

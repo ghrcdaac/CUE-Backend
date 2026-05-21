@@ -238,3 +238,32 @@ async def test_reject_application (make_request, make_user_application_create):
     assert application_id == rejected_app["id"]
     assert app["status"] != rejected_app["status"] 
     assert rejected_app["status"] == ApplicationStatus.REJECTED
+
+@pytest.mark.asyncio
+async def test_reject_application_as_spam_hides_from_list(make_request, make_user_application_create, test_admin_user, test_ngroup_id):
+    """Test rejecting an application as spam hides it from dashboard listings."""
+    req = make_request()
+
+    mock_user_application = make_user_application_create("spam_user@test.com", "spam_user", "spam_username", "test", "daac")
+    user_id = uuid.uuid4()
+
+    app = await submit_application(req, mock_user_application, user_id)
+    rejected_app = await reject_application(req, app["id"], mark_as_spam=True)
+    all_apps = await list_applications(req, test_admin_user, str(test_ngroup_id))
+
+    assert rejected_app["status"] == ApplicationStatus.REJECTED
+    assert rejected_app["is_spam"] is True
+    assert app["id"] not in [a["id"] for a in all_apps]
+
+@pytest.mark.asyncio
+async def test_spam_email_cannot_submit_future_application(make_request, make_user_application_create):
+    """Test an email marked as spam cannot submit another application."""
+    req = make_request()
+
+    spam_application = make_user_application_create("blocked_user@test.com", "blocked_user", "blocked_username", "test", "daac")
+    app = await submit_application(req, spam_application, uuid.uuid4())
+    await reject_application(req, app["id"], mark_as_spam=True)
+
+    future_application = make_user_application_create("Blocked_User@Test.com", "blocked_user2", "blocked_username2", "test", "daac")
+    with pytest.raises(ValueError, match="spam"):
+        await submit_application(req, future_application, uuid.uuid4())
