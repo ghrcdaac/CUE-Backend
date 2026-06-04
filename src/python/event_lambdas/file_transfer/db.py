@@ -22,6 +22,7 @@ async def fetch_batch_transfer_details(conn: Connection, file_ids: List[UUID]) -
             f.collection_path,
             f.size_bytes, 
             f.collection_id,
+            c.short_name as collection_name,
             f.type,
             e.path as egress_path,
             e.config as egress_config
@@ -43,7 +44,9 @@ async def fetch_batch_transfer_details(conn: Connection, file_ids: List[UUID]) -
                     "checksum": record["checksum"],
                     "collection_path": record["collection_path"],
                     "size_bytes": record["size_bytes"],
-                    "collection_id": record["collection_id"]
+                    "collection_id": record["collection_id"],
+                    "collection_name": record["collection_name"],
+                    "type": record["type"]
                 },
                 "egress": {
                     "path": record["egress_path"],

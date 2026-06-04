@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 
 from app.event_lambdas.file_transfer.logic import (
     parse_sqs_message, process_messages, verify_staging_object_sha256,
-    copy_file_to_dest, add_tags_to_dest, batch_transfer_and_validate,
+    copy_file_to_dest, add_tags_to_dest, batch_transfer_and_validate, build_destination_key,
     update_database_records)
 from app.event_lambdas.file_transfer.db import fetch_batch_transfer_details
 
@@ -104,6 +104,32 @@ async def test_add_tags_to_dest(mock_boto3_client):
     dest_key = "mock_dest_key"
     file_id = uuid.uuid4()
     await add_tags_to_dest(dest_bucket, dest_key, file_id)
+
+def test_build_destination_key_preserves_existing_path_behavior():
+    """Destination key excludes collection name unless configured."""
+    egress_config = {"destination_path": "my-data"}
+    file_info = {
+        "name": "mock_file.txt",
+        "collection_name": "test_collection",
+        "collection_path": "nested/path"
+    }
+
+    assert build_destination_key(egress_config, file_info) == "my-data/nested/path/mock_file.txt"
+    assert build_destination_key({"destination_path": "/data/new_data"}, file_info) == "/data/new_data/nested/path/mock_file.txt"
+
+def test_build_destination_key_adds_collection_subfolder_when_configured():
+    """Destination key includes collection name when create_collection_subfolder is true."""
+    egress_config = {
+        "destination_path": "my-data",
+        "create_collection_subfolder": "true"
+    }
+    file_info = {
+        "name": "mock_file.txt",
+        "collection_name": "test_collection",
+        "collection_path": None
+    }
+
+    assert build_destination_key(egress_config, file_info) == "my-data/test_collection/mock_file.txt"
 
 
 # @pytest.mark.asyncio

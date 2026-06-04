@@ -4,6 +4,7 @@ from botocore.exceptions import ClientError
 from uuid import UUID
 import json
 import os
+import posixpath
 from typing import Dict, List, Any, Optional, Tuple
 import structlog
 import asyncpg
@@ -113,6 +114,16 @@ async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str, file_
                 logger.error("s3.copy.failed.persistent_error", src_key=src_key, dest_key=dest_key, error_code=e.response['Error']['Code'])
                 raise
 
+def build_destination_key(egress_config: Dict[str, Any], file_info: Dict[str, Any]) -> str:
+    """Builds the destination S3 key from egress config and file metadata."""
+    path_parts = [egress_config.get("destination_path")]
+
+    if str(egress_config.get("create_collection_subfolder", "")).lower() == "true":
+        path_parts.append(file_info.get("collection_name"))
+
+    path_parts.extend([file_info.get("collection_path"), file_info["name"]])
+    return posixpath.join(*[str(p) for p in path_parts if p])
+
 async def add_tags_to_dest(dest_bucket: str, dest_key: str, file_id: str):
     """Applies the file_id and checksum as S3 object tags to the destination file."""
     
@@ -156,15 +167,15 @@ async def batch_transfer_and_validate(
 
         file_info = details["file_info"]
         egress = details["egress"]
-        dest_bucket = egress.get("config", {}).get("bucket")
+        egress_config = egress.get("config", {})
+        dest_bucket = egress_config.get("bucket")
 
         if not dest_bucket:
             logger.error("batch_transfer.failed.no_destination_bucket", file_id=str(file_id), message_id=message_id)
             hard_failures.append({"itemIdentifier": message_id})
             continue
 
-        path_parts = [p for p in [egress.get("config", {}).get("destination_path"), file_info.get("collection_path"), file_info["name"]] if p]
-        dest_key = os.path.join(*path_parts)
+        dest_key = build_destination_key(egress_config, file_info)
 
         try:
             await copy_file_to_dest(str(file_id), dest_bucket, dest_key, file_info)
