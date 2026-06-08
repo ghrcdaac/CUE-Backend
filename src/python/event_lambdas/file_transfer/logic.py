@@ -117,9 +117,14 @@ async def copy_file_to_dest(src_key: str, dest_bucket: str, dest_key: str, file_
 def build_destination_key(egress_config: Dict[str, Any], file_info: Dict[str, Any]) -> str:
     """Builds the destination S3 key from egress config and file metadata."""
     path_parts = [egress_config.get("destination_path")]
+    create_collection_subfolder = str(egress_config.get("create_collection_subfolder", "")).lower() == "true"
+    prefix_username = str(egress_config.get("prefix_username", "")).lower() == "true"
 
-    if str(egress_config.get("create_collection_subfolder", "")).lower() == "true":
+    if create_collection_subfolder:
         path_parts.append(file_info.get("collection_name"))
+
+    if prefix_username:
+        path_parts.append(file_info.get("uploader_username"))
 
     path_parts.extend([file_info.get("collection_path"), file_info["name"]])
     return posixpath.join(*[str(p) for p in path_parts if p])

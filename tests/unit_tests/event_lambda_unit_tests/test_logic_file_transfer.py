@@ -111,6 +111,7 @@ def test_build_destination_key_preserves_existing_path_behavior():
     file_info = {
         "name": "mock_file.txt",
         "collection_name": "test_collection",
+        "uploader_username": "test_user",
         "collection_path": "nested/path"
     }
 
@@ -126,10 +127,42 @@ def test_build_destination_key_adds_collection_subfolder_when_configured():
     file_info = {
         "name": "mock_file.txt",
         "collection_name": "test_collection",
+        "uploader_username": "test_user",
         "collection_path": None
     }
 
     assert build_destination_key(egress_config, file_info) == "my-data/test_collection/mock_file.txt"
+
+def test_build_destination_key_adds_username_subfolder_when_configured():
+    """Destination key includes collection and username before collection_path."""
+    egress_config = {
+        "destination_path": "my-data",
+        "create_collection_subfolder": "true",
+        "prefix_username": "true"
+    }
+    file_info = {
+        "name": "mock_file.txt",
+        "collection_name": "test_collection",
+        "uploader_username": "test_user",
+        "collection_path": "target/path"
+    }
+
+    assert build_destination_key(egress_config, file_info) == "my-data/test_collection/test_user/target/path/mock_file.txt"
+
+def test_build_destination_key_username_prefix_implies_collection_subfolder():
+    """Username folder is placed inside the collection folder."""
+    egress_config = {
+        "destination_path": "my-data",
+        "prefix_username": "true"
+    }
+    file_info = {
+        "name": "mock_file.txt",
+        "collection_name": "test_collection",
+        "uploader_username": "test_user",
+        "collection_path": None
+    }
+
+    assert build_destination_key(egress_config, file_info) == "my-data/test_collection/test_user/mock_file.txt"
 
 
 # @pytest.mark.asyncio

@@ -23,11 +23,13 @@ async def fetch_batch_transfer_details(conn: Connection, file_ids: List[UUID]) -
             f.size_bytes, 
             f.collection_id,
             c.short_name as collection_name,
+            u.cueusername as uploader_username,
             f.type,
             e.path as egress_path,
             e.config as egress_config
         FROM file f
         JOIN collection c ON f.collection_id = c.id
+        JOIN cueuser u ON f.cueuser_uploaded = u.id
         JOIN egress e ON c.egress_id = e.id
         WHERE f.id = ANY($1::UUID[])
           AND f.name != 'pending_upload' -- Ensure file has a real name
@@ -46,6 +48,7 @@ async def fetch_batch_transfer_details(conn: Connection, file_ids: List[UUID]) -
                     "size_bytes": record["size_bytes"],
                     "collection_id": record["collection_id"],
                     "collection_name": record["collection_name"],
+                    "uploader_username": record["uploader_username"],
                     "type": record["type"]
                 },
                 "egress": {
