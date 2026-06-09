@@ -7,7 +7,8 @@ from v2.type_util.auth import AuthUser
 from v2.utils import file_metrics as metrics_utils
 from v2.type_util.file_metrics import (
     MetricsQueryParameters, MetricsSummaryResponse, DailyMetric, OverallMetric, StatusCount,
-    CostSummaryResponse, PaginatedCostByCollectionResponse, PaginatedCostByFileResponse
+    CostSummaryResponse, PaginatedCostByCollectionResponse, PaginatedCostByFileResponse,
+    GlobalMetricsQueryParameters, GlobalMetricsSummaryResponse, GlobalHistoricalMetric
 )
 
 router = APIRouter(prefix="/file-metrics", tags=["V2 - File Metrics"])
@@ -111,4 +112,69 @@ async def get_cost_by_file_endpoint(
     """Retrieves paginated cost by file for the selected ngroup, calculated in-app."""
     items, total = await metrics_utils.get_cost_by_file(request, user, active_ngroup_id, filters, page, page_size)
     return PaginatedCostByFileResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/global-summary", response_model=GlobalMetricsSummaryResponse, dependencies=[Depends(require_privilege("metrics:read"))])
+async def get_global_summary_endpoint(
+    request: Request,
+    user: AuthUser = Depends(get_current_user),
+    filters: GlobalMetricsQueryParameters = Depends()
+):
+    """Retrieves the global file metrics summary (grand totals + DAAC-wise breakdown)."""
+    allowed_groups = {
+        UUID("1675f412-7468-4cd4-adb0-20b08236079b"), # CUE
+        UUID("0259fb55-1146-4461-ade2-57504e0c3ace")  # ESDIS Security
+    }
+    
+    # Check user groups
+    user_groups = set()
+    for ng in user.ngroups:
+        try:
+            if isinstance(ng, dict) and 'id' in ng:
+                user_groups.add(UUID(str(ng['id'])))
+            else:
+                user_groups.add(UUID(str(ng)))
+        except (ValueError, TypeError):
+            continue
+
+    if not user_groups.intersection(allowed_groups):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Only users belonging to CUE or ESDIS Security groups are authorized to view global metrics."
+        )
+
+    summary_data = await metrics_utils.get_global_summary(request, filters)
+    return GlobalMetricsSummaryResponse.model_validate(summary_data)
+
+
+@router.get("/global-historical", response_model=List[GlobalHistoricalMetric], dependencies=[Depends(require_privilege("metrics:read"))])
+async def get_global_historical_endpoint(
+    request: Request,
+    user: AuthUser = Depends(get_current_user),
+    filters: GlobalMetricsQueryParameters = Depends()
+):
+    """Retrieves the global monthly historical file metrics."""
+    allowed_groups = {
+        UUID("1675f412-7468-4cd4-adb0-20b08236079b"), # CUE
+        UUID("0259fb55-1146-4461-ade2-57504e0c3ace")  # ESDIS Security
+    }
+    
+    # Check user groups
+    user_groups = set()
+    for ng in user.ngroups:
+        try:
+            if isinstance(ng, dict) and 'id' in ng:
+                user_groups.add(UUID(str(ng['id'])))
+            else:
+                user_groups.add(UUID(str(ng)))
+        except (ValueError, TypeError):
+            continue
+
+    if not user_groups.intersection(allowed_groups):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Only users belonging to CUE or ESDIS Security groups are authorized to view global metrics."
+        )
+
+    return await metrics_utils.get_global_historical(request, filters)
 

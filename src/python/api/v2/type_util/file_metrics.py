@@ -71,3 +71,34 @@ class PaginatedCostByFileResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class GlobalMetricsQueryParameters(BaseModel):
+    """Optional query parameters for filtering global metric endpoints."""
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    ngroup_id: Optional[UUID] = None
+
+
+class NgroupSummaryItem(BaseModel):
+    ngroup_id: UUID
+    ngroup_name: str
+    total_distributed_files: int
+    total_size_bytes: int
+
+
+class GlobalSummaryMetrics(BaseModel):
+    total_distributed_files: int
+    total_size_bytes: int
+
+
+class GlobalMetricsSummaryResponse(BaseModel):
+    total: GlobalSummaryMetrics
+    by_ngroup: List[NgroupSummaryItem]
+
+
+class GlobalHistoricalMetric(BaseModel):
+    month: str
+    ngroup_name: str
+    distributed_file_count: int
+    total_size_bytes: int

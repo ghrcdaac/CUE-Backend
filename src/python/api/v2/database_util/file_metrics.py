@@ -106,3 +106,109 @@ async def count_file_metrics(conn: Connection, requesting_user: Dict[str, Any], 
     from_clause, where_clause, params = _build_metrics_query_parts(requesting_user, active_ngroup_id, filters)
     count = await conn.fetchval(f"SELECT COUNT(f.id) {from_clause} {where_clause}", *params)
     return int(count) if count is not None else 0
+
+
+async def get_global_summary_total(conn: Connection, filters: Dict[str, Any]) -> Dict[str, Any]:
+    params = []
+    where_clauses = ["fs.status = 'distributed'"]
+
+    if filters.get("start_date"):
+        params.append(filters["start_date"])
+        where_clauses.append(f"fs.upload_time >= ${len(params)}::date")
+
+    if filters.get("end_date"):
+        params.append(filters["end_date"])
+        where_clauses.append(f"fs.upload_time < (${len(params)}::date + interval '1 day')")
+
+    if filters.get("ngroup_id"):
+        params.append(filters["ngroup_id"])
+        where_clauses.append(f"c.ngroup_id = ${len(params)}")
+
+    where_str = " AND ".join(where_clauses)
+    query = f"""
+        SELECT 
+            COUNT(f.id) AS total_distributed_files,
+            COALESCE(SUM(f.size_bytes), 0) AS total_size_bytes
+        FROM file f
+        JOIN file_status fs ON f.id = fs.id
+        JOIN collection c ON f.collection_id = c.id
+        WHERE {where_str};
+    """
+    row = await conn.fetchrow(query, *params)
+    return {
+        "total_distributed_files": row["total_distributed_files"] if row else 0,
+        "total_size_bytes": row["total_size_bytes"] if row else 0
+    }
+
+
+async def get_global_summary_by_ngroup(conn: Connection, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    params = []
+    where_clauses = ["fs.status = 'distributed'"]
+
+    if filters.get("start_date"):
+        params.append(filters["start_date"])
+        where_clauses.append(f"fs.upload_time >= ${len(params)}::date")
+
+    if filters.get("end_date"):
+        params.append(filters["end_date"])
+        where_clauses.append(f"fs.upload_time < (${len(params)}::date + interval '1 day')")
+
+    if filters.get("ngroup_id"):
+        params.append(filters["ngroup_id"])
+        where_clauses.append(f"c.ngroup_id = ${len(params)}")
+
+    where_str = " AND ".join(where_clauses)
+    query = f"""
+        SELECT 
+            ng.id AS ngroup_id,
+            ng.short_name AS ngroup_name,
+            COUNT(f.id) AS total_distributed_files,
+            COALESCE(SUM(f.size_bytes), 0) AS total_size_bytes
+        FROM file f
+        JOIN file_status fs ON f.id = fs.id
+        JOIN collection c ON f.collection_id = c.id
+        JOIN ngroup ng ON c.ngroup_id = ng.id
+        WHERE {where_str}
+        GROUP BY ng.id, ng.short_name;
+    """
+    return await conn.fetch(query, *params)
+
+
+async def get_global_historical(conn: Connection, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    params = []
+    where_clauses = ["fs.status = 'distributed'"]
+
+    if filters.get("start_date"):
+        params.append(filters["start_date"])
+        where_clauses.append(f"fs.upload_time >= ${len(params)}::date")
+    else:
+        where_clauses.append("fs.upload_time >= DATE_TRUNC('month', NOW() - INTERVAL '7 months')")
+
+    if filters.get("end_date"):
+        params.append(filters["end_date"])
+        where_clauses.append(f"fs.upload_time < (${len(params)}::date + interval '1 day')")
+
+    if filters.get("ngroup_id"):
+        params.append(filters["ngroup_id"])
+        where_clauses.append(f"c.ngroup_id = ${len(params)}")
+
+    where_str = " AND ".join(where_clauses)
+    query = f"""
+        SELECT 
+            TO_CHAR(DATE_TRUNC('month', fs.upload_time), 'YYYY-MM') AS month,
+            ng.short_name AS ngroup_name,
+            COUNT(f.id) AS distributed_file_count,
+            COALESCE(SUM(f.size_bytes), 0) AS total_size_bytes
+        FROM file f
+        JOIN file_status fs ON f.id = fs.id
+        JOIN collection c ON f.collection_id = c.id
+        JOIN ngroup ng ON c.ngroup_id = ng.id
+        WHERE {where_str}
+        GROUP BY 
+            DATE_TRUNC('month', fs.upload_time),
+            ng.short_name
+        ORDER BY 
+            month DESC, 
+            total_size_bytes DESC;
+    """
+    return await conn.fetch(query, *params)
