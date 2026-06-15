@@ -31,7 +31,7 @@ async def submit_user_application(
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
         if "spam" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This email address has been marked as spam and is not permitted to submit applications.")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This email address is not permitted to submit applications. If you believe this is an error, please contact your Group Representative.")
         if "already exists" in str(e):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A pending application for this user already exists.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
