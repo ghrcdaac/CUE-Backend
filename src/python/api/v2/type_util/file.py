@@ -3,6 +3,10 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, date
 
+class FileCollectionResponse(BaseModel):
+    id: UUID
+    name: str
+
 class FileResponse(BaseModel):
     id: UUID
     name: str
@@ -10,6 +14,7 @@ class FileResponse(BaseModel):
     cueuser_uploaded: UUID
     size_bytes: int
     collection_id: UUID
+    collection: Optional[FileCollectionResponse] = None
     collection_path: Optional[str] = None
     checksum: str
     status: Optional[str] = None
@@ -25,6 +30,12 @@ class FileResponse(BaseModel):
 class PaginatedFileResponse(BaseModel):
     items: List[FileResponse]
     total: int
+    page: int
+    page_size: int
+
+class FileSearchResponse(BaseModel):
+    items: List[FileResponse]
+    has_more: bool
     page: int
     page_size: int
 
