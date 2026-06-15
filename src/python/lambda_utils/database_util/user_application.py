@@ -28,6 +28,7 @@ async def get_user_application_from_db(conn: Connection, params: Tuple) -> List:
         SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
         WHERE id = $1
+          AND is_spam = FALSE
     """
     query_params: List[Any] = [user_application_id]
     if ngroup_id:
@@ -91,11 +92,12 @@ async def list_user_applications_from_db(conn: Connection, params: Optional[Tupl
     select_query = """
         SELECT id, email, name, applied, username, status, ngroup_id, provider_id, justification, account_type, edpub_id
         FROM user_application
+        WHERE is_spam = FALSE
     """
     query_params: List[Any] = []
     # ngroup_id is the first and only element, if it exists.
     if params and params[0] is not None: # Safely check if params exists and ngroup exists
-        select_query += " WHERE ngroup_id = $1"
+        select_query += " AND ngroup_id = $1"
         query_params.append(params[0])
 
     try:

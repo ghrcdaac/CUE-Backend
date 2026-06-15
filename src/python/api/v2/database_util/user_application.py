@@ -14,6 +14,9 @@ logger = structlog.get_logger(__name__)
 
 async def create_user_application(conn: Connection, app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
     """Inserts a new user_application record into the database, including the user's Keycloak ID."""
+    if await is_email_spam(conn, str(app_data.email)):
+        raise ValueError("This email has been marked as spam.")
+
     query = """
         INSERT INTO user_application 
             (user_id, email, name, username, justification, ngroup_id, account_type, provider_id, edpub_id, status)
@@ -30,6 +33,18 @@ async def get_user_application_by_id(conn: Connection, application_id: UUID) -> 
     """Retrieves a single user application by its ID."""
     row = await conn.fetchrow("SELECT * FROM user_application WHERE id = $1", application_id)
     return dict(row) if row else None
+
+async def is_email_spam(conn: Connection, email: str) -> bool:
+    """Checks whether an email has previously been marked as spam."""
+    query = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM user_application
+            WHERE LOWER(email) = LOWER($1)
+              AND is_spam = TRUE
+        );
+    """
+    return await conn.fetchval(query, email)
 
 async def get_pending_application_by_user_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, Any]]:
     """
@@ -56,7 +71,7 @@ async def list_user_applications(
 
     user_roles = set(requesting_user.get('roles', []))
     params = []
-    conditions = []
+    conditions = ["is_spam = FALSE"]
     
     # For non-privileged users, explicitly hide applications for the 'ESDIS Security' group.
     # This ensures a DAAC Manager can never see them.
@@ -87,11 +102,35 @@ async def list_user_applications(
     records = await conn.fetch(query, *params)
     return [dict(record) for record in records]
 
-async def update_application_status(conn: Connection, application_id: UUID, status: ApplicationStatus) -> Optional[Dict[str, Any]]:
+async def update_application_status(
+    conn: Connection,
+    application_id: UUID,
+    status: ApplicationStatus,
+    is_spam: Optional[bool] = None
+) -> Optional[Dict[str, Any]]:
     """Updates the status of a user application."""
-    query = "UPDATE user_application SET status = $1 WHERE id = $2 RETURNING *;"
-    row = await conn.fetchrow(query, status.value, application_id)
+    if is_spam is None:
+        query = "UPDATE user_application SET status = $1 WHERE id = $2 RETURNING *;"
+        row = await conn.fetchrow(query, status.value, application_id)
+    else:
+        query = "UPDATE user_application SET status = $1, is_spam = $2 WHERE id = $3 RETURNING *;"
+        row = await conn.fetchrow(query, status.value, is_spam, application_id)
     return dict(row) if row else None
+
+async def mark_email_as_spam(conn: Connection, email: str) -> List[Dict[str, Any]]:
+    """Marks all applications from an email as spam and rejects pending ones."""
+    query = """
+        UPDATE user_application
+        SET is_spam = TRUE,
+            status = CASE
+                WHEN status = 'pending' THEN 'rejected'::application_status
+                ELSE status
+            END
+        WHERE LOWER(email) = LOWER($1)
+        RETURNING *;
+    """
+    records = await conn.fetch(query, email)
+    return [dict(record) for record in records]
 
 async def delete_user_application(conn: Connection, application_id: UUID) -> bool:
     """Deletes a user application by its ID."""
