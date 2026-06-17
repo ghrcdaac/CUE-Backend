@@ -45,6 +45,7 @@ BEGIN
             provider_id UUID NULL,  -- Allow NULL initially
             justification TEXT NOT NULL,
             account_type account_type, -- added account type
+            is_spam BOOLEAN NOT NULL DEFAULT FALSE,
             PRIMARY KEY (id),
             FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
             FOREIGN KEY (provider_id) REFERENCES provider(id) -- Add FK constraint
@@ -57,6 +58,13 @@ ALTER COLUMN applied TYPE TIMESTAMPTZ;
 
 ALTER TABLE user_application
 ADD COLUMN IF NOT EXISTS edpub_id VARCHAR;
+
+ALTER TABLE user_application
+ADD COLUMN IF NOT EXISTS is_spam BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_user_application_email_spam
+ON user_application(LOWER(email))
+WHERE (is_spam = TRUE);
 
 ALTER TABLE cueuser_auth
 ALTER COLUMN last_login TYPE TIMESTAMPTZ;

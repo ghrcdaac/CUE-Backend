@@ -149,17 +149,23 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
         logger.error("application.approval.failed", application_id=str(application_id), exc_info=True)
         raise e
 
-async def reject_application(request: Request, application_id: UUID) -> Dict[str, Any]:
-    """Rejects a pending user application."""
-    logger.info("application.rejection.started", application_id=str(application_id))
+async def reject_application(request: Request, application_id: UUID, mark_as_spam: bool = False) -> Dict[str, Any]:
+    """Rejects a pending user application, optionally blocking future requests from the email."""
+    logger.info("application.rejection.started", application_id=str(application_id), mark_as_spam=mark_as_spam)
     async with request.state.pool.acquire() as conn:
         app_data = await app_db.get_user_application_by_id(conn, application_id)
         if not app_data:
             raise ApplicationNotFoundError("Application not found.")
         if app_data['status'] != 'pending':
             raise ApplicationInvalidStateError(f"Application is not in 'pending' state. Current status: {app_data['status']}")
-            
-        updated_app = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
-    logger.info("application.rejection.completed", application_id=str(application_id))
+
+        if mark_as_spam:
+            async with conn.transaction():
+                updated_apps = await app_db.mark_email_as_spam(conn, app_data['email'])
+            updated_app = next((app for app in updated_apps if app['id'] == application_id), None)
+        else:
+            updated_app = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
+
+    logger.info("application.rejection.completed", application_id=str(application_id), marked_as_spam=mark_as_spam)
     return updated_app
 
