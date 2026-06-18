@@ -194,8 +194,9 @@ async def process_scan_result(message: ScanResultMessage, db_pool: asyncpg.Pool)
   
     if final_status == 'clean' and collection_id:
         is_hdf5 = filename and (filename.lower().endswith('.h5') or filename.lower().endswith('.hdf5') or filename.lower().endswith('.he5'))
+        is_zip = filename and filename.lower().endswith('.zip')
         
-        if ENABLE_HDF5_SCANNER and is_hdf5:
+        if ENABLE_HDF5_SCANNER and (is_hdf5 or is_zip):
             logger.info("hdf_scanner.intercept", file_id=str(file_id), filename=filename)
             await invoke_hdf_vulnerability_scanner(file_id, collection_id)
         else:
