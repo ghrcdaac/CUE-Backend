@@ -145,6 +145,7 @@ class _StreamingPdfReport:
             "50 770 Td",
             f"({_pdf_escape(self.title)} - Page {page_number}) Tj"
         ])
+        text_y = 770
         
         # Horizontal line below title
         draw_commands.extend([
@@ -155,29 +156,27 @@ class _StreamingPdfReport:
             "S"
         ])
         
-        current_y = 758
-        
         if is_first_page:
             # Metadata block (Regular, 9pt, 13pt spacing)
             text_commands.extend([
                 "/F1 9 Tf",
                 "0 -18 Td"
             ])
-            current_y -= 18
+            text_y -= 18
             for line in self.metadata:
                 text_commands.extend([
                     f"({_pdf_escape(line)}) Tj",
                     "0 -13 Td"
                 ])
-                current_y -= 13
+                text_y -= 13
             text_commands.append("0 -5 Td")
-            current_y -= 5
+            text_y -= 5
         else:
             text_commands.extend([
                 "/F2 9 Tf",
                 "0 -22 Td"
             ])
-            current_y -= 22
+            text_y -= 22
             
         # Table Headers (Bold, 9pt)
         text_commands.append("/F2 9 Tf")
@@ -195,8 +194,8 @@ class _StreamingPdfReport:
         draw_commands.extend([
             "0.5 w",
             "0.5 G",
-            f"50 {current_y - 4} m",
-            f"562 {current_y - 4} l",
+            f"50 {text_y - 4} m",
+            f"562 {text_y - 4} l",
             "S"
         ])
         
@@ -206,7 +205,7 @@ class _StreamingPdfReport:
             "/F1 8 Tf",
             f"{dx} -14 Td"
         ])
-        current_y -= 14
+        text_y -= 14
         current_x = 50
         
         for row in self.current_rows:
@@ -226,7 +225,7 @@ class _StreamingPdfReport:
                 
             dx = 50 - current_x
             text_commands.append(f"{dx} -12 Td")
-            current_y -= 12
+            text_y -= 12
             current_x = 50
             
         if total_rows is not None:
@@ -234,8 +233,8 @@ class _StreamingPdfReport:
             draw_commands.extend([
                 "0.5 w",
                 "0.5 G",
-                f"50 {current_y - 4} m",
-                f"562 {current_y - 4} l",
+                f"50 {text_y + 8} m",
+                f"562 {text_y + 8} l",
                 "S"
             ])
             text_commands.extend([
