@@ -86,30 +86,41 @@ class _S3MultipartWriter:
         self.parts.append({"ETag": response["ETag"], "PartNumber": self.part_number})
         self.part_number += 1
 
+def _truncate_text(value: Any, max_chars: int) -> str:
+    text = "" if value is None else str(value)
+    if len(text) > max_chars:
+        return text[:max_chars - 3] + "..."
+    return text
+
 class _StreamingPdfReport:
     """Streams a simple PDF document while keeping only PDF object offsets in memory."""
-    def __init__(self, title: str, writer: _S3MultipartWriter):
+    def __init__(self, title: str, writer: _S3MultipartWriter, metadata: List[str], table_headers: List[str]):
         self.title = title
         self.writer = writer
+        self.metadata = metadata
+        self.table_headers = table_headers
         self.offsets: Dict[int, int] = {}
         self.page_object_ids: list[int] = []
-        self.rows_per_page = 42
-        self.current_lines: list[str] = []
-        self.next_object_id = 3
+        self.current_rows: list[List[str]] = []
+        self.next_object_id = 4  # Since font_id=1, pages_id=2, bold_font_id=3
         self.font_id = 1
         self.pages_id = 2
+        self.bold_font_id = 3
 
     def start(self):
         self._write(b"%PDF-1.4\n")
         self._write_object(self.font_id, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        self._write_object(self.bold_font_id, b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
 
-    def add_line(self, line: str):
-        self.current_lines.append(line)
-        if len(self.current_lines) >= self.rows_per_page:
+    def add_row(self, row: List[str]):
+        self.current_rows.append(row)
+        is_first_page = (len(self.page_object_ids) == 0)
+        capacity = 47 if is_first_page else 54
+        if len(self.current_rows) >= capacity:
             self._flush_page()
 
-    def finish(self):
-        self._flush_page()
+    def finish(self, total_rows: int):
+        self._flush_page(total_rows=total_rows)
         kids = " ".join(f"{page_id} 0 R" for page_id in self.page_object_ids)
         pages_object = f"<< /Type /Pages /Kids [{kids}] /Count {len(self.page_object_ids)} >>".encode("utf-8")
         self._write_object(self.pages_id, pages_object)
@@ -117,31 +128,140 @@ class _StreamingPdfReport:
         self._write_object(catalog_id, f"<< /Type /Catalog /Pages {self.pages_id} 0 R >>".encode("utf-8"))
         self._write_xref(catalog_id)
 
-    def _flush_page(self):
-        if not self.current_lines and self.page_object_ids:
+    def _flush_page(self, total_rows: Optional[int] = None):
+        if not self.current_rows and self.page_object_ids and total_rows is None:
             return
+        
         page_number = len(self.page_object_ids) + 1
-        text_commands = ["BT", "/F1 10 Tf", "50 770 Td", f"({_pdf_escape(self.title)} - Page {page_number}) Tj"]
-        text_commands.extend(["0 -18 Td", f"({_pdf_escape('-' * min(len(self.title), 80))}) Tj"])
-        for line in self.current_lines:
-            for wrapped_line in textwrap.wrap(line, width=110) or [""]:
-                text_commands.extend(["0 -14 Td", f"({_pdf_escape(wrapped_line)}) Tj"])
+        is_first_page = (page_number == 1)
+        
+        text_commands = []
+        draw_commands = []
+        
+        # Title (Bold, 12pt)
+        text_commands.extend([
+            "BT",
+            "/F2 12 Tf",
+            "50 770 Td",
+            f"({_pdf_escape(self.title)} - Page {page_number}) Tj"
+        ])
+        
+        # Horizontal line below title
+        draw_commands.extend([
+            "1 w",
+            "0.8 G",
+            "50 758 m",
+            "562 758 l",
+            "S"
+        ])
+        
+        current_y = 758
+        
+        if is_first_page:
+            # Metadata block (Regular, 9pt, 13pt spacing)
+            text_commands.extend([
+                "/F1 9 Tf",
+                "0 -18 Td"
+            ])
+            current_y -= 18
+            for line in self.metadata:
+                text_commands.extend([
+                    f"({_pdf_escape(line)}) Tj",
+                    "0 -13 Td"
+                ])
+                current_y -= 13
+            text_commands.append("0 -5 Td")
+            current_y -= 5
+        else:
+            text_commands.extend([
+                "/F2 9 Tf",
+                "0 -22 Td"
+            ])
+            current_y -= 22
+            
+        # Table Headers (Bold, 9pt)
+        text_commands.append("/F2 9 Tf")
+        col_offsets = [50, 210, 320, 382, 472]
+        
+        current_x = 50
+        for i, header in enumerate(self.table_headers):
+            if i > 0:
+                dx = col_offsets[i] - col_offsets[i-1]
+                text_commands.append(f"{dx} 0 Td")
+                current_x = col_offsets[i]
+            text_commands.append(f"({_pdf_escape(header)}) Tj")
+            
+        # Horizontal line below table headers
+        draw_commands.extend([
+            "0.5 w",
+            "0.5 G",
+            f"50 {current_y - 4} m",
+            f"562 {current_y - 4} l",
+            "S"
+        ])
+        
+        # Data Rows (Regular, 8pt, 12pt spacing)
+        dx = 50 - current_x
+        text_commands.extend([
+            "/F1 8 Tf",
+            f"{dx} -14 Td"
+        ])
+        current_y -= 14
+        current_x = 50
+        
+        for row in self.current_rows:
+            col0 = _truncate_text(row[0] if len(row) > 0 else "", 36)
+            col1 = _truncate_text(row[1] if len(row) > 1 else "", 24)
+            col2 = _truncate_text(row[2] if len(row) > 2 else "", 14)
+            col3 = _truncate_text(row[3] if len(row) > 3 else "", 20)
+            col4 = _truncate_text(row[4] if len(row) > 4 else "", 20)
+            
+            row_cols = [col0, col1, col2, col3, col4]
+            for i, val in enumerate(row_cols):
+                if i > 0:
+                    dx_col = col_offsets[i] - col_offsets[i-1]
+                    text_commands.append(f"{dx_col} 0 Td")
+                    current_x = col_offsets[i]
+                text_commands.append(f"({_pdf_escape(val)}) Tj")
+                
+            dx = 50 - current_x
+            text_commands.append(f"{dx} -12 Td")
+            current_y -= 12
+            current_x = 50
+            
+        if total_rows is not None:
+            # Draw line under last row
+            draw_commands.extend([
+                "0.5 w",
+                "0.5 G",
+                f"50 {current_y - 4} m",
+                f"562 {current_y - 4} l",
+                "S"
+            ])
+            text_commands.extend([
+                "/F2 9 Tf",
+                "0 -16 Td",
+                f"(Total Rows: {total_rows}) Tj"
+            ])
+            
         text_commands.append("ET")
-        stream = "\n".join(text_commands).encode("utf-8")
+        
+        page_stream = "\n".join(draw_commands + text_commands).encode("utf-8")
+        
         content_id = self._allocate_object_id()
         page_id = self._allocate_object_id()
         self._write_object(
             content_id,
-            b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+            b"<< /Length " + str(len(page_stream)).encode("ascii") + b" >>\nstream\n" + page_stream + b"\nendstream",
         )
         self._write_object(
             page_id,
             f"<< /Type /Page /Parent {self.pages_id} 0 R /MediaBox [0 0 612 792] "
-            f"/Resources << /Font << /F1 {self.font_id} 0 R >> >> /Contents {content_id} 0 R >>"
+            f"/Resources << /Font << /F1 {self.font_id} 0 R /F2 {self.bold_font_id} 0 R >> >> /Contents {content_id} 0 R >>"
             .encode("utf-8"),
         )
         self.page_object_ids.append(page_id)
-        self.current_lines = []
+        self.current_rows = []
 
     def _allocate_object_id(self) -> int:
         object_id = self.next_object_id
@@ -172,18 +292,22 @@ class _StreamingPdfReport:
 def _format_report_datetime(value: Any) -> str:
     if not value:
         return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return str(value)
 
-def _format_report_file_row(record: Dict[str, Any]) -> str:
-    return (
-        f"{record.get('name', '')} | "
-        f"Collection: {record.get('collection_name') or record.get('collection_id', '')} | "
-        f"Size: {record.get('size_bytes', '')} | "
-        f"Uploaded: {_format_report_datetime(record.get('upload_time'))} | "
-        f"Distributed: {_format_report_datetime(record.get('egress_start'))}"
-    )
+def _format_report_file_row_cols(record: Dict[str, Any]) -> List[str]:
+    return [
+        record.get("name") or "",
+        record.get("collection_name") or record.get("collection_id") or "",
+        str(record.get("size_bytes") if record.get("size_bytes") is not None else ""),
+        _format_report_datetime(record.get("upload_time")),
+        _format_report_datetime(record.get("egress_start")),
+    ]
 
 def _send_pdf_report_email(recipient: str, status: str, download_url: str, object_key: str):
     ses_client = boto3.client("ses", region_name=os.environ.get("SES_REGION", os.environ.get("AWS_REGION", "us-west-2")))
@@ -230,15 +354,17 @@ async def generate_file_status_pdf_report(
     report_id = UUID(requesting_user["id"]) if isinstance(requesting_user.get("id"), str) else requesting_user["id"]
     object_key = f"reports/file-status/{status}/{report_id}/{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.pdf"
     title = f"CUE {status} Files Report"
-    header_lines = [
+    
+    username = requesting_user.get("cueusername") or requesting_user.get("preferred_username") or requesting_user.get("name") or "Unknown"
+    metadata_lines = [
+        f"Username: {username}",
         f"Generated: {datetime.now(timezone.utc).isoformat()}",
         f"Status: {status}",
         f"Start Date: {start_date or 'Any'}",
         f"End Date: {end_date or 'Any'}",
-        "Total Rows: calculated when complete",
-        "",
-        "File Name | Collection | Size Bytes | Upload Time | Distributed Time",
     ]
+    
+    table_headers = ["File Name", "Collection", "Size (Bytes)", "Uploaded", "Distributed"]
 
     s3_client = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-west-2"))
     multipart_writer = _S3MultipartWriter(s3_client, PDF_REPORT_BUCKET, object_key)
@@ -253,14 +379,12 @@ async def generate_file_status_pdf_report(
             "retention_days": str(PDF_REPORT_RETENTION_DAYS),
         },
     )
-    pdf_report = _StreamingPdfReport(title, multipart_writer)
+    pdf_report = _StreamingPdfReport(title, multipart_writer, metadata_lines, table_headers)
 
     offset = 0
     total_rows = 0
     try:
         pdf_report.start()
-        for line in header_lines:
-            pdf_report.add_line(line)
 
         while True:
             async with pool.acquire() as conn:
@@ -279,12 +403,10 @@ async def generate_file_status_pdf_report(
 
             total_rows += len(batch)
             for record in batch:
-                pdf_report.add_line(_format_report_file_row(dict(record)))
+                pdf_report.add_row(_format_report_file_row_cols(dict(record)))
             offset += PDF_REPORT_BATCH_SIZE
 
-        pdf_report.add_line("")
-        pdf_report.add_line(f"Total Rows: {total_rows}")
-        pdf_report.finish()
+        pdf_report.finish(total_rows)
         multipart_writer.complete()
     except Exception:
         multipart_writer.abort()
