@@ -170,3 +170,21 @@ async def reject_application(request: Request, application_id: UUID, mark_as_spa
 
     logger.info("application.rejection.completed", application_id=str(application_id), marked_as_spam=mark_as_spam)
     return updated_app
+
+async def unmark_spam_application(request: Request, application_id: UUID) -> Dict[str, Any]:
+    """Unmarks a user application as spam, keeping the status as rejected and setting is_spam to False."""
+    logger.info("application.unmark_spam.started", application_id=str(application_id))
+    async with request.state.pool.acquire() as conn:
+        app_data = await app_db.get_user_application_by_id(conn, application_id)
+        if not app_data:
+            raise ApplicationNotFoundError("Application not found.")
+        
+        updated_app = await app_db.update_application_status(
+            conn,
+            application_id,
+            ApplicationStatus.REJECTED,
+            is_spam=False
+        )
+
+    logger.info("application.unmark_spam.completed", application_id=str(application_id))
+    return updated_app
