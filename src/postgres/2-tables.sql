@@ -294,6 +294,8 @@ CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
 ON file_status(status)
 WHERE (status = 'infected' AND notification_sent_at IS NULL);
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_file_name_trgm ON file USING gin (name gin_trgm_ops);
 -- Indexes to speed up metrics sorting and filtering
 CREATE INDEX IF NOT EXISTS idx_collection_ngroup_id ON collection(ngroup_id);
 CREATE INDEX IF NOT EXISTS idx_file_status_upload_time ON file_status(upload_time);

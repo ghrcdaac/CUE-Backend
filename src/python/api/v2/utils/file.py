@@ -60,6 +60,13 @@ def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
         processed_record['scan_results'] = scan_results
     else:
         processed_record['scan_results'] = None
+
+    collection_name = processed_record.pop('collection_name', None)
+    if collection_name:
+        processed_record['collection'] = {
+            'id': processed_record.get('collection_id'),
+            'name': collection_name
+        }
         
     return processed_record
 
@@ -88,6 +95,33 @@ async def find_files_by_name(
             file_name=file_name
         )
     return [_process_record(dict(r)) for r in records]
+
+async def search_files_by_name(
+    request: Request,
+    user: AuthUser,
+    active_ngroup_id: Optional[str],
+    partial_file_name: str,
+    page: int,
+    page_size: int,
+    status: Optional[str] = None
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Searches files by partial name within a specific ngroup, optionally by status."""
+    offset = (page - 1) * page_size
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+
+    async with request.state.pool.acquire() as conn:
+        user_dump = user.model_dump()
+        records = await file_db.search_files_by_name(
+            conn,
+            requesting_user=user_dump,
+            active_ngroup_id=ngroup_id_to_filter,
+            partial_file_name=partial_file_name,
+            limit=page_size + 1,
+            offset=offset,
+            status=status
+        )
+    has_more = len(records) > page_size
+    return [_process_record(dict(r)) for r in records[:page_size]], has_more
 
 async def list_files(
     request: Request,
