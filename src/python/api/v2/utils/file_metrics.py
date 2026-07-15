@@ -59,14 +59,44 @@ async def get_status_counts(request: Request, user: AuthUser, active_ngroup_id: 
     return [{"status": row['status'], "count": int(row['count'] or 0)} for row in data]
 
 async def get_metrics_summary(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
-    daily_volume = await get_daily_volume(request, user, active_ngroup_id, filters)
-    daily_count = await get_daily_count(request, user, active_ngroup_id, filters)
-    overall_volume = await get_overall_volume(request, user, active_ngroup_id, filters)
-    overall_count = await get_overall_count(request, user, active_ngroup_id, filters)
-    status_counts = await get_status_counts(request, user, active_ngroup_id, filters)
+    filter_dict = filters.model_dump(exclude_unset=True)
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
+    async with request.state.pool.acquire() as conn:
+        raw_data = await metrics_db.get_consolidated_metrics(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
+
+    daily_volume_dict = {}
+    daily_count_dict = {}
+    overall_volume = 0
+    overall_count = 0
+    status_counts_dict = {}
+    
+    for row in raw_data:
+        day_val = row['day'].date()
+        status_val = row['status']
+        count_val = int(row['count'] or 0)
+        size_val = int(row['size_bytes'] or 0)
+        
+        # Accumulate daily metrics
+        daily_volume_dict[day_val] = daily_volume_dict.get(day_val, 0) + size_val
+        daily_count_dict[day_val] = daily_count_dict.get(day_val, 0) + count_val
+        
+        # Accumulate overall metrics
+        overall_volume += size_val
+        overall_count += count_val
+        
+        # Accumulate status counts
+        status_counts_dict[status_val] = status_counts_dict.get(status_val, 0) + count_val
+        
+    daily_volume = [{"day": d, "value": v} for d, v in sorted(daily_volume_dict.items())]
+    daily_count = [{"day": d, "value": v} for d, v in sorted(daily_count_dict.items())]
+    status_counts = [{"status": s, "count": c} for s, c in status_counts_dict.items()]
+    
     return {
-        "daily_volume": daily_volume, "daily_count": daily_count,
-        "overall_volume": overall_volume, "overall_count": overall_count,
+        "daily_volume": daily_volume,
+        "daily_count": daily_count,
+        "overall_volume": {"value": overall_volume},
+        "overall_count": {"value": overall_count},
         "status_counts": status_counts,
     }
 

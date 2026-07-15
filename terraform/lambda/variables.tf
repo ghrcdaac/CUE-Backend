@@ -239,3 +239,18 @@ variable "notification_schedule_minutes" {
   type        = number
   default     = 30 
 }
+
+# --- Scalability & Environment Tuning Variables (SIT/UAT vs PROD) ---
+variable "api_provisioned_concurrency" { type = number }
+variable "scan_event_provisioned_concurrency" { type = number }
+variable "file_transfer_provisioned_concurrency" { type = number }
+variable "hdf_scanner_provisioned_concurrency" { type = number }
+variable "api_pool_max_size" { type = number }
+variable "api_pool_min_size" { type = number }
+
+# --- Lambda Memory Configuration Variables ---
+variable "api_lambda_memory_size" { type = number }
+variable "scan_event_lambda_memory_size" { type = number }
+variable "notification_manager_lambda_memory_size" { type = number }
+variable "file_transfer_lambda_memory_size" { type = number }
+variable "hdf_scanner_lambda_memory_size" { type = number }

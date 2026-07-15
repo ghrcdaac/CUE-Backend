@@ -211,4 +211,29 @@ async def get_global_historical(conn: Connection, filters: Dict[str, Any]) -> Li
             month DESC, 
             total_size_bytes DESC;
     """
+    return await conn.fetch(query, *params)
+
+
+async def get_consolidated_metrics(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID],
+    filters: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """
+    Fetches daily volume, daily count, and status count details 
+    in a single database query to minimize overhead and roundtrips.
+    """
+    from_clause, where_clause, params = _build_metrics_query_parts(requesting_user, active_ngroup_id, filters)
+    query = f"""
+        SELECT 
+            DATE_TRUNC('day', fs.upload_time) AS day,
+            fs.status,
+            COUNT(f.id) AS count,
+            SUM(f.size_bytes) AS size_bytes
+        {from_clause}
+        {where_clause}
+        GROUP BY day, fs.status
+        ORDER BY day;
+    """
     return await conn.fetch(query, *params)

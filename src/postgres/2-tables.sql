@@ -189,11 +189,11 @@ CREATE TABLE IF NOT EXISTS collection (
     short_name VARCHAR NOT NULL,
     provider_id UUID NOT NULL,
     active BOOLEAN NOT NULL DEFAULT FALSE,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     FOREIGN KEY (egress_id) REFERENCES egress(id),
-    FOREIGN KEY (provider_id) REFERENCES provider(id),
-    UNIQUE (short_name)
+    FOREIGN KEY (provider_id) REFERENCES provider(id)
 );
 
 CREATE TABLE IF NOT EXISTS file (
@@ -291,3 +291,12 @@ CREATE INDEX IF NOT EXISTS idx_provider_ngroup_id ON provider(ngroup_id);
 CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
 ON file_status(status)
 WHERE (status = 'infected' AND notification_sent_at IS NULL);
+
+-- Indexes to speed up metrics sorting and filtering
+CREATE INDEX IF NOT EXISTS idx_collection_ngroup_id ON collection(ngroup_id);
+CREATE INDEX IF NOT EXISTS idx_file_status_upload_time ON file_status(upload_time);
+
+-- Partial unique index to enforce unique short_name for active (non-deleted) collections
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
+ON collection(short_name) 
+WHERE (is_deleted = FALSE);

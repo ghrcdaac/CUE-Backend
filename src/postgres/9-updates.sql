@@ -134,3 +134,17 @@ COMMIT;
 -- CREATE INDEX IF NOT EXISTS idx_file_status_pending_notification
 -- ON file_status(status)
 -- WHERE (status = 'infected' AND notification_sent_at IS NULL);
+
+-- Indexes to speed up metrics sorting and filtering
+CREATE INDEX IF NOT EXISTS idx_collection_ngroup_id ON collection(ngroup_id);
+CREATE INDEX IF NOT EXISTS idx_file_status_upload_time ON file_status(upload_time);
+
+-- Soft delete support for collection
+ALTER TABLE collection ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Replace standard unique constraint with partial unique index to allow reuse of deleted short_names
+ALTER TABLE collection DROP CONSTRAINT IF EXISTS collection_short_name_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
+ON collection(short_name) 
+WHERE (is_deleted = FALSE);

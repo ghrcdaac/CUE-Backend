@@ -22,8 +22,8 @@ resource "aws_lambda_function" "cue_api" {
   role          = var.api_lambda_role_arn
   image_uri     = var.api_docker_uri
   package_type  = "Image"
-  timeout       = 30 # API Gateway timeout is 29s
-  memory_size      = 1024
+  timeout       = 28 # Fail safely before API Gateway 29s timeout
+  memory_size      = var.api_lambda_memory_size
   publish = true # This enables versioning, which is required for an alias
 
   
@@ -56,8 +56,8 @@ resource "aws_lambda_function" "cue_api" {
       POOL_ID          = var.pool_id
       CLIENT_ID        = var.client_id
       CLIENT_SECRET    = var.client_secret
-      POOL_MIN_SIZE    = lookup(var.lambda_env_vars, "POOL_MIN_SIZE", "1")
-      POOL_MAX_SIZE    = lookup(var.lambda_env_vars, "POOL_MAX_SIZE", "10")
+      POOL_MIN_SIZE    = var.api_pool_min_size
+      POOL_MAX_SIZE    = var.api_pool_max_size
       ATHENA_DB_NAME="cue-uat-athena"
       ATHENA_OUTPUT_BUCKET="cue-uat-athena"
       ATHENA_RESULTS_BUCKET="cue-uat-athena"
@@ -65,7 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "17"
+      REDEPLOY_TRIGGER = "19"
     }
   }
 
@@ -85,6 +85,7 @@ resource "aws_lambda_function" "cue_scan_event" {
   runtime          = "python3.13"
   architectures    = ["x86_64"]
   timeout          = 180
+  memory_size      = var.scan_event_lambda_memory_size
   publish          = true
 
   vpc_config {
@@ -125,6 +126,7 @@ resource "aws_lambda_function" "notification_manager" {
   runtime          = "python3.13"
   architectures    = ["x86_64"]
   timeout          = 120
+  memory_size      = var.notification_manager_lambda_memory_size
 
   vpc_config {
     subnet_ids         = var.subnet_ids
@@ -206,7 +208,7 @@ resource  "aws_lambda_function" "cue_file_transfer"{
   # Increase Memory for More CPU Power ---
   # Increased from the default of 128MB to 1024MB. This provides more
   # CPU, which is critical for I/O-heavy tasks like file transfers.
-  memory_size      = 1024
+  memory_size      = var.file_transfer_lambda_memory_size
   publish          = true
 
   environment {
@@ -250,7 +252,7 @@ resource "aws_lambda_function" "hdf_vulnerability_scanner" {
   s3_key           = aws_s3_object.hdf_vulnerability_scanner_zip.key
   source_code_hash = filebase64sha256("../artifacts/hdf-vulnerability-scanner-lambda.zip")
   timeout          = 180
-  memory_size      = 512
+  memory_size      = var.hdf_scanner_lambda_memory_size
   publish          = true
 
   environment {
@@ -316,14 +318,6 @@ resource "aws_lambda_alias" "cue_api_live_alias" {
   function_name    = aws_lambda_function.cue_api.function_name
   function_version = aws_lambda_function.cue_api.version
 
-
-  # This block explicitly tells Terraform that we want NO weighted routing.
-  # This resolves the "stuck" alias state by giving the AWS API a clear
-  # instruction, allowing the update to succeed.
-  routing_config {
-    additional_version_weights = {}
-  }
-
   lifecycle {
     create_before_destroy = true
   }
@@ -331,8 +325,9 @@ resource "aws_lambda_alias" "cue_api_live_alias" {
 
 # 3. Attaches 1 provisioned (warm) instance to the "live" alias AND waits for it to be ready
 resource "aws_lambda_provisioned_concurrency_config" "cue_api_pc" {
+  count                             = var.api_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.cue_api.function_name
-  provisioned_concurrent_executions = 1
+  provisioned_concurrent_executions = var.api_provisioned_concurrency
   qualifier                         = aws_lambda_alias.cue_api_live_alias.name
 
   # This explicit dependency ensures the alias is created/updated before this resource is applied.
@@ -359,8 +354,9 @@ resource "aws_lambda_alias" "cue_scan_event_live_alias" {
 }
 
 resource "aws_lambda_provisioned_concurrency_config" "scan_event_pc" {
+  count                             = var.scan_event_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.cue_scan_event.function_name
-  provisioned_concurrent_executions = 1
+  provisioned_concurrent_executions = var.scan_event_provisioned_concurrency
   qualifier                         = aws_lambda_alias.cue_scan_event_live_alias.name
   depends_on                        = [aws_lambda_alias.cue_scan_event_live_alias]
 
@@ -397,8 +393,9 @@ resource "aws_lambda_alias" "cue_file_transfer_live_alias" {
 }
 
 resource "aws_lambda_provisioned_concurrency_config" "file_transfer_pc" {
+  count                             = var.file_transfer_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.cue_file_transfer.function_name
-  provisioned_concurrent_executions = 1
+  provisioned_concurrent_executions = var.file_transfer_provisioned_concurrency
   qualifier                         = aws_lambda_alias.cue_file_transfer_live_alias.name
    depends_on = [aws_lambda_alias.cue_file_transfer_live_alias]
 
@@ -419,8 +416,9 @@ resource "aws_lambda_alias" "hdf_vulnerability_scanner_live_alias" {
 }
 
 resource "aws_lambda_provisioned_concurrency_config" "hdf_vulnerability_scanner_pc" {
+  count                             = var.hdf_scanner_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.hdf_vulnerability_scanner.function_name
-  provisioned_concurrent_executions = 1
+  provisioned_concurrent_executions = var.hdf_scanner_provisioned_concurrency
   qualifier                         = aws_lambda_alias.hdf_vulnerability_scanner_live_alias.name
   depends_on                        = [aws_lambda_alias.hdf_vulnerability_scanner_live_alias]
 
