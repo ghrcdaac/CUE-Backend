@@ -211,3 +211,71 @@ variable "client_id"{
 variable "client_secret"{
     type = string
 }
+
+# --- Scalability & Environment Tuning Variables (SIT/UAT vs PROD) ---
+variable "api_provisioned_concurrency" {
+  description = "Provisioned concurrency for cue_api Lambda"
+  type        = number
+  default     = 1
+}
+
+variable "scan_event_provisioned_concurrency" {
+  description = "Provisioned concurrency for cue_scan_event Lambda"
+  type        = number
+  default     = 1
+}
+
+variable "file_transfer_provisioned_concurrency" {
+  description = "Provisioned concurrency for cue_file_transfer Lambda"
+  type        = number
+  default     = 1
+}
+
+variable "hdf_scanner_provisioned_concurrency" {
+  description = "Provisioned concurrency for cue_hdf_vulnerability_scanner Lambda"
+  type        = number
+  default     = 1
+}
+
+variable "api_pool_max_size" {
+  description = "Maximum database connection pool size for CUE API Lambda"
+  type        = number
+  default     = 5
+}
+
+variable "api_pool_min_size" {
+  description = "Minimum database connection pool size for CUE API Lambda"
+  type        = number
+  default     = 1
+}
+
+# --- Lambda Memory Size Variables ---
+variable "api_lambda_memory_size" {
+  description = "Memory size for cue_api Lambda"
+  type        = number
+  default     = 1024
+}
+
+variable "scan_event_lambda_memory_size" {
+  description = "Memory size for cue_scan_event Lambda"
+  type        = number
+  default     = 128
+}
+
+variable "notification_manager_lambda_memory_size" {
+  description = "Memory size for notification_manager Lambda"
+  type        = number
+  default     = 128
+}
+
+variable "file_transfer_lambda_memory_size" {
+  description = "Memory size for cue_file_transfer Lambda"
+  type        = number
+  default     = 1024
+}
+
+variable "hdf_scanner_lambda_memory_size" {
+  description = "Memory size for hdf_vulnerability_scanner Lambda"
+  type        = number
+  default     = 512
+}

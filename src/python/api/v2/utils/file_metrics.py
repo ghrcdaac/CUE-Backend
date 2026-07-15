@@ -9,7 +9,8 @@ from math import ceil
 
 from v2.type_util.auth import AuthUser
 from v2.database_util import file_metrics as metrics_db
-from v2.type_util.file_metrics import MetricsQueryParameters
+from v2.type_util.file_metrics import MetricsQueryParameters, GlobalMetricsQueryParameters
+import asyncio
 
 logger = structlog.get_logger(__name__)
 
@@ -58,14 +59,44 @@ async def get_status_counts(request: Request, user: AuthUser, active_ngroup_id: 
     return [{"status": row['status'], "count": int(row['count'] or 0)} for row in data]
 
 async def get_metrics_summary(request: Request, user: AuthUser, active_ngroup_id: Optional[str], filters: MetricsQueryParameters) -> Dict[str, Any]:
-    daily_volume = await get_daily_volume(request, user, active_ngroup_id, filters)
-    daily_count = await get_daily_count(request, user, active_ngroup_id, filters)
-    overall_volume = await get_overall_volume(request, user, active_ngroup_id, filters)
-    overall_count = await get_overall_count(request, user, active_ngroup_id, filters)
-    status_counts = await get_status_counts(request, user, active_ngroup_id, filters)
+    filter_dict = filters.model_dump(exclude_unset=True)
+    ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
+    
+    async with request.state.pool.acquire() as conn:
+        raw_data = await metrics_db.get_consolidated_metrics(conn, user.model_dump(), ngroup_id_to_filter, filter_dict)
+
+    daily_volume_dict = {}
+    daily_count_dict = {}
+    overall_volume = 0
+    overall_count = 0
+    status_counts_dict = {}
+    
+    for row in raw_data:
+        day_val = row['day'].date()
+        status_val = row['status']
+        count_val = int(row['count'] or 0)
+        size_val = int(row['size_bytes'] or 0)
+        
+        # Accumulate daily metrics
+        daily_volume_dict[day_val] = daily_volume_dict.get(day_val, 0) + size_val
+        daily_count_dict[day_val] = daily_count_dict.get(day_val, 0) + count_val
+        
+        # Accumulate overall metrics
+        overall_volume += size_val
+        overall_count += count_val
+        
+        # Accumulate status counts
+        status_counts_dict[status_val] = status_counts_dict.get(status_val, 0) + count_val
+        
+    daily_volume = [{"day": d, "value": v} for d, v in sorted(daily_volume_dict.items())]
+    daily_count = [{"day": d, "value": v} for d, v in sorted(daily_count_dict.items())]
+    status_counts = [{"status": s, "count": c} for s, c in status_counts_dict.items()]
+    
     return {
-        "daily_volume": daily_volume, "daily_count": daily_count,
-        "overall_volume": overall_volume, "overall_count": overall_count,
+        "daily_volume": daily_volume,
+        "daily_count": daily_count,
+        "overall_volume": {"value": overall_volume},
+        "overall_count": {"value": overall_count},
         "status_counts": status_counts,
     }
 
@@ -139,3 +170,40 @@ async def get_cost_by_file(request: Request, user: AuthUser, active_ngroup_id: O
             "cost": float(cost.quantize(Decimal("0.01")))
         })
     return file_cost, total
+
+
+async def get_global_summary(request: Request, filters: GlobalMetricsQueryParameters) -> Dict[str, Any]:
+    filter_dict = filters.model_dump(exclude_unset=True)
+    async with request.state.pool.acquire() as conn:
+        total_data = await metrics_db.get_global_summary_total(conn, filter_dict)
+        by_ngroup_data = await metrics_db.get_global_summary_by_ngroup(conn, filter_dict)
+    return {
+        "total": {
+            "total_distributed_files": int(total_data.get("total_distributed_files") or 0),
+            "total_size_bytes": int(total_data.get("total_size_bytes") or 0)
+        },
+        "by_ngroup": [
+            {
+                "ngroup_id": row["ngroup_id"],
+                "ngroup_name": row["ngroup_name"],
+                "total_distributed_files": int(row["total_distributed_files"] or 0),
+                "total_size_bytes": int(row["total_size_bytes"] or 0)
+            }
+            for row in by_ngroup_data
+        ]
+    }
+
+
+async def get_global_historical(request: Request, filters: GlobalMetricsQueryParameters) -> List[Dict[str, Any]]:
+    filter_dict = filters.model_dump(exclude_unset=True)
+    async with request.state.pool.acquire() as conn:
+        data = await metrics_db.get_global_historical(conn, filter_dict)
+    return [
+        {
+            "month": row["month"],
+            "ngroup_name": row["ngroup_name"],
+            "distributed_file_count": int(row["distributed_file_count"] or 0),
+            "total_size_bytes": int(row["total_size_bytes"] or 0)
+        }
+        for row in data
+    ]

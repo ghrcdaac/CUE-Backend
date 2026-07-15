@@ -30,6 +30,8 @@ async def submit_user_application(
         new_app = await app_utils.submit_application(request, application_data, claims.id)
         return UserApplicationResponse.model_validate(new_app)
     except ValueError as e:
+        if "spam" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This email address is not permitted to submit applications. If you believe this is an error, please contact your Group Representative.")
         if "already exists" in str(e):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A pending application for this user already exists.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -42,7 +44,8 @@ async def list_all_applications(
     user: User = Depends(get_current_user),
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
-    status: Optional[ApplicationStatus] = Query(None, description="Filter applications by status.")
+    application_status: Optional[ApplicationStatus] = Query(None, alias="status", description="Filter applications by status."),
+    is_spam: bool = Query(False, alias="is-spam", description="Filter applications by spam flag.")
 ):
     """
     Lists user applications, filtered by the selected ngroup. Admins see all,
@@ -50,7 +53,7 @@ async def list_all_applications(
     """
     try:
         # Pass the header value and user object to the utility function
-        apps = await app_utils.list_applications(request, user, active_ngroup_id, status)
+        apps = await app_utils.list_applications(request, user, active_ngroup_id, application_status, is_spam)
         return [UserApplicationResponse.model_validate(app) for app in apps]
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -90,11 +93,14 @@ async def approve_application_endpoint(
 
 
 @router.post("/{application_id}/reject", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("application:approve"))])
-async def reject_application_endpoint(request: Request, application_id: UUID):
+async def reject_application_endpoint(
+    request: Request,
+    application_id: UUID,
+    mark_as_spam: bool = Query(False, description="Mark the applicant email as spam and block future applications from it.")
+):
     """Rejects a pending user application."""
     try:
-        rejected_app = await app_utils.reject_application(request, application_id)
+        rejected_app = await app_utils.reject_application(request, application_id, mark_as_spam=mark_as_spam)
         return UserApplicationResponse.model_validate(rejected_app)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-

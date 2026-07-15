@@ -28,6 +28,7 @@ class CollectionResponse(CollectionBase):
     ngroup_id: UUID
     provider_id: UUID
     egress_id: UUID
+    is_deleted: bool = False
 
     class Config:
         from_attributes = True

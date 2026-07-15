@@ -28,8 +28,8 @@ async def get_collection_by_id(conn: Connection, collection_id: UUID) -> Optiona
     return await conn.fetchrow("SELECT * FROM collection WHERE id = $1", collection_id)
 
 async def get_collection_by_short_name(conn: Connection, short_name: str) -> Optional[Dict[str, Any]]:
-    """Retrieves a collection record from the database by its short_name."""
-    return await conn.fetchrow("SELECT * FROM collection WHERE short_name = $1", short_name)
+    """Retrieves a collection record from the database by its short_name, if not deleted."""
+    return await conn.fetchrow("SELECT * FROM collection WHERE short_name = $1 AND is_deleted = FALSE", short_name)
 
 
 async def list_collections(
@@ -51,13 +51,13 @@ async def list_collections(
     
     # If a DAAC is selected, ALL roles are strictly filtered by it.
     if active_ngroup_id:
-        where_clause = "WHERE ngroup_id = $1"
+        where_clause = "WHERE ngroup_id = $1 AND is_deleted = FALSE"
         params.append(active_ngroup_id)
     else:
         # If NO DAAC is selected:
         # Admins/Security see all collections from all groups.
         if 'admin' in user_roles or 'security' in user_roles:
-            where_clause = "" # No filter, show all
+            where_clause = "WHERE is_deleted = FALSE" # No filter, show all active
         else:
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its collections.
@@ -82,10 +82,6 @@ async def update_collection(conn: Connection, collection_id: UUID, update_data: 
         raise ValueError("The specified provider_id or egress_id does not exist.") from e
 
 async def delete_collection(conn: Connection, collection_id: UUID) -> bool:
-    """Deletes a collection record from the database by its ID."""
-    try:
-        result = await conn.execute("DELETE FROM collection WHERE id = $1", collection_id)
-        return result.strip() == "DELETE 1"
-    except ForeignKeyViolationError as e:
-        logger.warning("db.collection.delete.failed_fk", collection_id=str(collection_id), error=str(e))
-        raise ValueError("Cannot delete this collection because it is still linked to one or more files.") from e
+    """Soft deletes a collection record from the database by setting is_deleted = TRUE."""
+    result = await conn.execute("UPDATE collection SET is_deleted = TRUE WHERE id = $1 AND is_deleted = FALSE", collection_id)
+    return result.strip() == "UPDATE 1"

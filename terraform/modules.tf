@@ -84,6 +84,20 @@ module "lambda_functions" {
   client_id                   = var.client_id
   client_secret               = var.client_secret
 
+  # Environment-specific scalability tuning
+  api_provisioned_concurrency             = var.api_provisioned_concurrency
+  scan_event_provisioned_concurrency      = var.scan_event_provisioned_concurrency
+  file_transfer_provisioned_concurrency   = var.file_transfer_provisioned_concurrency
+  hdf_scanner_provisioned_concurrency     = var.hdf_scanner_provisioned_concurrency
+  api_pool_max_size                       = var.api_pool_max_size
+  api_pool_min_size                       = var.api_pool_min_size
+
+  # Lambda Memory Configuration
+  api_lambda_memory_size                  = var.api_lambda_memory_size
+  scan_event_lambda_memory_size          = var.scan_event_lambda_memory_size
+  notification_manager_lambda_memory_size = var.notification_manager_lambda_memory_size
+  file_transfer_lambda_memory_size       = var.file_transfer_lambda_memory_size
+  hdf_scanner_lambda_memory_size          = var.hdf_scanner_lambda_memory_size
 }
 
 module "rds" {

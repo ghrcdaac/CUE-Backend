@@ -187,8 +187,9 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
     except ClientError as e:
         raise S3ClientError(f"Failed to complete S3 multipart upload: {e.response['Error']['Code']}") from e
 
+    await _validate_upload_permissions(request, params.collection_name, user)
+
     async with request.state.pool.acquire() as conn:
-        await _validate_upload_permissions(request, params.collection_name, user)
         async with conn.transaction():
             await file_db.update_final_file_details(
                 conn=conn, file_id=file_id, file_name=params.file_name,
