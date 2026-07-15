@@ -41,7 +41,7 @@ async def is_email_spam(conn: Connection, email: str) -> bool:
             SELECT 1
             FROM user_application
             WHERE LOWER(email) = LOWER($1)
-              AND is_spam = TRUE
+              AND is_spam = TRUE ORDER BY applied DESC LIMIT 1
         );
     """
     return await conn.fetchval(query, email)
@@ -60,7 +60,7 @@ async def list_user_applications(
     requesting_user: Dict[str, Any],
     active_ngroup_id: Optional[UUID] = None,
     status: Optional[ApplicationStatus] = None,
-    is_spam: bool = False
+    is_spam: Optional[bool] = None
 ) -> List[Dict[str, Any]]:
     """Lists user applications, filtered by the active ngroup and user role."""
     logger.info(
@@ -73,8 +73,10 @@ async def list_user_applications(
 
     user_roles = set(requesting_user.get('roles', []))
     params = []
-    params.append(is_spam)
-    conditions = [f"is_spam = ${len(params)}"]
+    conditions = []
+    if is_spam is not None:
+        params.append(is_spam)
+        conditions.append(f"is_spam = ${len(params)}")
     
     # For non-privileged users, explicitly hide applications for the 'ESDIS Security' group.
     # This ensures a DAAC Manager can never see them.
