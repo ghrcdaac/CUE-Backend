@@ -15,6 +15,7 @@ class UserResponse(BaseModel):
     name: str
     cueusername: str
     edpub_id: Optional[str] = None
+    is_spam: bool = False
     registered: datetime
     roles: List[str] = Field(default_factory=list, description="List of role short names.")
     ngroups: List[NgroupListResponse] = Field(default_factory=list, description="List of ngroup objects the user belongs to.")

@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS user_application (
     justification TEXT NOT NULL,
     account_type account_type,
     edpub_id VARCHAR,
+    is_spam BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     FOREIGN KEY (ngroup_id) REFERENCES ngroup(id),
     FOREIGN KEY (provider_id) REFERENCES provider(id)
@@ -281,6 +282,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_pending_application ON user_applica
 
 -- Index for admins listing applications by group and status
 CREATE INDEX IF NOT EXISTS idx_user_application_ngroup_status ON user_application(ngroup_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_application_email_spam ON user_application(LOWER(email)) WHERE (is_spam = TRUE);
 
 -- Indexes for common foreign key lookups to speed up JOINs
 CREATE INDEX IF NOT EXISTS idx_file_collection_id ON file(collection_id);
