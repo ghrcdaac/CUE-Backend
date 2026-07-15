@@ -95,3 +95,9 @@ class ApiKeyInfo(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginatedAPIKeyResponse(BaseModel):
+    api_keys: List[ApiKeyInfo]
+    page: int
+    page_size: int
+    total: int

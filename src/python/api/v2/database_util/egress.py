@@ -29,6 +29,8 @@ async def get_egress_by_id(conn: Connection, egress_id: UUID) -> Optional[Dict[s
 async def list_egresses(
     conn: Connection,
     requesting_user: Dict[str, Any],
+    page_size: int,
+    offset: int,
     active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -56,8 +58,13 @@ async def list_egresses(
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its egress targets.
             where_clause = "WHERE FALSE" # Return no rows
-            
-    query = f"SELECT * FROM egress {where_clause} ORDER BY type, path"
+
+    limit_param = len(params) + 1
+    offset_param = len(params) + 2
+
+    params.extend([page_size, offset])
+
+    query = f"SELECT * FROM egress {where_clause} ORDER BY type, path LIMIT ${limit_param} OFFSET ${offset_param}"
     return await conn.fetch(query, *params)
 
 async def update_egress(conn: Connection, egress_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -81,3 +88,38 @@ async def delete_egress(conn: Connection, egress_id: UUID) -> bool:
     except ForeignKeyViolationError as e:
         logger.warning("db.egress.delete.failed_fk", egress_id=str(egress_id), error=str(e))
         raise ValueError("Cannot delete this egress target because it is still linked to one or more collections.") from e
+    
+async def get_egress_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
+    "Retrives the total Count of the providers, filtered by ngroup_id"
+
+    logger.info(
+        "egress.count.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+
+    # If a DAAC is selected, ALL roles are strictly filtered by it.
+    if active_ngroup_id:
+        where_clause = "WHERE ngroup_id = $1"
+        params.append(active_ngroup_id)
+    else:
+        # If NO DAAC is selected:
+        # Admins/Security see all egress from all groups.
+        if 'admin' in user_roles or 'security' in user_roles:
+            where_clause = ""  # No filter, show all
+        else:
+            # All other roles see an empty list if no DAAC is selected.
+            # This forces managers to select a DAAC to see its egress.
+            where_clause = "WHERE FALSE"  # Return no rows
+
+    try:
+        query = f"SELECT count(id) FROM egress {where_clause}"
+        total_row = await conn.fetchrow(query,*params)
+        total_count = total_row["count"] if total_row else 0
+        return total_count
+    except Exception as e:
+        logger.error(f"Error fetching count: {e}", error=str(e))
+        raise ValueError("Cannot fetch total count") from e

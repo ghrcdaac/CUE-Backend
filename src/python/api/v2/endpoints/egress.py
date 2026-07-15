@@ -1,14 +1,14 @@
 # ==============================================================================
 # File: src/python/api/v2/endpoints/egress.py (Corrected)
 # ==============================================================================
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header, Query
 from uuid import UUID
 from typing import List, Optional
 
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser
 from v2.utils import egress as egress_utils
-from v2.type_util.egress import EgressCreate, EgressUpdate, EgressResponse
+from v2.type_util.egress import EgressCreate, EgressUpdate, EgressResponse, PaginatedEgressResponse
 
 router = APIRouter(prefix="/egress", tags=["V2 - DAAC Egress"])
 
@@ -30,17 +30,19 @@ async def create_egress_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.get("/", response_model=List[EgressResponse], dependencies=[Depends(require_privilege("egress:read"))])
+@router.get("/", response_model=PaginatedEgressResponse, dependencies=[Depends(require_privilege("egress:read"))])
 async def list_egresses_endpoint(
     request: Request, 
     user: AuthUser = Depends(get_current_user),
     # Read the active ngroup ID directly from the header
-    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=50)
 ):
     """Retrieves all egress records, filtered by the user's active ngroup from the header."""
     try:
         # Pass the header value and the user object to the utility function
-        return await egress_utils.list_egresses(request, user, active_ngroup_id)
+        return await egress_utils.list_egresses(request, user, active_ngroup_id,page, page_size)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

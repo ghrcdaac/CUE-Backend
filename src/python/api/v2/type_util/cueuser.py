@@ -59,3 +59,9 @@ class UserUpdateRequest(BaseModel):
 class UserRoleUpdateRequest(BaseModel):
     """Request body for updating a user's role."""
     role_id: UUID
+
+class PaginatedUserResponse(BaseModel):
+    users: List[UserResponse]
+    page: int
+    page_size: int
+    total: int
