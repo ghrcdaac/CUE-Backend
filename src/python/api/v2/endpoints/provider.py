@@ -10,7 +10,7 @@ from core.security import require_privilege, get_current_user
 from v2.type_util.auth import AuthUser
 from v2.utils import provider as provider_utils
 from v2.type_util.provider import (
-    ProviderCreate, ProviderUpdate, ProviderResponse, ProviderListResponse
+    ProviderCreate, ProviderUpdate, ProviderResponse, ProviderListResponse, PaginatedProviderResponse
 )
 
 router = APIRouter(prefix="/providers", tags=["V2 - Providers"])
@@ -41,19 +41,22 @@ async def list_providers_for_application_form(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not retrieve providers for the application form.")
 
-@router.get("/", response_model=List[ProviderResponse], dependencies=[Depends(require_privilege("provider:read"))])
+@router.get("/", response_model=PaginatedProviderResponse, dependencies=[Depends(require_privilege("provider:read"))])
 async def list_providers_endpoint(
     request: Request,
     user: AuthUser = Depends(get_current_user),
     # Read the active ngroup ID directly from the header
-    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=50),
+    can_upload: bool = Query(None, description="Filter by can_upload status")
 ):
     """
     Retrieves all provider records, filtered by the user's selected ngroup from the header.
     """
     try:
         # Pass the header value and the user object to the utility function
-        return await provider_utils.list_providers(request, user, active_ngroup_id)
+        return await provider_utils.list_providers(request, user, active_ngroup_id, page, page_size, can_upload)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
