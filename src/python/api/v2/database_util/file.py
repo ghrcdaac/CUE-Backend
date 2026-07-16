@@ -145,7 +145,7 @@ async def list_files_paginated(
     base_query = """
         SELECT 
             f.id, f.name, f.type, f.cueuser_uploaded, f.size_bytes, f.collection_id, f.collection_path, f.checksum, 
-            fs.status, fs.upload_time, fs.scan_results, fs.egress_start
+            fs.status, fs.upload_time, fs.scan_results, fs.egress_start, c.short_name AS collection_name
         FROM file f
         JOIN collection c ON f.collection_id = c.id
         LEFT JOIN file_status fs ON f.id = fs.id
