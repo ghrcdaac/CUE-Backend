@@ -158,4 +158,3 @@ ALTER TABLE collection DROP CONSTRAINT IF EXISTS collection_short_name_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
 ON collection(short_name) 
 WHERE (is_deleted = FALSE);
-

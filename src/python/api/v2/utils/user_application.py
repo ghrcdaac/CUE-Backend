@@ -58,8 +58,7 @@ async def list_applications(
     request: Request,
     user: User, # Accept the full user object for role checks
     active_ngroup_id: Optional[str] = None, # Accept the optional ngroup ID string
-    status: Optional[ApplicationStatus] = None,
-    is_spam: bool = False
+    status: Optional[ApplicationStatus] = None
 ) -> List[Dict[str, Any]]:
     """Lists all applications based on user roles and optional filters."""
 
@@ -72,8 +71,7 @@ async def list_applications(
             conn,
             requesting_user=user.model_dump(),
             active_ngroup_id=ngroup_id_to_filter,
-            status=status,
-            is_spam=is_spam
+            status=status
         )
 
 async def approve_application(request: Request, application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
@@ -170,3 +168,4 @@ async def reject_application(request: Request, application_id: UUID, mark_as_spa
 
     logger.info("application.rejection.completed", application_id=str(application_id), marked_as_spam=mark_as_spam)
     return updated_app
+

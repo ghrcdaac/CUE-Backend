@@ -44,8 +44,7 @@ async def list_all_applications(
     user: User = Depends(get_current_user),
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
-    application_status: Optional[ApplicationStatus] = Query(None, alias="status", description="Filter applications by status."),
-    is_spam: bool = Query(False, alias="is-spam", description="Filter applications by spam flag.")
+    status: Optional[ApplicationStatus] = Query(None, description="Filter applications by status.")
 ):
     """
     Lists user applications, filtered by the selected ngroup. Admins see all,
@@ -53,7 +52,7 @@ async def list_all_applications(
     """
     try:
         # Pass the header value and user object to the utility function
-        apps = await app_utils.list_applications(request, user, active_ngroup_id, application_status, is_spam)
+        apps = await app_utils.list_applications(request, user, active_ngroup_id, status)
         return [UserApplicationResponse.model_validate(app) for app in apps]
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -104,3 +103,4 @@ async def reject_application_endpoint(
         return UserApplicationResponse.model_validate(rejected_app)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
