@@ -59,22 +59,19 @@ async def list_user_applications(
     conn: Connection,
     requesting_user: Dict[str, Any],
     active_ngroup_id: Optional[UUID] = None,
-    status: Optional[ApplicationStatus] = None,
-    is_spam: bool = False
+    status: Optional[ApplicationStatus] = None
 ) -> List[Dict[str, Any]]:
     """Lists user applications, filtered by the active ngroup and user role."""
     logger.info(
         "application.list.executing_query",
         user_roles=requesting_user.get('roles', []),
         active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None,
-        status=status.value if status else None,
-        is_spam=is_spam
+        status=status.value if status else None
     )
 
     user_roles = set(requesting_user.get('roles', []))
     params = []
-    params.append(is_spam)
-    conditions = [f"is_spam = ${len(params)}"]
+    conditions = ["is_spam = FALSE"]
     
     # For non-privileged users, explicitly hide applications for the 'ESDIS Security' group.
     # This ensures a DAAC Manager can never see them.

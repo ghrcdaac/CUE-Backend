@@ -158,29 +158,3 @@ ALTER TABLE collection DROP CONSTRAINT IF EXISTS collection_short_name_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
 ON collection(short_name) 
 WHERE (is_deleted = FALSE);
-
-
-INSERT INTO privilege (id, privilege) VALUES
-    ('a1a1a1a1-0000-0000-0000-000000000046', 'collection:page');
-INSERT INTO role_privilege (role_id, privilege_id)
-VALUES
-    (
-        '39677929-ba9b-426d-8c18-f607d669fcce',
-        (SELECT id FROM privilege WHERE privilege = 'collection:page')
-    ),
-    (
-        'ef872fe7-92b9-45ec-ac19-80f4c478fd36',
-        (SELECT id FROM privilege WHERE privilege = 'collection:page')
-    ),
-    (
-        'a8b3757b-dcf9-4943-8f64-5adaf17a17fe',
-        (SELECT id FROM privilege WHERE privilege = 'collection:page')
-    ),
-    (
-        '2068cc53-1232-4bc7-9647-3e29e6418e21',
-        (SELECT id FROM privilege WHERE privilege = 'collection:page')
-    ),
-    (
-        '0e686dba-e5b2-4302-aea0-e9ed0caff7d3',
-        (SELECT id FROM privilege WHERE privilege = 'collection:read')
-    );
