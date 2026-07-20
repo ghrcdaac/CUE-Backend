@@ -43,7 +43,8 @@ INSERT INTO privilege (id, privilege) VALUES
     ('a1a1a1a1-0000-0000-0000-000000000041', 'api-key:create'),
     ('a1a1a1a1-0000-0000-0000-000000000042', 'api-key:read'),
     ('a1a1a1a1-0000-0000-0000-000000000043', 'api-key:update'),
-    ('a1a1a1a1-0000-0000-0000-000000000044', 'api-key:delete');
+    ('a1a1a1a1-0000-0000-0000-000000000044', 'api-key:delete'),
+    ('a1a1a1a1-0000-0000-0000-000000000046', 'collection:page');
 
 -- Roles
 INSERT INTO role (id, short_name, long_name) VALUES
@@ -68,6 +69,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:update')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'collection:delete')),
+    ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id FROM privilege WHERE privilege = 'collection:page')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'egress:read')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:update')),
     ('39677929-ba9b-426d-8c18-f607d669fcce', (SELECT id from privilege where privilege = 'user:delete')),
@@ -102,6 +104,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'collection:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'collection:update')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'collection:delete')),
+    ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'collection:page')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'egress:create')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'egress:read')),
     ('ef872fe7-92b9-45ec-ac19-80f4c478fd36', (SELECT id from privilege where privilege = 'egress:update')),
@@ -132,6 +135,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'collection:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'collection:update')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'collection:delete')),
+    ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'collection:page')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'egress:create')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'egress:read')),
     ('a8b3757b-dcf9-4943-8f64-5adaf17a17fe', (SELECT id from privilege where privilege = 'egress:update')),
@@ -152,6 +156,7 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'user:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'provider:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'collection:read')),
+    ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'collection:page')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'egress:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'file:read')),
     ('2068cc53-1232-4bc7-9647-3e29e6418e21', (SELECT id from privilege where privilege = 'scan:read')),
@@ -167,7 +172,8 @@ INSERT INTO role_privilege (role_id, privilege_id) VALUES
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'metrics:read')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:create')),
     ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:read')),
-    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:delete'));
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'api-key:delete')),
+    ('0e686dba-e5b2-4302-aea0-e9ed0caff7d3', (SELECT id from privilege where privilege = 'collection:read'));
 
 
 -- ngroup
