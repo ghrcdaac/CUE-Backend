@@ -39,9 +39,14 @@ async def is_email_spam(conn: Connection, email: str) -> bool:
     query = """
         SELECT EXISTS (
             SELECT 1
-            FROM user_application
-            WHERE LOWER(email) = LOWER($1)
-              AND is_spam = TRUE ORDER BY applied DESC LIMIT 1
+            FROM (
+                SELECT is_spam
+                FROM user_application
+                WHERE LOWER(email) = LOWER($1)
+                ORDER BY applied DESC
+                LIMIT 1
+            ) latest_application
+            WHERE is_spam = TRUE
         );
     """
     return await conn.fetchval(query, email)
