@@ -166,7 +166,8 @@ async def reject_application(request: Request, application_id: UUID, mark_as_spa
                 updated_apps = await app_db.mark_email_as_spam(conn, app_data['email'])
             updated_app = next((app for app in updated_apps if app['id'] == application_id), None)
         else:
-            updated_app = await app_db.update_application_status(conn, application_id, ApplicationStatus.REJECTED)
+            await app_db.delete_user_application(conn, application_id)
+            updated_app = {**app_data, 'status': ApplicationStatus.REJECTED, 'is_spam': False}
 
     logger.info("application.rejection.completed", application_id=str(application_id), marked_as_spam=mark_as_spam)
     return updated_app
@@ -179,12 +180,8 @@ async def unmark_spam_application(request: Request, application_id: UUID) -> Dic
         if not app_data:
             raise ApplicationNotFoundError("Application not found.")
         
-        updated_app = await app_db.update_application_status(
-            conn,
-            application_id,
-            ApplicationStatus.REJECTED,
-            is_spam=False
-        )
+        await app_db.delete_user_application(conn, application_id)
+        updated_app = {**app_data, 'status': ApplicationStatus.REJECTED, 'is_spam': False}
 
     logger.info("application.unmark_spam.completed", application_id=str(application_id))
     return updated_app
