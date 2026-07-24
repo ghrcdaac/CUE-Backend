@@ -127,7 +127,7 @@ async def update_user_role_endpoint(
 ):
     """Assigns a new role to a user."""
     try:
-        updated_user = await cueuser_utils.update_user_role(request, user_id, update_req.role_id, current_user)
+        updated_user = await cueuser_utils.update_user_role(request, user_id, update_req.role_id, current_user, provider_id=update_req.provider_id)
         return UserResponse.model_validate(updated_user)
     except cueuser_utils.UserNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")

@@ -170,7 +170,7 @@ async def update_user_details(request: Request, user_id: UUID, update_request: U
     return await get_user_profile(request, user_id)
 
 
-async def update_user_role(request: Request, user_id: UUID, role_id: UUID, current_user: AuthUser) -> Dict[str, Any]:
+async def update_user_role(request: Request, user_id: UUID, role_id: UUID, current_user: AuthUser, provider_id: Optional[UUID] = None) -> Dict[str, Any]:
     """
     Updates a user's role after performing permission checks.
     For simplicity in this system, it replaces all existing roles with the new one.
@@ -178,12 +178,12 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
     is_admin = "admin" in current_user.roles
     is_manager = "daac_manager" in current_user.roles
     
-    if not is_admin:
-        async with request.state.pool.acquire() as conn:
-            target_role = await role_db.get_role_by_id(conn, role_id)
-            if not target_role:
-                raise ValueError("Target role not found.")
+    async with request.state.pool.acquire() as conn:
+        target_role = await role_db.get_role_by_id(conn, role_id)
+        if not target_role:
+            raise ValueError("Target role not found.")
 
+        if not is_admin:
             allowed_roles = set()
             if is_manager:
                 # --- Add 'daac_manager' to the list of assignable roles ---
@@ -195,8 +195,14 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
             if target_role['short_name'] not in allowed_roles:
                 raise ValueError("You do not have permission to assign this role.")
 
-    async with request.state.pool.acquire() as conn:
-        await user_db.update_user_roles(conn, user_id, [role_id])
+        async with request.state.pool.acquire() as conn:
+            await user_db.update_user_roles(conn, user_id, [role_id])
+            if target_role['short_name'] == 'provider':
+                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
+                if provider_id:
+                    await conn.execute("INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2)", user_id, provider_id)
+            else:
+                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
     
     logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
     # Fetch the final profile. This is now fast due to the optimized database query.
