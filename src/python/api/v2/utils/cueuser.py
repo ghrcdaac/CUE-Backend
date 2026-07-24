@@ -25,7 +25,7 @@ def _parse_user_data(user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     
     parsed_data = dict(user_data)
     
-    for key in ["roles", "ngroups", "privileges"]:
+    for key in ["roles", "ngroups", "privileges", "providers"]:
         if isinstance(parsed_data.get(key), str):
             try:
                 parsed_data[key] = json.loads(parsed_data[key])

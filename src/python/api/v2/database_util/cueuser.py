@@ -34,6 +34,12 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
                 WHERE ug.cueuser_id = u.id
             ) AS ngroups,
             (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up
+                JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
                 SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
                 FROM cueuser_role ur
                 JOIN role_privilege rp ON ur.role_id = rp.role_id
@@ -81,6 +87,11 @@ async def list_users(
                 WHERE ug.cueuser_id = u.id
             ) AS ngroups,
             (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
                 SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
                 FROM cueuser_role ur
                 JOIN role_privilege rp ON ur.role_id = rp.role_id
@@ -118,19 +129,36 @@ async def list_users(
 
 async def get_user_by_username(conn: Connection, cueusername: str) -> Optional[Dict[str, Any]]:
     """Fetches a single user's core data by their unique username."""
-    # This query is simple enough that it doesn't need the subquery optimization.
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
-            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
+            (
+                SELECT COALESCE(jsonb_agg(r.short_name), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role r ON ur.role_id = r.id
+                WHERE ur.cueuser_id = u.id
+            ) AS roles,
+            (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', g.id, 'short_name', g.short_name)), '[]'::jsonb)
+                FROM cueuser_ngroup ug
+                JOIN ngroup g ON ug.ngroup_id = g.id
+                WHERE ug.cueuser_id = u.id
+            ) AS ngroups,
+            (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up
+                JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
+                SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role_privilege rp ON ur.role_id = rp.role_id
+                JOIN privilege p ON rp.privilege_id = p.id
+                WHERE ur.cueuser_id = u.id
+            ) AS privileges
         FROM cueuser u
-        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
-        LEFT JOIN role r ON ur.role_id = r.id
-        LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
-        LEFT JOIN ngroup g ON ug.ngroup_id = g.id
-        WHERE u.cueusername = $1
-        GROUP BY u.id;
+        WHERE u.cueusername = $1;
     """
     return await conn.fetchrow(query, cueusername)
 
