@@ -76,7 +76,7 @@ async def list_applications(
             is_spam=is_spam
         )
 
-async def approve_application(request: Request, application_id: UUID, role_id_to_assign: UUID, approver: User) -> Dict[str, Any]:
+async def approve_application(request: Request, application_id: UUID, role_id_to_assign: UUID, approver: User, provider_id_to_assign: Optional[UUID] = None) -> Dict[str, Any]:
     """
     Approves an application, creates the user in the local CUE database,
     and publishes an approval event.
@@ -123,11 +123,15 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
                     logger.info("user.creation.security", user_id=str(user_id), assigned_all_ngroups=len(all_ngroup_ids))
                 else:
                     ngroups_to_assign = [app_data['ngroup_id']]
-                    providers_to_assign = [app_data['provider_id']] if app_data.get('provider_id') else []
+                    final_provider_id = provider_id_to_assign if provider_id_to_assign is not None else app_data.get('provider_id')
+                    providers_to_assign = [final_provider_id] if final_provider_id else []
                     
                     await user_db.assign_ngroups_to_user(conn, user_id, ngroups_to_assign)
                     if providers_to_assign:
                         await user_db.assign_providers_to_user(conn, user_id, providers_to_assign)
+                    
+                    if provider_id_to_assign is not None and provider_id_to_assign != app_data.get('provider_id'):
+                        await conn.execute("UPDATE user_application SET provider_id = $1 WHERE id = $2", provider_id_to_assign, application_id)
                 
                 await app_db.update_application_status(conn, application_id, ApplicationStatus.APPROVED)
 

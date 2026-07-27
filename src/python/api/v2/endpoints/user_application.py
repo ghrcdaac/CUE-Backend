@@ -72,7 +72,8 @@ async def approve_application_endpoint(
     request: Request,
     application_id: UUID,
     approver: User = Depends(get_current_user),
-    role_id: UUID = Query(..., description="The ID of the role to assign to the new user.")
+    role_id: UUID = Query(..., description="The ID of the role to assign to the new user."),
+    provider_id: Optional[UUID] = Query(None, description="The ID of the provider to assign to the approved user, if role is provider.")
 ):
     """
     Approves a user application, creating the user in the local CUE database.
@@ -82,7 +83,8 @@ async def approve_application_endpoint(
             request=request,
             application_id=application_id,
             role_id_to_assign=role_id,
-            approver=approver
+            approver=approver,
+            provider_id_to_assign=provider_id
         )
         return CueUserResponse.model_validate(created_user)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
