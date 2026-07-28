@@ -65,7 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "19"
+      REDEPLOY_TRIGGER = "20"
     }
   }
 
