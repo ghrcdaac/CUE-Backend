@@ -25,7 +25,7 @@ def _parse_user_data(user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     
     parsed_data = dict(user_data)
     
-    for key in ["roles", "ngroups", "privileges"]:
+    for key in ["roles", "ngroups", "privileges", "providers"]:
         if isinstance(parsed_data.get(key), str):
             try:
                 parsed_data[key] = json.loads(parsed_data[key])
@@ -86,21 +86,38 @@ async def get_user_profile(request: Request, user_id: UUID) -> Dict[str, Any]:
 async def list_users(
     request: Request,
     current_user: AuthUser, # Accept the full user object for role checks
-    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
-) -> List[Dict[str, Any]]:
+    active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
+    page: int, page_size: int
+) -> Dict[str, Any]:
     """Retrieves a list of all users, filtered by the active DAAC and user role."""
     
     # Convert string UUID from header to UUID object, or None
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
     
+    offset = (page - 1) * page_size
     async with request.state.pool.acquire() as conn:
         # Call the new, more powerful list_users function
-        users_data = await user_db.list_users(
-            conn,
-            requesting_user=current_user.model_dump(),
-            active_ngroup_id=ngroup_id_to_filter
-        )
-    return [_parse_user_data(user) for user in users_data]
+        total = await user_db.get_users_count(
+            conn=conn, 
+            requesting_user=current_user.model_dump(), 
+            active_ngroup_id=ngroup_id_to_filter,
+            )
+        result = []
+        if total > 0:
+            users_data = await user_db.list_users(
+                conn,
+                requesting_user=current_user.model_dump(),
+                active_ngroup_id=ngroup_id_to_filter,
+                page_size = page_size,
+                offset = offset
+            )
+            result = [_parse_user_data(user) for user in users_data]
+    return {
+        "users": result,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
 
 async def get_user_profile_by_username(request: Request, cueusername: str) -> Dict[str, Any]:
     """Fetches and parses a user's complete profile by their username."""
@@ -153,7 +170,7 @@ async def update_user_details(request: Request, user_id: UUID, update_request: U
     return await get_user_profile(request, user_id)
 
 
-async def update_user_role(request: Request, user_id: UUID, role_id: UUID, current_user: AuthUser) -> Dict[str, Any]:
+async def update_user_role(request: Request, user_id: UUID, role_id: UUID, current_user: AuthUser, provider_id: Optional[UUID] = None) -> Dict[str, Any]:
     """
     Updates a user's role after performing permission checks.
     For simplicity in this system, it replaces all existing roles with the new one.
@@ -161,12 +178,12 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
     is_admin = "admin" in current_user.roles
     is_manager = "daac_manager" in current_user.roles
     
-    if not is_admin:
-        async with request.state.pool.acquire() as conn:
-            target_role = await role_db.get_role_by_id(conn, role_id)
-            if not target_role:
-                raise ValueError("Target role not found.")
+    async with request.state.pool.acquire() as conn:
+        target_role = await role_db.get_role_by_id(conn, role_id)
+        if not target_role:
+            raise ValueError("Target role not found.")
 
+        if not is_admin:
             allowed_roles = set()
             if is_manager:
                 # --- Add 'daac_manager' to the list of assignable roles ---
@@ -178,8 +195,14 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
             if target_role['short_name'] not in allowed_roles:
                 raise ValueError("You do not have permission to assign this role.")
 
-    async with request.state.pool.acquire() as conn:
-        await user_db.update_user_roles(conn, user_id, [role_id])
+        async with request.state.pool.acquire() as conn:
+            await user_db.update_user_roles(conn, user_id, [role_id])
+            if target_role['short_name'] == 'provider':
+                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
+                if provider_id:
+                    await conn.execute("INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2)", user_id, provider_id)
+            else:
+                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
     
     logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
     # Fetch the final profile. This is now fast due to the optimized database query.

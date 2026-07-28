@@ -3,10 +3,11 @@
 # --- MODIFIED to pass the request object on cross-utility calls ---
 # ==============================================================================
 from uuid import UUID
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from v2.type_util.auth import AuthUser
 import structlog
 from fastapi import Request
+import json
 
 
 from v2.database_util import provider as provider_db
@@ -52,21 +53,49 @@ async def get_provider(request: Request, provider_id: UUID) -> Dict[str, Any]:
 async def list_providers(
     request: Request,
     user: AuthUser, # Accept the full user object for role checks
-    active_ngroup_id: Optional[str] # Accept the optional ngroup ID string
-) -> List[Dict[str, Any]]:
+    active_ngroup_id: Optional[str], # Accept the optional ngroup ID string
+    page: int, page_size: int,
+    can_upload: bool
+) -> Dict[str, Any]:
     """Retrieves all provider records based on the user's roles and active ngroup."""
 
     # Convert string UUID from header to UUID object, or None
     ngroup_id_to_filter = UUID(active_ngroup_id) if active_ngroup_id else None
 
+    offset = (page - 1) * page_size
     async with request.state.pool.acquire() as conn:
         # Call the new, more powerful list_providers function
-        records = await provider_db.list_providers(
-            conn,
-            requesting_user=user.model_dump(),
-            active_ngroup_id=ngroup_id_to_filter
-        )
-    return [dict(r) for r in records]
+
+        total = await provider_db.get_providers_count(
+            conn=conn, 
+            requesting_user=user.model_dump(), 
+            active_ngroup_id=ngroup_id_to_filter,
+            can_upload = can_upload
+            )
+        result = []
+        if total > 0:
+            records = await provider_db.list_providers(
+                conn,
+                requesting_user=user.model_dump(),
+                active_ngroup_id=ngroup_id_to_filter,
+                page_size = page_size,
+                offset = offset,
+                can_upload = can_upload
+            )
+            for r in records:
+                row = dict(r)
+
+                # convert jsonb string to dict
+                if isinstance(row.get("point_of_contact"), str):
+                    row["point_of_contact"] = json.loads(row["point_of_contact"])
+
+                result.append(row)
+    return {
+        "total": total,
+        "providers": result,
+        "page": page,
+        "page_size": page_size
+    }
 
 async def list_providers_for_form(request: Request, ngroup_id: UUID) -> List[Dict[str, Any]]:
     """Retrieves a simplified list of providers for a given ngroup."""

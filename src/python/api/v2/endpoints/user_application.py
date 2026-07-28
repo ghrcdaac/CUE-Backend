@@ -45,7 +45,7 @@ async def list_all_applications(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     application_status: Optional[ApplicationStatus] = Query(None, alias="status", description="Filter applications by status."),
-    is_spam: bool = Query(False, alias="is-spam", description="Filter applications by spam flag.")
+    is_spam: Optional[bool] = Query(None, alias="is-spam", description="Filter applications by spam flag.")
 ):
     """
     Lists user applications, filtered by the selected ngroup. Admins see all,
@@ -102,5 +102,17 @@ async def reject_application_endpoint(
     try:
         rejected_app = await app_utils.reject_application(request, application_id, mark_as_spam=mark_as_spam)
         return UserApplicationResponse.model_validate(rejected_app)
+    except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+@router.post("/{application_id}/unmark-spam", response_model=UserApplicationResponse, dependencies=[Depends(require_privilege("application:approve"))])
+async def unmark_spam_application_endpoint(
+    request: Request,
+    application_id: UUID
+):
+    """Unmarks a user application as spam, keeping the status as rejected and setting is_spam to False."""
+    try:
+        updated_app = await app_utils.unmark_spam_application(request, application_id)
+        return UserApplicationResponse.model_validate(updated_app)
     except (app_utils.ApplicationNotFoundError, app_utils.ApplicationInvalidStateError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

@@ -9,7 +9,7 @@ from typing import List, Optional
 from core.security import get_current_user, require_privilege
 from v2.type_util.auth import AuthUser as User
 from v2.utils import cueuser as cueuser_utils
-from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse, UserRoleUpdateRequest
+from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse, UserRoleUpdateRequest, PaginatedUserResponse
 
 router = APIRouter(prefix="/cueusers", tags=["V2 - CUE Users"])
 
@@ -24,18 +24,20 @@ async def get_my_profile(request: Request, user: User = Depends(get_current_user
     except cueuser_utils.UserNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found in database.")
 
-@router.get("/", response_model=List[UserResponse], dependencies=[Depends(require_privilege("user:read"))])
+@router.get("/", response_model=PaginatedUserResponse, dependencies=[Depends(require_privilege("user:read"))])
 async def list_users_endpoint(
     request: Request,
     user: User = Depends(get_current_user),
     # Read the active ngroup ID directly from the header
-    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id")
+    active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=50)
 ):
     """Retrieves a list of all users, filtered by the active DAAC."""
     try:
         # Pass the header value and the current user to the utility function
-        users = await cueuser_utils.list_users(request, user, active_ngroup_id)
-        return [UserResponse.model_validate(u) for u in users]
+        users = await cueuser_utils.list_users(request, user, active_ngroup_id, page, page_size)
+        return PaginatedUserResponse.model_validate(users)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -125,7 +127,7 @@ async def update_user_role_endpoint(
 ):
     """Assigns a new role to a user."""
     try:
-        updated_user = await cueuser_utils.update_user_role(request, user_id, update_req.role_id, current_user)
+        updated_user = await cueuser_utils.update_user_role(request, user_id, update_req.role_id, current_user, provider_id=update_req.provider_id)
         return UserResponse.model_validate(updated_user)
     except cueuser_utils.UserNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")

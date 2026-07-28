@@ -5,6 +5,7 @@ from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr
 from .ngroup import NgroupListResponse
+from .provider import ProviderListResponse
 
 # --- User Profile & List Models ---
 
@@ -19,6 +20,7 @@ class UserResponse(BaseModel):
     registered: datetime
     roles: List[str] = Field(default_factory=list, description="List of role short names.")
     ngroups: List[NgroupListResponse] = Field(default_factory=list, description="List of ngroup objects the user belongs to.")
+    providers: List[ProviderListResponse] = Field(default_factory=list, description="List of provider objects the user belongs to.")
     privileges: List[str] = Field(default_factory=list, description="Consolidated list of all permissions.")
     
     class Config:
@@ -59,3 +61,10 @@ class UserUpdateRequest(BaseModel):
 class UserRoleUpdateRequest(BaseModel):
     """Request body for updating a user's role."""
     role_id: UUID
+    provider_id: Optional[UUID] = None
+
+class PaginatedUserResponse(BaseModel):
+    users: List[UserResponse]
+    page: int
+    page_size: int
+    total: int

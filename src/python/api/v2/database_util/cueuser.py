@@ -34,6 +34,12 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
                 WHERE ug.cueuser_id = u.id
             ) AS ngroups,
             (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up
+                JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
                 SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
                 FROM cueuser_role ur
                 JOIN role_privilege rp ON ur.role_id = rp.role_id
@@ -48,6 +54,8 @@ async def get_user_by_id(conn: Connection, user_id: UUID) -> Optional[Dict[str, 
 async def list_users(
     conn: Connection,
     requesting_user: Dict[str, Any],
+    page_size: int,
+    offset: int,
     active_ngroup_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -79,6 +87,11 @@ async def list_users(
                 WHERE ug.cueuser_id = u.id
             ) AS ngroups,
             (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
                 SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
                 FROM cueuser_role ur
                 JOIN role_privilege rp ON ur.role_id = rp.role_id
@@ -104,25 +117,48 @@ async def list_users(
             where_conditions.append("FALSE")
 
     where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
-    query = f"{base_query} {where_clause} ORDER BY u.name;"
+
+    limit_param = len(params) + 1
+    offset_param = len(params) + 2
+
+    params.extend([page_size, offset])
+
+    query = f"{base_query} {where_clause} ORDER BY u.name LIMIT ${limit_param} OFFSET ${offset_param};"
     
     return await conn.fetch(query, *params)
 
 async def get_user_by_username(conn: Connection, cueusername: str) -> Optional[Dict[str, Any]]:
     """Fetches a single user's core data by their unique username."""
-    # This query is simple enough that it doesn't need the subquery optimization.
     query = """
         SELECT
             u.id, u.email, u.name, u.cueusername, u.edpub_id, u.registered,
-            COALESCE(jsonb_agg(DISTINCT r.short_name) FILTER (WHERE r.short_name IS NOT NULL), '[]'::jsonb) AS roles,
-            COALESCE(jsonb_agg(DISTINCT g.short_name) FILTER (WHERE g.short_name IS NOT NULL), '[]'::jsonb) AS ngroups
+            (
+                SELECT COALESCE(jsonb_agg(r.short_name), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role r ON ur.role_id = r.id
+                WHERE ur.cueuser_id = u.id
+            ) AS roles,
+            (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', g.id, 'short_name', g.short_name)), '[]'::jsonb)
+                FROM cueuser_ngroup ug
+                JOIN ngroup g ON ug.ngroup_id = g.id
+                WHERE ug.cueuser_id = u.id
+            ) AS ngroups,
+            (
+                SELECT COALESCE(jsonb_agg(jsonb_build_object('id', p.id, 'short_name', p.short_name)), '[]'::jsonb)
+                FROM cueuser_provider up
+                JOIN provider p ON up.provider_id = p.id
+                WHERE up.cueuser_id = u.id
+            ) AS providers,
+            (
+                SELECT COALESCE(jsonb_agg(DISTINCT p.privilege), '[]'::jsonb)
+                FROM cueuser_role ur
+                JOIN role_privilege rp ON ur.role_id = rp.role_id
+                JOIN privilege p ON rp.privilege_id = p.id
+                WHERE ur.cueuser_id = u.id
+            ) AS privileges
         FROM cueuser u
-        LEFT JOIN cueuser_role ur ON u.id = ur.cueuser_id
-        LEFT JOIN role r ON ur.role_id = r.id
-        LEFT JOIN cueuser_ngroup ug ON u.id = ug.cueuser_id
-        LEFT JOIN ngroup g ON ug.ngroup_id = g.id
-        WHERE u.cueusername = $1
-        GROUP BY u.id;
+        WHERE u.cueusername = $1;
     """
     return await conn.fetchrow(query, cueusername)
 
@@ -257,3 +293,54 @@ async def delete_user(conn: Connection, user_id: UUID) -> bool:
     result = await conn.execute("DELETE FROM cueuser WHERE id = $1", user_id)
     deleted_count = int(result.split(" ")[1])
     return deleted_count > 0
+
+async def get_users_count(
+    conn: Connection,
+    requesting_user: Dict[str, Any],
+    active_ngroup_id: Optional[UUID] = None
+) -> int:
+    """
+    Returns total count of users applying the same filters used in list_users().
+    """
+
+    logger.info(
+        "user.count.executing_query",
+        user_roles=requesting_user.get('roles', []),
+        active_ngroup_id=str(active_ngroup_id) if active_ngroup_id else None
+    )
+
+    user_roles = set(requesting_user.get('roles', []))
+    params = []
+    where_conditions = []
+
+    if active_ngroup_id:
+        # Filter only users in this DAAC
+        where_conditions.append(
+            "EXISTS (SELECT 1 FROM cueuser_ngroup ug WHERE ug.cueuser_id = u.id AND ug.ngroup_id = $1)"
+        )
+        params.append(active_ngroup_id)
+
+    else:
+        # No DAAC selected
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            # Managers/other roles → see nothing
+            where_conditions.append("FALSE")
+
+    where_clause = (
+        f"WHERE {' AND '.join(where_conditions)}"
+        if where_conditions else ""
+    )
+
+    query = f"""
+        SELECT COUNT(*) AS total_count
+        FROM cueuser u
+        {where_clause};
+    """
+
+    try:
+        row = await conn.fetchrow(query, *params)
+        return row["total_count"] if row else 0
+
+    except Exception as e:
+        logger.error(f"Error fetching user count: {e}", error=str(e))
+        raise
