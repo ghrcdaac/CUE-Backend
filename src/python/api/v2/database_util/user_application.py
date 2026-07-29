@@ -21,7 +21,7 @@ async def create_user_application(conn: Connection, app_data: UserApplicationCre
         INSERT INTO user_application 
             (user_id, email, name, username, justification, ngroup_id, account_type, provider_id, edpub_id, status)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
-        RETURNING *;
+        RETURNING *, (SELECT short_name FROM provider WHERE id = provider_id) AS provider_name;
     """
     row = await conn.fetchrow(
         query, user_id, app_data.email, app_data.name, app_data.username, app_data.justification,
@@ -31,7 +31,13 @@ async def create_user_application(conn: Connection, app_data: UserApplicationCre
 
 async def get_user_application_by_id(conn: Connection, application_id: UUID) -> Optional[Dict[str, Any]]:
     """Retrieves a single user application by its ID."""
-    row = await conn.fetchrow("SELECT * FROM user_application WHERE id = $1", application_id)
+    query = """
+        SELECT ua.*, p.short_name AS provider_name
+        FROM user_application ua
+        LEFT JOIN provider p ON ua.provider_id = p.id
+        WHERE ua.id = $1
+    """
+    row = await conn.fetchrow(query, application_id)
     return dict(row) if row else None
 
 async def is_email_spam(conn: Connection, email: str) -> bool:
@@ -107,7 +113,13 @@ async def list_user_applications(
         conditions.append(f"status = ${len(params)}::application_status")
 
     where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
-    query = f"SELECT * FROM user_application {where_clause} ORDER BY applied DESC;"
+    query = f"""
+        SELECT ua.*, p.short_name AS provider_name
+        FROM user_application ua
+        LEFT JOIN provider p ON ua.provider_id = p.id
+        {where_clause}
+        ORDER BY ua.applied DESC;
+    """
     
     records = await conn.fetch(query, *params)
     return [dict(record) for record in records]
@@ -120,10 +132,10 @@ async def update_application_status(
 ) -> Optional[Dict[str, Any]]:
     """Updates the status of a user application."""
     if is_spam is None:
-        query = "UPDATE user_application SET status = $1 WHERE id = $2 RETURNING *;"
+        query = "UPDATE user_application SET status = $1 WHERE id = $2 RETURNING *, (SELECT short_name FROM provider WHERE id = provider_id) AS provider_name;"
         row = await conn.fetchrow(query, status.value, application_id)
     else:
-        query = "UPDATE user_application SET status = $1, is_spam = $2 WHERE id = $3 RETURNING *;"
+        query = "UPDATE user_application SET status = $1, is_spam = $2 WHERE id = $3 RETURNING *, (SELECT short_name FROM provider WHERE id = provider_id) AS provider_name;"
         row = await conn.fetchrow(query, status.value, is_spam, application_id)
     return dict(row) if row else None
 
@@ -137,7 +149,7 @@ async def mark_email_as_spam(conn: Connection, email: str) -> List[Dict[str, Any
                 ELSE status
             END
         WHERE LOWER(email) = LOWER($1)
-        RETURNING *;
+        RETURNING *, (SELECT short_name FROM provider WHERE id = provider_id) AS provider_name;
     """
     records = await conn.fetch(query, email)
     return [dict(record) for record in records]

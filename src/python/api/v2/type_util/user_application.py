@@ -51,6 +51,7 @@ class UserApplicationResponse(BaseModel):
     justification: str
     ngroup_id: UUID
     provider_id: Optional[UUID] = None
+    provider_name: Optional[str] = None
     account_type: AccountType
     edpub_id: Optional[str] = None
     status: ApplicationStatus
