@@ -106,6 +106,11 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
             if app_data['status'] != 'pending':
                 raise ApplicationInvalidStateError(f"Application is not in 'pending' state.")
 
+            if role_to_assign == 'provider':
+                final_provider_id = provider_id_to_assign if provider_id_to_assign is not None else app_data.get('provider_id')
+                if not final_provider_id:
+                    raise ValueError("provider_id is required for the provider role.")
+
             user_id = app_data['user_id']
             if not user_id:
                 raise ValueError("Application is missing the required user_id from Keycloak.")

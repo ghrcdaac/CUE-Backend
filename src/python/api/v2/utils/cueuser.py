@@ -51,6 +51,10 @@ async def create_new_user(
             if exists:
                 raise ValueError(f"User with ID {user_id} already exists in the CUE database.")
 
+            role_short_name = await role_db.get_role_short_name_by_id(conn, role_id)
+            if role_short_name == "provider" and not provider_ids:
+                raise ValueError("provider_id is required for the provider role.")
+
             await user_db.create_user(conn, user_id, email, name, cueusername, edpub_id)
             await user_db.assign_role_to_user(conn, user_id, role_id)
             if ngroup_ids:
@@ -183,6 +187,9 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
         if not target_role:
             raise ValueError("Target role not found.")
 
+        if target_role['short_name'] == 'provider' and not provider_id:
+            raise ValueError("provider_id is required for the provider role.")
+
         if not is_admin:
             allowed_roles = set()
             if is_manager:
@@ -195,7 +202,7 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
             if target_role['short_name'] not in allowed_roles:
                 raise ValueError("You do not have permission to assign this role.")
 
-        async with request.state.pool.acquire() as conn:
+        async with conn.transaction():
             await user_db.update_user_roles(conn, user_id, [role_id])
             if target_role['short_name'] == 'provider':
                 await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
