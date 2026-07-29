@@ -59,7 +59,7 @@ async def list_applications(
     user: User, # Accept the full user object for role checks
     active_ngroup_id: Optional[str] = None, # Accept the optional ngroup ID string
     status: Optional[ApplicationStatus] = None,
-    is_spam: Optional[bool] = None
+    is_spam: Optional[bool] = False
 ) -> List[Dict[str, Any]]:
     """Lists all applications based on user roles and optional filters."""
 

@@ -45,7 +45,7 @@ async def list_all_applications(
     # Read the active ngroup ID directly from the header
     active_ngroup_id: Optional[str] = Header(None, alias="x-active-ngroup-id"),
     application_status: Optional[ApplicationStatus] = Query(None, alias="status", description="Filter applications by status."),
-    is_spam: Optional[bool] = Query(None, alias="is-spam", description="Filter applications by spam flag.")
+    is_spam: Optional[bool] = Query(False, alias="is-spam", description="Filter applications by spam flag.")
 ):
     """
     Lists user applications, filtered by the selected ngroup. Admins see all,

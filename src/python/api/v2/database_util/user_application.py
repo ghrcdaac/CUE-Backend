@@ -65,7 +65,7 @@ async def list_user_applications(
     requesting_user: Dict[str, Any],
     active_ngroup_id: Optional[UUID] = None,
     status: Optional[ApplicationStatus] = None,
-    is_spam: Optional[bool] = None
+    is_spam: Optional[bool] = False
 ) -> List[Dict[str, Any]]:
     """Lists user applications, filtered by the active ngroup and user role."""
     logger.info(
