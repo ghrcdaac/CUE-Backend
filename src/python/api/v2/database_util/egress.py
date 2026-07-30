@@ -89,8 +89,8 @@ async def delete_egress(conn: Connection, egress_id: UUID) -> bool:
         logger.warning("db.egress.delete.failed_fk", egress_id=str(egress_id), error=str(e))
         raise ValueError("Cannot delete this egress target because it is still linked to one or more collections.") from e
     
-async def get_egress_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
-    "Retrives the total Count of the providers, filtered by ngroup_id"
+async def get_egress_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: Optional[UUID] = None) -> int:
+    """Retrieves the total Count of egress targets, filtered by ngroup_id"""
 
     logger.info(
         "egress.count.executing_query",

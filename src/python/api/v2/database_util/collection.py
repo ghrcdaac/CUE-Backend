@@ -24,8 +24,8 @@ async def create_collection(conn: Connection, short_name: str, active: bool, ngr
         raise ValueError("The specified ngroup_id, provider_id, or egress_id does not exist.") from e
 
 async def get_collection_by_id(conn: Connection, collection_id: UUID) -> Optional[Dict[str, Any]]:
-    """Retrieves a collection record from the database by its ID."""
-    return await conn.fetchrow("SELECT * FROM collection WHERE id = $1", collection_id)
+    """Retrieves a collection record from the database by its ID, if not deleted."""
+    return await conn.fetchrow("SELECT * FROM collection WHERE id = $1 AND is_deleted = FALSE", collection_id)
 
 async def get_collection_by_short_name(conn: Connection, short_name: str) -> Optional[Dict[str, Any]]:
     """Retrieves a collection record from the database by its short_name, if not deleted."""
@@ -73,14 +73,14 @@ async def list_collections(
     query = f"""
         SELECT
             c.*,
-            jsonb_build_object(
+            CASE WHEN p.id IS NOT NULL THEN jsonb_build_object(
                 'id', p.id,
                 'name', p.short_name
-            ) AS provider,
-            jsonb_build_object(
+            ) ELSE NULL END AS provider,
+            CASE WHEN e.id IS NOT NULL THEN jsonb_build_object(
                 'id', e.id,
                 'path', e.path
-            ) AS egress
+            ) ELSE NULL END AS egress
         FROM collection c
         LEFT JOIN provider p ON c.provider_id = p.id
         LEFT JOIN egress e ON c.egress_id = e.id
@@ -112,8 +112,8 @@ async def delete_collection(conn: Connection, collection_id: UUID) -> bool:
     result = await conn.execute("UPDATE collection SET is_deleted = TRUE WHERE id = $1 AND is_deleted = FALSE", collection_id)
     return result.strip() == "UPDATE 1"
 
-async def get_collection_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int) -> int:
-    "Retrives the total Count of the collection, filtered by ngroup_id"
+async def get_collection_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: Optional[UUID] = None) -> int:
+    """Retrieves the total Count of active collections, filtered by ngroup_id"""
 
     logger.info(
         "collection.count.executing_query",
@@ -126,16 +126,16 @@ async def get_collection_count(conn: Connection, requesting_user: Dict[str, Any]
 
     # If a DAAC is selected, ALL roles are strictly filtered by it.
     if active_ngroup_id:
-        where_clause = "WHERE ngroup_id = $1"
+        where_clause = "WHERE ngroup_id = $1 AND is_deleted = FALSE"
         params.append(active_ngroup_id)
     else:
         # If NO DAAC is selected:
-        # Admins/Security see all providers from all groups.
+        # Admins/Security see all collections from all groups.
         if 'admin' in user_roles or 'security' in user_roles:
-            where_clause = ""  # No filter, show all
+            where_clause = "WHERE is_deleted = FALSE"  # No filter, show all active
         else:
             # All other roles see an empty list if no DAAC is selected.
-            # This forces managers to select a DAAC to see its providers.
+            # This forces managers to select a DAAC to see its collections.
             where_clause = "WHERE FALSE"  # Return no rows
 
     try:

@@ -52,7 +52,7 @@ class ProviderUserResponse(ProviderBase):
     """Model for returning a full provider object from the API."""
     id: UUID
     ngroup_id: UUID
-    point_of_contact: PointOfContactUser
+    point_of_contact: Optional[PointOfContactUser] = None
     reason:  Optional[str] = None
 
     class Config:

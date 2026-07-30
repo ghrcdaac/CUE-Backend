@@ -45,8 +45,8 @@ class CollectionListResponse(CollectionBase):
     """Model for returning a full collection object from the API."""
     id: UUID
     ngroup_id: UUID
-    provider: Provider
-    egress: Egress
+    provider: Optional[Provider] = None
+    egress: Optional[Egress] = None
 
     class Config:
         from_attributes = True

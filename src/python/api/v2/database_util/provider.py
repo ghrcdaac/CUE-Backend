@@ -80,10 +80,10 @@ async def list_providers(
     query = f"""
         SELECT
             p.*,
-            jsonb_build_object(
+            CASE WHEN u.id IS NOT NULL THEN jsonb_build_object(
                 'id', u.id,
                 'name', u.name
-            ) AS point_of_contact
+            ) ELSE NULL END AS point_of_contact
         FROM provider p
         LEFT JOIN cueuser u ON p.point_of_contact = u.id
         {where_clause}
@@ -122,7 +122,7 @@ async def delete_provider(conn: Connection, provider_id: UUID) -> bool:
         logger.warning("db.provider.delete.failed_fk", provider_id=str(provider_id), error=str(e))
         raise ValueError("Cannot delete this provider because it is still linked to one or more collections.") from e
     
-async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: int, can_upload: bool) -> int:
+async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any], active_ngroup_id: Optional[UUID] = None, can_upload: Optional[bool] = None) -> int:
     "Retrives the total Count of the providers, filtered by ngroup_id"
 
     logger.info(
