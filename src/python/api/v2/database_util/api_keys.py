@@ -63,21 +63,19 @@ async def list_api_keys(
     params = []
     where_conditions = ["ak.revoked_at IS NULL"]
 
-    # This is the primary filtering logic for when a DAAC is selected in the UI.
-    # It applies to ALL users, including admins, enforcing the context.
+    # 1. Ngroup filter
     if active_ngroup_id:
-        where_conditions.append("ak.ngroup_id = $1")
         params.append(active_ngroup_id)
+        where_conditions.append(f"ak.ngroup_id = ${len(params)}")
     
-    # This is the logic for the default state when NO DAAC is selected.
-    else:
-        # Admins and Security users see all keys from all groups by default.
-        if 'admin' in user_roles or 'security' in user_roles:
-            pass  # No additional filter, they see everything.
-        else:
-            # For any other user (Manager, Staff, etc.), if no DAAC is selected,
-            # they see an empty list. This forces a DAAC context to be chosen.
-            where_conditions.append("1=0")  # A condition that is always false.
+    # 2. Role-based visibility
+    is_privileged = bool(user_roles.intersection({'admin', 'security', 'daac_manager','daac_staff'}))
+    if not is_privileged:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        params.append(user_id)
+        where_conditions.append(f"(ak.user_id = ${len(params)} OR ak.created_by_user_id = ${len(params)})")
     
     limit_param = len(params) + 1
     offset_param = len(params) + 2
@@ -143,14 +141,19 @@ async def count_api_keys(
     params = []
     where_conditions = ["ak.revoked_at IS NULL"]
 
+    # 1. Ngroup filter
     if active_ngroup_id:
-        where_conditions.append("ak.ngroup_id = $1")
         params.append(active_ngroup_id)
-    else:
-        if 'admin' in user_roles or 'security' in user_roles:
-            pass 
-        else:
-            where_conditions.append("1=0") 
+        where_conditions.append(f"ak.ngroup_id = ${len(params)}")
+
+    # 2. Role-based visibility
+    is_privileged = bool(user_roles.intersection({'admin', 'security', 'daac_manager'}))
+    if not is_privileged:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        params.append(user_id)
+        where_conditions.append(f"(ak.user_id = ${len(params)} OR ak.created_by_user_id = ${len(params)})")
 
     where_clause = f"WHERE {' AND '.join(where_conditions)}"
 
