@@ -52,3 +52,9 @@ output "hdf_vulnerability_scanner_role_arn" {
   description = "ARN for the HDF Vulnerability Scanner Lambda Role"
   value       = aws_iam_role.hdf_vulnerability_scanner_role.arn
 }
+
+
+output "manual_file_transfer_role_arn" {
+  description = "ARN for the Manual File Transfer Lambda Role"
+  value = aws_iam_role.manual_file_transfer_role.arn
+}

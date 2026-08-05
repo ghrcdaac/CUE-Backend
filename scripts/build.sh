@@ -20,6 +20,7 @@ install_lambda hdf-vulnerability-scanner
 # install_lambda file-transfer
 # install_lambda process-athena-query
 # install_lambda cost-update
+install_lambda manual-file-transfer
 
 # Cleanup
 remove_temp

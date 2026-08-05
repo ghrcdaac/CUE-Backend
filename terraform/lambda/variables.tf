@@ -254,3 +254,8 @@ variable "scan_event_lambda_memory_size" { type = number }
 variable "notification_manager_lambda_memory_size" { type = number }
 variable "file_transfer_lambda_memory_size" { type = number }
 variable "hdf_scanner_lambda_memory_size" { type = number }
+
+variable "manual_file_transfer_role_arn"{
+  description = "IAM Role Arn for the Manual File Transfer Lambda  "
+  type        = string
+}

@@ -133,6 +133,7 @@ export TF_VAR_scan_event_lambda_memory_size="${bamboo_SCAN_EVENT_MEMORY_SIZE:-12
 export TF_VAR_notification_manager_lambda_memory_size="${bamboo_NOTIFICATION_MANAGER_MEMORY_SIZE:-128}"
 export TF_VAR_file_transfer_lambda_memory_size="${bamboo_FILE_TRANSFER_MEMORY_SIZE:-1024}"
 export TF_VAR_hdf_scanner_lambda_memory_size="${bamboo_HDF_SCANNER_MEMORY_SIZE:-512}"
+export TF_VAR_cleanup_uploads_schedule="${bamboo_CLEANUP_UPLOADS_SCHEDULE}"
 
 # Terraform will automatically use the AWS_PROFILE exported at the top
 echo "Initializing Terraform..."

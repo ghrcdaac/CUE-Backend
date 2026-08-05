@@ -185,3 +185,19 @@ resource "aws_iam_role_policy" "hdf_allow_invoke_file_transfer_lambda" {
     ]
   })
 }
+
+# -- Role for Manual File Transfer Lambada ---
+resource "aws_iam_role" "manual_file_transfer_role" {
+  name               = "CUEManualFileTransferRole" # Use static name
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+resource "aws_iam_role_policy_attachment" "manual_file_transfer_vpc" {
+  role       = aws_iam_role.manual_file_transfer_role.id
+  policy_arn = var.lambda_execution_policy_arn
+}
+
+resource "aws_iam_role_policy" "manual_file_transfer_policy" {
+  name   = "CUEManualFileTransferPolicy" 
+  role   = aws_iam_role.manual_file_transfer_role.id
+  policy = data.aws_iam_policy_document.manual_file_transfer_policy.json
+}

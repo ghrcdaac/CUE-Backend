@@ -60,5 +60,6 @@ export bamboo_METRIC_RETENTION_PERIOD_NAME="/cue/config/metric-retention-period"
 export bamboo_METRIC_RETENTION_PERIOD_VALUE="90"
 export bamboo_CUE_ARCHIVE_DATABASE_NAME="cue_archive_db"
 export bamboo_NOTIFICATION_SCHEDULE_MINUTES=30
+export bamboo_CLEANUP_UPLOADS_SCHEDULE="cron(0 1 * * ? * )"
 
 
