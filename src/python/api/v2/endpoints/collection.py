@@ -69,6 +69,16 @@ async def get_collection_endpoint(request: Request, collection_id: UUID, user: A
 
         if not is_admin and str(collection['ngroup_id']) not in user_ngroup_ids:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+
+        if not is_admin and "provider" in user.roles:
+            async with request.state.pool.acquire() as conn:
+                has_association = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM cueuser_provider WHERE cueuser_id = $1 AND provider_id = $2)",
+                    user.id, collection['provider_id']
+                )
+                if not has_association:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+
         return CollectionResponse.model_validate(collection)
     except collection_utils.CollectionNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

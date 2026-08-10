@@ -59,11 +59,19 @@ async def list_collections(
         # If NO DAAC is selected:
         # Admins/Security see all collections from all groups.
         if 'admin' in user_roles or 'security' in user_roles:
-            where_clause = "WHERE is_deleted = FALSE" # No filter, show all active
+            where_clause = "WHERE c.is_deleted = FALSE" # No filter, show all active
         else:
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its collections.
             where_clause = "WHERE FALSE" # Return no rows
+
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        if where_clause != "WHERE FALSE":
+            params.append(user_id)
+            where_clause += f" AND c.provider_id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
 
     limit_param = len(params) + 1
     offset_param = len(params) + 2
@@ -137,6 +145,14 @@ async def get_collection_count(conn: Connection, requesting_user: Dict[str, Any]
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its collections.
             where_clause = "WHERE FALSE"  # Return no rows
+
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        if where_clause != "WHERE FALSE":
+            params.append(user_id)
+            where_clause += f" AND provider_id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
 
     try:
         query = f"SELECT count(id) FROM collection {where_clause}"
