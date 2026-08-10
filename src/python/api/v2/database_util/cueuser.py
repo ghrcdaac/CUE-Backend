@@ -103,7 +103,13 @@ async def list_users(
     
     # Use an EXISTS subquery for efficient filtering without disturbing the main query structure
     where_conditions = []
-    if active_ngroup_id:
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        params.append(user_id)
+        where_conditions.append(f"u.id = ${len(params)}")
+    elif active_ngroup_id:
         where_conditions.append(
             "EXISTS (SELECT 1 FROM cueuser_ngroup ug WHERE ug.cueuser_id = u.id AND ug.ngroup_id = $1)"
         )
@@ -313,7 +319,13 @@ async def get_users_count(
     params = []
     where_conditions = []
 
-    if active_ngroup_id:
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        params.append(user_id)
+        where_conditions.append(f"u.id = ${len(params)}")
+    elif active_ngroup_id:
         # Filter only users in this DAAC
         where_conditions.append(
             "EXISTS (SELECT 1 FROM cueuser_ngroup ug WHERE ug.cueuser_id = u.id AND ug.ngroup_id = $1)"
