@@ -61,6 +61,17 @@ async def list_providers(
             # This forces managers to select a DAAC to see its providers.
             where_clause = "WHERE FALSE"  # Return no rows
     
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        if where_clause != "WHERE FALSE":
+            params.append(user_id)
+            if where_clause:
+                where_clause += f" AND p.id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
+            else:
+                where_clause = f"WHERE p.id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
+    
     can_upload_param = len(params) + 1
     if can_upload is not None:
         #test where class with empty string
@@ -147,6 +158,17 @@ async def get_providers_count(conn: Connection, requesting_user: Dict[str, Any],
             # All other roles see an empty list if no DAAC is selected.
             # This forces managers to select a DAAC to see its providers.
             where_clause = "WHERE FALSE"  # Return no rows
+    
+    if 'provider' in user_roles:
+        user_id = requesting_user.get('id')
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        if where_clause != "WHERE FALSE":
+            params.append(user_id)
+            if where_clause:
+                where_clause += f" AND id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
+            else:
+                where_clause = f"WHERE id IN (SELECT provider_id FROM cueuser_provider WHERE cueuser_id = ${len(params)})"
     
     can_upload_param = len(params) + 1
     if can_upload is not None:
