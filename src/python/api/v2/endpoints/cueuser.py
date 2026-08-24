@@ -74,24 +74,42 @@ async def find_user_endpoint(
     email: Optional[str] = Query(None, description="Email to search for (case-insensitive, partial match)."),
     cueusername: Optional[str] = Query(None, description="Username to search for (case-insensitive, partial match)."),
     name: Optional[str] = Query(None, description="Name to search for (case-insensitive, partial match)."),
-    edpub_id: Optional[str] = Query(None, description="Exact EdPub ID to search for.")
+    edpub_id: Optional[str] = Query(None, description="Exact EdPub ID to search for."),
+    user: User = Depends(get_current_user)
 ):
     """Finds users based on various criteria."""
     try:
         users = await cueuser_utils.find_users_by_criteria(request, email, cueusername, name, edpub_id)
+        is_admin = "admin" in user.roles
+        if not is_admin and "provider" in user.roles:
+            users = [u for u in users if u['id'] == user.id]
         return [UserFindResponse.model_validate(u) for u in users]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.get("/by_role/{role_id}", response_model=List[UserResponse], dependencies=[Depends(require_privilege("user:read"))])
-async def get_users_by_role_endpoint(request: Request, role_id: UUID):
+async def get_users_by_role_endpoint(
+    request: Request,
+    role_id: UUID,
+    user: User = Depends(get_current_user)
+):
     """Lists all users assigned to a specific role."""
     users = await cueuser_utils.get_users_by_role(request, role_id)
+    is_admin = "admin" in user.roles
+    if not is_admin and "provider" in user.roles:
+        users = [u for u in users if u['id'] == user.id]
     return [UserResponse.model_validate(u) for u in users]
 
 @router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_privilege("user:read"))])
-async def get_user_by_id_endpoint(request: Request, user_id: UUID):
+async def get_user_by_id_endpoint(
+    request: Request,
+    user_id: UUID,
+    user: User = Depends(get_current_user)
+):
     """Retrieves a specific user's profile by their ID."""
+    is_admin = "admin" in user.roles
+    if not is_admin and "provider" in user.roles and user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
     try:
         user_profile = await cueuser_utils.get_user_profile(request, user_id)
         return UserResponse.model_validate(user_profile)
@@ -99,8 +117,15 @@ async def get_user_by_id_endpoint(request: Request, user_id: UUID):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
 @router.get("/by_username/{cueusername}", response_model=UserResponse, dependencies=[Depends(require_privilege("user:read"))])
-async def get_user_by_username_endpoint(request: Request, cueusername: str):
+async def get_user_by_username_endpoint(
+    request: Request,
+    cueusername: str,
+    user: User = Depends(get_current_user)
+):
     """Retrieves a specific user's profile by their username."""
+    is_admin = "admin" in user.roles
+    if not is_admin and "provider" in user.roles and cueusername != user.cueusername:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
     try:
         user_profile = await cueuser_utils.get_user_profile_by_username(request, cueusername)
         return UserResponse.model_validate(user_profile)
