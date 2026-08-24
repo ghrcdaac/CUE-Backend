@@ -16,9 +16,9 @@ logger = structlog.get_logger(__name__)
 
 PDF_REPORT_BATCH_SIZE = 5000
 PDF_REPORT_RETENTION_DAYS = 30
-PDF_REPORT_S3_PART_SIZE = int(os.environ.get("FILE_REPORT_S3_PART_SIZE", str(16 * 1024 * 1024)))
+PDF_REPORT_S3_PART_SIZE = int(str(16 * 1024 * 1024))
 PDF_REPORT_BUCKET = os.environ.get("FILE_REPORT_BUCKET", "cue-reports")
-PDF_REPORT_PRESIGNED_URL_EXPIRATION = int(os.environ.get("FILE_REPORT_PRESIGNED_URL_EXPIRATION", "604800"))
+PDF_REPORT_PRESIGNED_URL_EXPIRATION = int("604800")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "cue-no-reply@nasa.gov")
 VALID_FILE_STATUSES = {"unscanned", "clean", "infected", "scan_failed", "distributed"}
 

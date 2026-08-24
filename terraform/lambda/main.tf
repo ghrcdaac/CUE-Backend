@@ -67,8 +67,6 @@ resource "aws_lambda_function" "cue_api" {
       ENV = "production"
       REDEPLOY_TRIGGER = "23"
       FILE_REPORT_BUCKET                   = var.file_report_bucket
-      FILE_REPORT_PRESIGNED_URL_EXPIRATION = "604800"
-      FILE_REPORT_S3_PART_SIZE             = "16777216"
       SENDER_EMAIL                         = var.sender_email
       SES_REGION                           = var.ses_region
       SES_SOURCE_ARN                       = var.ses_source_arn

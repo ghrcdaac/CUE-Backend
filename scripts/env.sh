@@ -35,8 +35,6 @@ export bamboo_S3_UPLOAD_BUCKET="your-file-upload-bucket-name"
 export bamboo_S3_ARCHIVE_BUCKET="your-archive-bucket-name" 
 export bamboo_S3_ARCHIVE_RESULTS_BUCKET="your-archive-results-bucket" 
 export bamboo_S3_STAGING_BUCKET="your-cue-staging-bucket"
-export bamboo_FILE_REPORT_BUCKET="your-file-report-download-bucket"
-export bamboo_FILE_REPORT_S3_PART_SIZE="16777216"
 
 # --- V1 Cognito Variables (Preserved for backward compatibility) ---
 export bamboo_POOL_ID="yourCognitoUserPoolId"
@@ -66,6 +64,3 @@ export bamboo_NOTIFICATION_SCHEDULE_MINUTES=30
 
 #---- PDF download configurations----
 export bamboo_FILE_REPORT_BUCKET="cue-file-reports"
-export bamboo_FILE_REPORT_S3_PART_SIZE="16777216"
-
-
