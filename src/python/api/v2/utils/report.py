@@ -11,8 +11,36 @@ import os
 import textwrap
 import boto3
 import structlog
+import hmac
+import hashlib
+import time
 
 logger = structlog.get_logger(__name__)
+
+def generate_download_token(object_key: str, expires_at: int) -> str:
+    """Generates a secure cryptographically-signed token for report download redirection."""
+    secret = os.environ.get("PG_PASS", "default-cue-report-secret-key").encode("utf-8")
+    msg = f"{object_key}:{expires_at}".encode("utf-8")
+    signature = hmac.new(secret, msg, hashlib.sha256).hexdigest()
+    return f"{expires_at}.{signature}"
+
+def verify_download_token(object_key: str, token: str) -> bool:
+    """Verifies the signature and expiration of a report download token."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 2:
+            return False
+        expires_at_str, signature = parts
+        expires_at = int(expires_at_str)
+        if time.time() > expires_at:
+            return False
+        secret = os.environ.get("PG_PASS", "default-cue-report-secret-key").encode("utf-8")
+        msg = f"{object_key}:{expires_at}".encode("utf-8")
+        expected_signature = hmac.new(secret, msg, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(signature, expected_signature)
+    except Exception:
+        return False
+
 
 PDF_REPORT_BATCH_SIZE = 5000
 PDF_REPORT_RETENTION_DAYS = 30
@@ -347,7 +375,9 @@ async def generate_file_status_pdf_report(
     status: str,
     recipient_email: str,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None
+    end_date: Optional[date] = None,
+    base_url: str = "http://localhost:8000/",
+    root_path: str = ""
 ):
     """Background task that builds, uploads, and emails a file status PDF report."""
     report_id = UUID(requesting_user["id"]) if isinstance(requesting_user.get("id"), str) else requesting_user["id"]
@@ -411,11 +441,9 @@ async def generate_file_status_pdf_report(
         multipart_writer.abort()
         raise
 
-    download_url = s3_client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": PDF_REPORT_BUCKET, "Key": object_key},
-        ExpiresIn=PDF_REPORT_PRESIGNED_URL_EXPIRATION,
-    )
+    expires_at = int(time.time()) + (PDF_REPORT_RETENTION_DAYS * 24 * 3600)
+    token = generate_download_token(object_key, expires_at)
+    download_url = f"{base_url.rstrip('/')}{root_path}/v2/reports/download?key={object_key}&token={token}"
     _send_pdf_report_email(recipient_email, status, download_url, object_key)
     logger.info(
         "file.status_pdf_report.completed",
