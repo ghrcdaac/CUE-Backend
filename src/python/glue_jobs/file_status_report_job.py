@@ -427,19 +427,19 @@ async def run_report_generation(args: Dict[str, Any]):
     
     # Parse dates
     start_date = None
-    if args.get("START_DATE"):
+    if args.get("START_DATE") and args["START_DATE"] != "none":
         start_date = date.fromisoformat(args["START_DATE"])
     end_date = None
-    if args.get("END_DATE"):
+    if args.get("END_DATE") and args["END_DATE"] != "none":
         end_date = date.fromisoformat(args["END_DATE"])
         
     active_ngroup_id = None
-    if args.get("ACTIVE_NGROUP_ID"):
+    if args.get("ACTIVE_NGROUP_ID") and args["ACTIVE_NGROUP_ID"] != "none":
         active_ngroup_id = UUID(args["ACTIVE_NGROUP_ID"])
 
     requesting_user = {
         "id": requesting_user_id,
-        "roles": [r for r in args.get("REQUESTING_USER_ROLES", "").split(",") if r]
+        "roles": [r for r in args.get("REQUESTING_USER_ROLES", "").split(",") if r and r != "none"]
     }
 
     object_key = f"reports/file-status/{status}/{requesting_user_id}/{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.pdf"
@@ -514,10 +514,16 @@ async def run_report_generation(args: Dict[str, Any]):
 
     # Generate redirect URL using signed download token
     base_url = args["BASE_URL"]
-    root_path = args["ROOT_PATH"]
+    root_path = args["ROOT_PATH"] if args.get("ROOT_PATH") != "none" else ""
     expires_at = int(time.time()) + (PDF_REPORT_RETENTION_DAYS * 24 * 3600)
     token = generate_download_token(object_key, expires_at, db_pass)
-    download_url = f"{base_url.rstrip('/')}{root_path}/v2/reports/download?key={object_key}&token={token}"
+    
+    base_url_str = base_url.rstrip('/')
+    root_path_str = root_path.strip('/')
+    if root_path_str and not base_url_str.endswith(root_path_str):
+        download_url = f"{base_url_str}/{root_path_str}/v2/reports/download?key={object_key}&token={token}"
+    else:
+        download_url = f"{base_url_str}/v2/reports/download?key={object_key}&token={token}"
 
     # Send Email
     send_pdf_report_email(args, recipient_email, status, download_url, object_key)

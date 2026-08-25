@@ -64,14 +64,14 @@ async def generate_file_status_pdf_report(
             Arguments={
                 "--RECIPIENT_EMAIL": recipient_email,
                 "--STATUS": status,
-                "--START_DATE": start_date.isoformat() if start_date else "",
-                "--END_DATE": end_date.isoformat() if end_date else "",
-                "--ACTIVE_NGROUP_ID": str(active_ngroup_id) if active_ngroup_id else "",
+                "--START_DATE": start_date.isoformat() if start_date else "none",
+                "--END_DATE": end_date.isoformat() if end_date else "none",
+                "--ACTIVE_NGROUP_ID": str(active_ngroup_id) if active_ngroup_id else "none",
                 "--REQUESTING_USER_ID": str(requesting_user.get("id", "")),
                 "--REQUESTING_USER_NAME": username,
-                "--REQUESTING_USER_ROLES": roles_str,
+                "--REQUESTING_USER_ROLES": roles_str if roles_str else "none",
                 "--BASE_URL": base_url,
-                "--ROOT_PATH": root_path,
+                "--ROOT_PATH": root_path if root_path else "none",
             }
         )
         logger.info(
