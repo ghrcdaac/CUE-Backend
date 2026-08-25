@@ -65,3 +65,30 @@ variable "rds_cluster_identifier" {
   description = "The identifier of the RDS cluster for IAM policy scoping."
   type        = string
 }
+
+variable "file_report_bucket" {
+  description = "The S3 bucket where file reports are stored."
+  type        = string
+}
+
+variable "sender_email" {
+  description = "The email address sending reports."
+  type        = string
+}
+
+variable "ses_region" {
+  description = "The AWS region for SES."
+  type        = string
+}
+
+variable "ses_source_arn" {
+  description = "The ARN of the SES identity."
+  type        = string
+  default     = null
+}
+
+variable "ses_configuration_set_name" {
+  description = "The SES configuration set name."
+  type        = string
+  default     = null
+}

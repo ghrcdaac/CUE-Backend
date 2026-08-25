@@ -76,6 +76,11 @@ data "aws_iam_policy_document" "api_lambda_policy" {
     actions   = ["events:PutEvents"]
     resources = ["arn:aws:events:${var.region}:${var.account_id}:event-bus/cue-application-bus"]
   }
+  statement {
+    effect    = "Allow"
+    actions   = ["glue:StartJobRun"]
+    resources = ["arn:aws:glue:${var.region}:${var.account_id}:job/file_status_report_generator"]
+  }
 }
 
 data "aws_iam_policy_document" "infected_logger_policy" {

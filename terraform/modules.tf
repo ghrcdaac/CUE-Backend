@@ -130,6 +130,11 @@ module "glue" {
   security_group_ids           = var.security_group_ids
   availability_zone            = var.glue_availability_zone
   rds_cluster_identifier = var.rds_cluster_identifier
+  file_report_bucket     = var.file_report_bucket
+  sender_email           = var.sender_email
+  ses_region             = var.ses_region
+  ses_source_arn         = var.ses_source_arn
+  ses_configuration_set_name = var.ses_configuration_set_name
 }
 
 # module "archive" {

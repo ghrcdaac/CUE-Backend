@@ -56,5 +56,31 @@ data "aws_iam_policy_document" "cue_glue_job_policy" {
     ]
     resources = ["arn:aws:logs:*:*:/aws-glue/jobs/*"]
   }
+
+  # S3 File Report Bucket Access
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:DeleteObject",
+      "s3:PutObjectTagging"
+    ]
+    resources = [
+      "arn:aws:s3:::${var.file_report_bucket}",
+      "arn:aws:s3:::${var.file_report_bucket}/*"
+    ]
+  }
+
+  # SES Email Access
+  statement {
+    effect = "Allow"
+    actions = [
+      "ses:SendEmail",
+      "ses:SendRawEmail"
+    ]
+    resources = ["*"]
+  }
 }
 

@@ -368,6 +368,7 @@ def _send_pdf_report_email(recipient: str, status: str, download_url: str, objec
 
     ses_client.send_email(**send_email_args)
 
+
 async def generate_file_status_pdf_report(
     pool,
     requesting_user: Dict[str, Any],
@@ -379,79 +380,52 @@ async def generate_file_status_pdf_report(
     base_url: str = "http://localhost:8000/",
     root_path: str = ""
 ):
-    """Background task that builds, uploads, and emails a file status PDF report."""
-    report_id = UUID(requesting_user["id"]) if isinstance(requesting_user.get("id"), str) else requesting_user["id"]
-    object_key = f"reports/file-status/{status}/{report_id}/{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.pdf"
-    title = f"CUE {status} Files Report"
-    
-    username = requesting_user.get("cueusername") or requesting_user.get("preferred_username") or requesting_user.get("name") or "Unknown"
-    metadata_lines = [
-        f"Username: {username}",
-        f"Generated: {datetime.now(timezone.utc).isoformat()}",
-        f"Status: {status}",
-        f"Start Date: {start_date or 'Any'}",
-        f"End Date: {end_date or 'Any'}",
-    ]
-    
-    table_headers = ["File Name", "Collection", "Size (Bytes)", "Uploaded", "Distributed"]
-
-    s3_client = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-west-2"))
-    multipart_writer = _S3MultipartWriter(s3_client, PDF_REPORT_BUCKET, object_key)
-    multipart_writer.start(
-        tagging=urlencode({
-            "report_type": "file-status-pdf",
-            "delete_after_days": str(PDF_REPORT_RETENTION_DAYS),
-        }),
-        metadata={
-            "status": status,
-            "generated_by": str(requesting_user.get("id")),
-            "retention_days": str(PDF_REPORT_RETENTION_DAYS),
-        },
-    )
-    pdf_report = _StreamingPdfReport(title, multipart_writer, metadata_lines, table_headers)
-
-    offset = 0
-    total_rows = 0
-    try:
-        pdf_report.start()
-
-        while True:
-            async with pool.acquire() as conn:
-                batch = await report_db.list_files_for_status_pdf_report_batch(
-                    conn,
-                    requesting_user=requesting_user,
-                    active_ngroup_id=active_ngroup_id,
-                    status=status,
-                    limit=PDF_REPORT_BATCH_SIZE,
-                    offset=offset,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-            if not batch:
-                break
-
-            total_rows += len(batch)
-            for record in batch:
-                pdf_report.add_row(_format_report_file_row_cols(dict(record)))
-            offset += PDF_REPORT_BATCH_SIZE
-
-        pdf_report.finish(total_rows)
-        multipart_writer.complete()
-    except Exception:
-        multipart_writer.abort()
-        raise
-
-    expires_at = int(time.time()) + (PDF_REPORT_RETENTION_DAYS * 24 * 3600)
-    token = generate_download_token(object_key, expires_at)
-    download_url = f"{base_url.rstrip('/')}{root_path}/v2/reports/download?key={object_key}&token={token}"
-    _send_pdf_report_email(recipient_email, status, download_url, object_key)
+    """Triggers the AWS Glue Job to build and email the file status PDF report."""
     logger.info(
-        "file.status_pdf_report.completed",
+        "file.status_pdf_report.triggering_glue",
         status=status,
         recipient=recipient_email,
-        rows=total_rows,
-        s3_key=object_key,
+        requesting_user_id=str(requesting_user.get("id")),
     )
+
+    glue_client = boto3.client("glue", region_name=os.environ.get("AWS_REGION", "us-west-2"))
+    
+    username = requesting_user.get("cueusername") or requesting_user.get("preferred_username") or requesting_user.get("name") or "Unknown"
+    user_roles = requesting_user.get("roles", [])
+    roles_str = ",".join(user_roles) if isinstance(user_roles, list) else ""
+
+    try:
+        response = glue_client.start_job_run(
+            JobName="file_status_report_generator",
+            Arguments={
+                "--RECIPIENT_EMAIL": recipient_email,
+                "--STATUS": status,
+                "--START_DATE": start_date.isoformat() if start_date else "",
+                "--END_DATE": end_date.isoformat() if end_date else "",
+                "--ACTIVE_NGROUP_ID": str(active_ngroup_id) if active_ngroup_id else "",
+                "--REQUESTING_USER_ID": str(requesting_user.get("id", "")),
+                "--REQUESTING_USER_NAME": username,
+                "--REQUESTING_USER_ROLES": roles_str,
+                "--BASE_URL": base_url,
+                "--ROOT_PATH": root_path,
+            }
+        )
+        logger.info(
+            "file.status_pdf_report.glue_triggered",
+            status=status,
+            recipient=recipient_email,
+            job_run_id=response.get("JobRunId"),
+        )
+    except Exception as e:
+        logger.error(
+            "file.status_pdf_report.glue_trigger_failed",
+            status=status,
+            recipient=recipient_email,
+            error=str(e),
+            exc_info=True
+        )
+        raise
+
 
 async def start_file_status_pdf_report(
     request: Request,
