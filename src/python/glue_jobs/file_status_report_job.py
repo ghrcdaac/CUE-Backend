@@ -372,12 +372,6 @@ async def list_files_for_status_pdf_report_batch(
     params.extend([limit, offset])
     return await conn.fetch(query, *params)
 
-# --- Signed Redirect Link Generation ---
-def generate_download_token(object_key: str, expires_at: int, db_pass: str) -> str:
-    secret = db_pass.encode("utf-8")
-    msg = f"{object_key}:{expires_at}".encode("utf-8")
-    signature = hmac.new(secret, msg, hashlib.sha256).hexdigest()
-    return f"{expires_at}.{signature}"
 
 # --- SES Email Sender ---
 def send_pdf_report_email(args: Dict[str, Any], recipient: str, status: str, download_url: str, object_key: str):
@@ -512,18 +506,17 @@ async def run_report_generation(args: Dict[str, Any]):
         logger.error("glue_job.report_generation.failed", error=str(e), exc_info=True)
         raise e
 
-    # Generate redirect URL using signed download token
-    base_url = args["BASE_URL"]
-    root_path = args["ROOT_PATH"] if args.get("ROOT_PATH") != "none" else ""
-    expires_at = int(time.time()) + (PDF_REPORT_RETENTION_DAYS * 24 * 3600)
-    token = generate_download_token(object_key, expires_at, db_pass)
-    
-    base_url_str = base_url.rstrip('/')
-    root_path_str = root_path.strip('/')
-    if root_path_str and not base_url_str.endswith(root_path_str):
-        download_url = f"{base_url_str}/{root_path_str}/v2/reports/download?key={object_key}&token={token}"
-    else:
-        download_url = f"{base_url_str}/v2/reports/download?key={object_key}&token={token}"
+    # Generate a direct S3 presigned URL for the PDF report.
+    # S3 presigned URLs using IAM credentials have a max expiration of 7 days (604,800 seconds).
+    try:
+        download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": object_key},
+            ExpiresIn=604800,  # Valid for 7 days
+        )
+    except Exception as e:
+        logger.error("glue_job.presigned_url_generation.failed", error=str(e), exc_info=True)
+        raise e
 
     # Send Email
     send_pdf_report_email(args, recipient_email, status, download_url, object_key)
@@ -551,8 +544,6 @@ if __name__ == "__main__":
             "REQUESTING_USER_ID",
             "REQUESTING_USER_NAME",
             "REQUESTING_USER_ROLES",
-            "BASE_URL",
-            "ROOT_PATH",
         ]
     )
     asyncio.run(run_report_generation(resolved_args))

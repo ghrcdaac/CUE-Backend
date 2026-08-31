@@ -63,4 +63,4 @@ export bamboo_NOTIFICATION_SCHEDULE_MINUTES=30
 
 
 #---- PDF download configurations----
-export bamboo_FILE_REPORT_BUCKET="cue-file-reports"
+export bamboo_FILE_REPORT_BUCKET="your-file-report-bucket-name"
