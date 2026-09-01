@@ -76,6 +76,11 @@ variable "state_bucket" {
   type        = string
 }
 
+variable "file_report_bucket" {
+  description = "S3 bucket for generated file PDF reports."
+  type        = string
+}
+
 variable "frontend_url" {
   description = "The root URL of the CUE dashboard frontend, used for email links."
   type        = string

@@ -94,6 +94,11 @@ variable "cue_quarantine_bucket" {
   type        = string
 }
 
+variable "file_report_bucket" {
+  description = "The name of the S3 bucket where generated file PDF reports are stored for download."
+  type        = string
+}
+
 # --- API & ECR ---
 variable "api_id" {
   description = "The ID of the pre-existing API Gateway."

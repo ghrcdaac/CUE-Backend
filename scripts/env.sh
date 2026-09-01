@@ -62,3 +62,5 @@ export bamboo_CUE_ARCHIVE_DATABASE_NAME="cue_archive_db"
 export bamboo_NOTIFICATION_SCHEDULE_MINUTES=30
 
 
+#---- PDF download configurations----
+export bamboo_FILE_REPORT_BUCKET="your-file-report-bucket-name"

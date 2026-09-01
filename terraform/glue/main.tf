@@ -89,3 +89,44 @@ resource "aws_glue_connection" "cue_db_connection" {
   }
 }
 
+# This resource uploads the Python script for the PDF report generator Glue job to S3.
+resource "aws_s3_object" "file_status_report_job_script" {
+  bucket       = var.cue_archive_bucket
+  key          = "scripts/file_status_report_job.py"
+  source       = "../src/python/glue_jobs/file_status_report_job.py"
+  content_type = "text/x-python"
+  etag         = filemd5("../src/python/glue_jobs/file_status_report_job.py")
+}
+
+# This defines the Glue job that generates the file status PDF reports.
+resource "aws_glue_job" "cue_file_status_report_job" {
+  name           = "file_status_report_generator"
+  glue_version   = "5.0"
+  role_arn       = aws_iam_role.cue_glue_job_role.arn
+  max_capacity   = 0.0625
+  max_retries    = 0
+  timeout        = 30 # Allow up to 30 minutes for large reports
+  connections    = [aws_glue_connection.cue_db_connection.name]
+
+  command {
+    name            = "pythonshell"
+    script_location = "s3://${var.cue_archive_bucket}/scripts/file_status_report_job.py"
+    python_version  = "3.9"
+  }
+
+  default_arguments = {
+    "--PG_HOST"                   = var.db_proxy_host
+    "--PG_PORT"                   = var.db_port
+    "--PG_DB"                     = var.db_database
+    "--PG_USER"                   = var.db_user
+    "--PG_PASS"                   = var.db_password
+    "--FILE_REPORT_BUCKET"        = var.file_report_bucket
+    "--SENDER_EMAIL"              = var.sender_email
+    "--SES_REGION"                = var.ses_region
+    "--SES_SOURCE_ARN"            = var.ses_source_arn
+    "--SES_CONFIGURATION_SET_NAME" = var.ses_configuration_set_name
+    "--library-set"               = "analytics"
+    "--additional-python-modules" = "asyncpg,structlog,reportlab,boto3"
+  }
+}
+

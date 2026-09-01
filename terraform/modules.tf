@@ -19,6 +19,7 @@ module "iam_role" {
   css_cost_explorer_role_arn   = var.css_cost_explorer_role_arn
   file_transfer_lambda_arn = module.lambda_functions.cue_file_transfer_lambda_alias_arn
   hdf_vulnerability_scanner_lambda_arn = module.lambda_functions.hdf_vulnerability_scanner_lambda_alias_arn
+  file_report_bucket           = var.file_report_bucket
 }
 
 module "lambda_functions" {
@@ -37,6 +38,7 @@ module "lambda_functions" {
   cue_staging_bucket             = var.cue_staging_bucket
   cue_quarantine_bucket          = var.cue_quarantine_bucket
   state_bucket                   = var.state_bucket
+  file_report_bucket             = var.file_report_bucket
 
   # --- Pass in V2 Keycloak variables ---
   keycloak_issuer                = var.keycloak_issuer
@@ -128,6 +130,11 @@ module "glue" {
   security_group_ids           = var.security_group_ids
   availability_zone            = var.glue_availability_zone
   rds_cluster_identifier = var.rds_cluster_identifier
+  file_report_bucket     = var.file_report_bucket
+  sender_email           = var.sender_email
+  ses_region             = var.ses_region
+  ses_source_arn         = var.ses_source_arn
+  ses_configuration_set_name = var.ses_configuration_set_name
 }
 
 # module "archive" {
@@ -137,6 +144,6 @@ module "glue" {
 #   account_id                   = var.account_id
 #   cue_archive_database_name       = var.cue_archive_database_name
 #   cue_archive_bucket              = var.cue_archive_bucket
-#   process_athena_query_lambda_arn = module.lambda_functions.process_athena_query_lambda_arn 
+#   process_athena_query_lambda_arn = module.lambda_functions.process_athena_query_lambda_arn
 # }
 

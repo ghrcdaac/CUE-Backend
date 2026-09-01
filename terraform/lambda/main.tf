@@ -66,6 +66,11 @@ resource "aws_lambda_function" "cue_api" {
       DEBUG = "True"
       ENV = "production"
       REDEPLOY_TRIGGER = "23"
+      FILE_REPORT_BUCKET                   = var.file_report_bucket
+      SENDER_EMAIL                         = var.sender_email
+      SES_REGION                           = var.ses_region
+      SES_SOURCE_ARN                       = var.ses_source_arn
+      SES_CONFIGURATION_SET_NAME           = var.ses_configuration_set_name
     }
   }
 

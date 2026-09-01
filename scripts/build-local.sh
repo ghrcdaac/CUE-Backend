@@ -118,6 +118,7 @@ export TF_VAR_glue_subnet_id="${bamboo_GLUE_SUBNET_ID}"
 export TF_VAR_cue_archive_database_name="${bamboo_CUE_ARCHIVE_DATABASE_NAME}"
 export TF_VAR_notification_schedule_minutes="${bamboo_NOTIFICATION_SCHEDULE_MINUTES}"
 export TF_VAR_cue_quarantine_bucket="${bamboo_S3_QUARANTINE_BUCKET}"
+export TF_VAR_file_report_bucket="${bamboo_FILE_REPORT_BUCKET}"
 
 # Concurrency & DB Pool scaling variables
 export TF_VAR_api_provisioned_concurrency="${bamboo_API_PROVISIONED_CONCURRENCY:-1}"
