@@ -19,9 +19,9 @@ asyncpg = "^0.30.0"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"} # Added: For JWT
 warrant = "^0.6.1"  # Added: For Cognito SRP
 requests = "^2.32.3" # Added for jwks fetch
-structlog~=25.4.0
-httpx~=0.28.1
-aws-xray-sdk~=2.14.0
+structlog = "~25.4.0"
+httpx = "~0.28.1"
+aws-xray-sdk = "~2.14.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"
@@ -34,7 +34,13 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]  # Add this section for pytest configuration
 asyncio_mode = "auto"
 pythonpath = [
-  ".", "src/python"
+  ".", "src/python", "src/python/api"
 ]
 testpaths = ["tests", "src/python/api/tests"]
 addopts = "-v -s --tb=short --cov=src/python --cov-report term-missing --cov-fail-under=80"
+
+[tool.pyright]
+extraPaths = [
+  "src/python",
+  "src/python/api"
+]

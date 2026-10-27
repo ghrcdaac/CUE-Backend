@@ -137,7 +137,10 @@ async def list_files_paginated(
     status: Optional[str] = None,
     start_date: Optional[date] = None, 
     end_date: Optional[date] = None,
-    file_ids: Optional[List[UUID]] = None
+    file_ids: Optional[List[UUID]] = None,
+    collection_id: Optional[UUID] = None,
+    provider_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None
 ) -> List[Dict[str, Any]]:
     user_roles = set(requesting_user.get('roles', []))
     params: list[Any] = []
@@ -158,6 +161,18 @@ async def list_files_paginated(
     else:
         if 'admin' not in user_roles and 'security' not in user_roles:
             where_conditions.append("FALSE")
+
+    if collection_id:
+        params.append(collection_id)
+        where_conditions.append(f"f.collection_id = ${len(params)}")
+
+    if provider_id:
+        params.append(provider_id)
+        where_conditions.append(f"c.provider_id = ${len(params)}")
+
+    if user_id:
+        params.append(user_id)
+        where_conditions.append(f"f.cueuser_uploaded = ${len(params)}")
 
     if file_ids:
         params.append(file_ids)
@@ -190,7 +205,10 @@ async def count_files_for_ngroup(
     status: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    file_ids: Optional[List[UUID]] = None 
+    file_ids: Optional[List[UUID]] = None,
+    collection_id: Optional[UUID] = None,
+    provider_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None
 ) -> int:
     params: list[Any] = []
     join_conditions = ["JOIN collection c ON f.collection_id = c.id"]
@@ -204,6 +222,22 @@ async def count_files_for_ngroup(
     if active_ngroup_id:
         params.append(active_ngroup_id)
         where_conditions.append(f"c.ngroup_id = ${len(params)}")
+    else:
+        user_roles = set(requesting_user.get('roles', []))
+        if 'admin' not in user_roles and 'security' not in user_roles:
+            where_conditions.append("FALSE")
+
+    if collection_id:
+        params.append(collection_id)
+        where_conditions.append(f"f.collection_id = ${len(params)}")
+
+    if provider_id:
+        params.append(provider_id)
+        where_conditions.append(f"c.provider_id = ${len(params)}")
+
+    if user_id:
+        params.append(user_id)
+        where_conditions.append(f"f.cueuser_uploaded = ${len(params)}")
     
     if file_ids:
         params.append(file_ids)

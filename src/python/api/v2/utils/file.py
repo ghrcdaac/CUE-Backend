@@ -131,7 +131,10 @@ async def list_files(
     page_size: int,
     status: Optional[str] = None,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None
+    end_date: Optional[date] = None,
+    collection_id: Optional[UUID] = None,
+    provider_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Retrieves a paginated list of files for a specific ngroup, optionally by status."""
     offset = (page - 1) * page_size
@@ -145,7 +148,10 @@ async def list_files(
             active_ngroup_id=ngroup_id_to_filter,
             status=status,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            collection_id=collection_id,
+            provider_id=provider_id,
+            user_id=user_id
         )
         files = await file_db.list_files_paginated(
             conn,
@@ -155,7 +161,10 @@ async def list_files(
             offset=offset,
             status=status,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            collection_id=collection_id,
+            provider_id=provider_id,
+            user_id=user_id
         )
     return [_process_record(f) for f in files], total
 

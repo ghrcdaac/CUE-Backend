@@ -23,7 +23,10 @@ async def list_files_endpoint(
     page: int = Query(1, ge=1, description="Page number."),
     page_size: int = Query(50, ge=1, le=100, description="Items per page."),
     start_date: Optional[date] = Query(None, description="Filter for files uploaded on or after this date (YYYY-MM-DD)."),
-    end_date: Optional[date] = Query(None, description="Filter for files uploaded on or before this date (YYYY-MM-DD).")
+    end_date: Optional[date] = Query(None, description="Filter for files uploaded on or before this date (YYYY-MM-DD)."),
+    collection_id: Optional[UUID] = Query(None, description="Filter files by collection ID."),
+    provider_id: Optional[UUID] = Query(None, description="Filter files by provider ID."),
+    user_id: Optional[UUID] = Query(None, description="Filter files by uploading user ID.")
 ):
     """
     Lists files for the user's selected ngroup with pagination.
@@ -31,7 +34,17 @@ async def list_files_endpoint(
     """
     try:
         items, total = await file_utils.list_files(
-            request, user, active_ngroup_id, page, page_size, status, start_date, end_date
+            request=request,
+            user=user,
+            active_ngroup_id=active_ngroup_id,
+            page=page,
+            page_size=page_size,
+            status=status,
+            start_date=start_date,
+            end_date=end_date,
+            collection_id=collection_id,
+            provider_id=provider_id,
+            user_id=user_id
         )
         return PaginatedFileResponse(items=items, total=total, page=page, page_size=page_size)
     except Exception as e:

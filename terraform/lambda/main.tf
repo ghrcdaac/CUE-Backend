@@ -65,7 +65,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "23"
+      REDEPLOY_TRIGGER = "24"
     }
   }
 
@@ -105,12 +105,12 @@ resource "aws_lambda_function" "cue_scan_event" {
       QUEUE_URL      = aws_sqs_queue.cue_file_transfer_queue.url
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "13"
+      REDEPLOY_TRIGGER = "14"
       FILE_TRANSFER_LAMBDA_NAME = aws_lambda_alias.cue_file_transfer_live_alias.arn
       TRANSFER_INVOCATION_MODE  = "LAMBDA"  # This can take 2 values: LAMBDA or SQS
       INFECTED_FILE_THRESHOLD = "5"
       BLOCKING_LOOKBACK_HOURS = "1"
-      ENABLE_HDF5_SCANNER = "true"
+      ENABLE_HDF5_SCANNER = "false"
       HDF_VULNERABILITY_SCANNER_LAMBDA_NAME = aws_lambda_alias.hdf_vulnerability_scanner_live_alias.arn
     }
   }
