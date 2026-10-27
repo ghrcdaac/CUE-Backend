@@ -63,7 +63,7 @@ The PostgreSQL container will auto-run SQL scripts from `src/postgres/` to initi
 ### 3.4. Accessing Services
 
 - **API**: [http://localhost:8000](http://localhost:8000)
-- **Swagger UI**: [http://localhost:8000/v1/docs](http://localhost:8000/v1/docs)
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **pgAdmin**: [http://localhost:8001](http://localhost:8001)
 
 pgAdmin connection details:

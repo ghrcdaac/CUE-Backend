@@ -36,7 +36,7 @@ export bamboo_S3_ARCHIVE_BUCKET="your-archive-bucket-name"
 export bamboo_S3_ARCHIVE_RESULTS_BUCKET="your-archive-results-bucket" 
 export bamboo_S3_STAGING_BUCKET="your-cue-staging-bucket"
 
-# --- V1 Cognito Variables (Preserved for backward compatibility) ---
+# --- Legacy Cognito Variables ---
 export bamboo_POOL_ID="yourCognitoUserPoolId"
 export bamboo_CLIENT_ID="yourCognitoAppClientId"
 export bamboo_CLIENT_SECRET="YOUR_COGNITO_APP_CLIENT_SECRET_VALUE"

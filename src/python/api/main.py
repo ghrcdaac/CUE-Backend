@@ -23,7 +23,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from core.logging_config import setup_logging
 from core import security as security_utils
-from v1.api import router as api_router_v1
 from v2.api import router as api_router_v2
 
 
@@ -197,7 +196,6 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
-# app.include_router(api_router_v1, prefix="/v1", tags=["v1"])
 app.include_router(api_router_v2, prefix="/v2", tags=["v2"])
 
 handler = Mangum(app)
