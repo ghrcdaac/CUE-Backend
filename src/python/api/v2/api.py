@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from v2.endpoints import (auth,
      cueuser, ngroup, provider, role, collection, upload, archive, file_metrics, file,
-      user_application, api_keys, egress
+      user_application, api_keys, egress, upload_targets
      )
 
 router = APIRouter()
@@ -31,4 +31,5 @@ router.include_router(user_application.router)
 # router.include_router(cueuser_auth.router)
 router.include_router(archive.router)
 router.include_router(api_keys.router)
+router.include_router(upload_targets.router)
 # router.include_router(oidc_test_helpers.router)
