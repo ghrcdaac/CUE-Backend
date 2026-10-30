@@ -168,7 +168,7 @@ async def list_files_paginated(
 
     if provider_id:
         params.append(provider_id)
-        where_conditions.append(f"c.provider_id = ${len(params)}")
+        where_conditions.append(f"EXISTS (SELECT 1 FROM v_collection_provider vcp WHERE vcp.collection_id = c.id AND vcp.provider_id = ${len(params)})")
 
     if user_id:
         params.append(user_id)
@@ -233,7 +233,7 @@ async def count_files_for_ngroup(
 
     if provider_id:
         params.append(provider_id)
-        where_conditions.append(f"c.provider_id = ${len(params)}")
+        where_conditions.append(f"EXISTS (SELECT 1 FROM v_collection_provider vcp WHERE vcp.collection_id = c.id AND vcp.provider_id = ${len(params)})")
 
     if user_id:
         params.append(user_id)

@@ -28,7 +28,7 @@ def _build_metrics_query_parts(
         "end_date": "fs.upload_time < (${index}::date + interval '1 day')",
         "user_id": "f.cueuser_uploaded = ${index}",
         "collection_id": "f.collection_id = ${index}",
-        "provider_id": "c.provider_id = ${index}"
+        "provider_id": "EXISTS (SELECT 1 FROM v_collection_provider vcp WHERE vcp.collection_id = c.id AND vcp.provider_id = ${index})"
     }
 
     for key, value in filters.items():

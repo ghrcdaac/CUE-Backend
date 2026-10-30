@@ -57,7 +57,7 @@ async def _build_metrics_query_parts(
         params.append(optional_filters["collection_id"])
         param_index += 1
     if optional_filters.get("provider_id"):
-        where_clauses.append(f"c.provider_id = ${param_index}")
+        where_clauses.append(f"EXISTS (SELECT 1 FROM v_collection_provider vcp WHERE vcp.collection_id = c.id AND vcp.provider_id = ${param_index})")
         params.append(optional_filters["provider_id"])
         param_index += 1
 
