@@ -12,6 +12,9 @@ from fastapi import Request
 from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
 from v2.database_util import file as file_db
+from v2.database_util import collection_provider as cp_db
+from v2.utils.upload_targets import NGROUP_WIDE_UPLOAD_ROLES
+from typing import Optional, Tuple
 from v2.type_util.auth import AuthUser
 from v2.type_util.upload import (
     PrepareUploadRequest, CompleteUploadRequest,
@@ -30,7 +33,92 @@ class UploadValidationError(Exception): pass
 def _get_s3_client():
     return boto3.client('s3', region_name=os.environ.get("AWS_REGION", "us-west-2"))
 
+def _check_mode() -> str:
+    """UPLOAD_PROVIDER_CHECK_MODE: 'legacy' (default) or 'strict'. Anything else counts as legacy."""
+    mode = (os.environ.get("UPLOAD_PROVIDER_CHECK_MODE") or "legacy").strip().lower()
+    return "strict" if mode == "strict" else "legacy"
+
+
+def _user_ngroup_ids(user: AuthUser) -> set:
+    if not user.ngroups:
+        return set()
+    if isinstance(user.ngroups[0], dict):
+        return {str(ng['id']) for ng in user.ngroups}
+    return {str(ng) for ng in user.ngroups}
+
+
+def strict_denial(collection, user: AuthUser, provider_rows) -> Optional[Tuple[str, str]]:
+    """
+    The strict (assigned-provider) rule, plan 11 B3.5. Returns (reason, message) or None if allowed.
+    Collection existence/active checks happen before this (they apply to everyone).
+      - admin: any mapped provider allows uploads
+      - DAAC-wide roles and proxy keys: collection in their DAAC + any mapped provider allows uploads
+      - everyone else: collection in their DAAC + a mapped provider that allows uploads AND is assigned to them
+    """
+    name = collection['short_name']
+    none_allow = ("no_provider_allows_uploads",
+                  f"Upload Denied: none of the providers for collection '{name}' allow uploads.")
+    roles = set(user.roles or [])
+    if "admin" in roles:
+        return None if any(r['can_upload'] for r in provider_rows) else none_allow
+
+    if str(collection['ngroup_id']) not in _user_ngroup_ids(user):
+        return ("group_mismatch",
+                f"Upload Denied: Your API key is not authorized for the DAAC group associated with collection '{name}'.")
+
+    if "proxy" in roles or roles & NGROUP_WIDE_UPLOAD_ROLES:
+        return None if any(r['can_upload'] for r in provider_rows) else none_allow
+
+    assigned = [r for r in provider_rows if r['assigned']]
+    if not assigned:
+        return ("not_assigned_to_provider",
+                f"Upload Denied: you are not assigned to a provider for collection '{name}'.")
+    return None if any(r['can_upload'] for r in assigned) else none_allow
+
+
 async def _validate_upload_permissions(request: Request, collection_name: str, user: AuthUser):
+    """Upload permission check. Mode comes from UPLOAD_PROVIDER_CHECK_MODE (default 'legacy')."""
+    if _check_mode() == "strict":
+        return await _validate_upload_permissions_strict(request, collection_name, user)
+
+    collection = await _validate_upload_permissions_legacy(request, collection_name, user)
+    # Legacy allowed it: also compute the strict decision and log when it would deny (O5 uses these logs).
+    try:
+        async with request.state.pool.acquire() as conn:
+            rows = await cp_db.upload_providers_for_collection(conn, collection['id'], user.id)
+        denial = strict_denial(collection, user, rows)
+        if denial:
+            logger.warning(
+                "upload.permission_check.strict_would_deny",
+                reason=denial[0], user_id=str(user.id), user_roles=user.roles,
+                collection_id=str(collection['id']), collection_name=collection_name,
+            )
+    except Exception:
+        logger.error("upload.permission_check.strict_shadow_failed", collection_name=collection_name, exc_info=True)
+    return collection
+
+
+async def _validate_upload_permissions_strict(request: Request, collection_name: str, user: AuthUser):
+    log = logger.bind(user_id=str(user.id), user_roles=user.roles, collection_name=collection_name, mode="strict")
+    async with request.state.pool.acquire() as conn:
+        collection = await collection_db.get_collection_by_short_name(conn, collection_name)
+        if not collection:
+            log.warning("upload.permission_check.failed", reason="collection_not_found")
+            raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' does not exist.")
+        if not collection['active']:
+            log.warning("upload.permission_check.failed", reason="collection_inactive")
+            raise UploadValidationError(f"Upload Denied: Collection '{collection_name}' is inactive and cannot accept new files.")
+        rows = await cp_db.upload_providers_for_collection(conn, collection['id'], user.id)
+
+    denial = strict_denial(collection, user, rows)
+    if denial:
+        log.warning("upload.permission_check.failed", reason=denial[0], collection_id=str(collection['id']))
+        raise UploadValidationError(denial[1])
+    log.info("upload.permission_check.succeeded")
+    return collection
+
+
+async def _validate_upload_permissions_legacy(request: Request, collection_name: str, user: AuthUser):
     """V2 helper to validate if a user can upload to a collection, with detailed error reasons."""
     log = logger.bind(
         user_id=str(user.id),
