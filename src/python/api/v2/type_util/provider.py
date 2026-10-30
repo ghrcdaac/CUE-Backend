@@ -63,3 +63,11 @@ class PaginatedProviderResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+class ProviderCollectionMapping(BaseModel):
+    """A non-deleted collection mapped to a provider (many-to-many)."""
+    collection_id: UUID
+    short_name: str
+    active: bool
+    ngroup_id: UUID
+    is_primary: bool

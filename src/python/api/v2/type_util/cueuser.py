@@ -3,7 +3,7 @@
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from .ngroup import NgroupListResponse
 from .provider import ProviderListResponse
 
@@ -68,3 +68,20 @@ class PaginatedUserResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+# --- User <-> provider mappings (many-to-many) ---
+
+class UserProviderMapping(BaseModel):
+    provider_id: UUID
+    short_name: str
+    long_name: Optional[str] = None
+    can_upload: bool
+    ngroup_id: UUID
+
+class UserProviderAddRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider_id: UUID
+
+class UserProvidersReplaceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider_ids: List[UUID]

@@ -67,3 +67,36 @@ async def list_cueusers_for_provider_from_db(conn: Connection, params: Tuple) ->
     except Exception as e:
         logger.error(f"An unexpected error occurred while listing cueusers for provider: {e}", exc_info=True)
         raise
+
+# --- User <-> provider mappings (desktop GUI / many-to-many; used by v2/utils/mappings.py) ---
+
+async def list_user_providers(conn: Connection, user_id: UUID):
+    query = """
+        SELECT p.id AS provider_id, p.short_name, p.long_name, p.can_upload, p.ngroup_id
+        FROM cueuser_provider up
+        JOIN provider p ON p.id = up.provider_id
+        WHERE up.cueuser_id = $1
+        ORDER BY p.short_name;
+    """
+    return await conn.fetch(query, user_id)
+
+
+async def user_provider_ids(conn: Connection, user_id: UUID) -> set:
+    rows = await conn.fetch("SELECT provider_id FROM cueuser_provider WHERE cueuser_id = $1", user_id)
+    return {r["provider_id"] for r in rows}
+
+
+async def add_user_provider(conn: Connection, user_id: UUID, provider_id: UUID) -> bool:
+    """Returns False if the user already had the provider."""
+    result = await conn.fetchval(
+        "INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING provider_id",
+        user_id, provider_id,
+    )
+    return result is not None
+
+
+async def remove_user_provider(conn: Connection, user_id: UUID, provider_id: UUID) -> bool:
+    result = await conn.execute(
+        "DELETE FROM cueuser_provider WHERE cueuser_id = $1 AND provider_id = $2", user_id, provider_id
+    )
+    return result.strip() == "DELETE 1"

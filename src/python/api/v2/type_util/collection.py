@@ -1,6 +1,6 @@
 # File: src/python/api/v2/type_util/collection.py
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional,List
 from uuid import UUID
 
@@ -22,6 +22,22 @@ class CollectionUpdate(BaseModel):
     provider_id: Optional[UUID] = None
     egress_id: Optional[UUID] = None
 
+class CollectionProviderMapping(BaseModel):
+    """A provider mapped to a collection (many-to-many). is_primary = collection.provider_id."""
+    provider_id: UUID
+    short_name: str
+    long_name: Optional[str] = None
+    can_upload: bool
+    is_primary: bool
+
+class CollectionProviderAddRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider_id: UUID
+
+class CollectionProvidersReplaceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider_ids: List[UUID] = Field(..., min_length=1)
+
 class CollectionResponse(CollectionBase):
     """Model for returning a full collection object from the API."""
     id: UUID
@@ -29,6 +45,8 @@ class CollectionResponse(CollectionBase):
     provider_id: UUID
     egress_id: UUID
     is_deleted: bool = False
+    # Optional extra (many-to-many). Old clients ignore it.
+    providers: List[CollectionProviderMapping] = []
 
     class Config:
         from_attributes = True
@@ -47,6 +65,8 @@ class CollectionListResponse(CollectionBase):
     ngroup_id: UUID
     provider: Optional[Provider] = None
     egress: Optional[Egress] = None
+    # Optional extra (many-to-many). Old clients ignore it.
+    providers: List[CollectionProviderMapping] = []
 
     class Config:
         from_attributes = True

@@ -13,6 +13,9 @@ from v2.type_util.provider import (
     ProviderCreate, ProviderUpdate, ProviderResponse, ProviderListResponse, PaginatedProviderResponse
 )
 
+from v2.utils import mappings as mapping_utils
+from v2.type_util.provider import ProviderCollectionMapping
+
 router = APIRouter(prefix="/providers", tags=["V2 - Providers"])
 
 @router.post("/", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED,
@@ -85,12 +88,25 @@ async def update_provider_endpoint(request: Request, provider_id: UUID, provider
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_privilege("provider:delete"))])
-async def delete_provider_endpoint(request: Request, provider_id: UUID):
+async def delete_provider_endpoint(request: Request, provider_id: UUID, user: AuthUser = Depends(get_current_user)):
     """Deletes a provider. Requires 'provider:delete' privilege."""
     try:
-        await provider_utils.delete_provider(request, provider_id)
+        await provider_utils.delete_provider(request, provider_id, actor_id=user.id)
     except provider_utils.ProviderNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+
+
+# --- Provider -> collections (many-to-many) ---
+
+
+@router.get("/{provider_id}/collections", response_model=List[ProviderCollectionMapping],
+            dependencies=[Depends(require_privilege("provider:read"))])
+async def list_provider_collections_endpoint(request: Request, provider_id: UUID, user: AuthUser = Depends(get_current_user)):
+    """Non-deleted collections mapped to the provider, with is_primary."""
+    try:
+        return await mapping_utils.list_provider_collections(request, user, provider_id)
+    except mapping_utils.MappingError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))

@@ -11,6 +11,9 @@ from v2.type_util.auth import AuthUser as User
 from v2.utils import cueuser as cueuser_utils
 from v2.type_util.cueuser import UserResponse, UserCreateRequest, UserUpdateRequest, UserFindResponse, UserRoleUpdateRequest, PaginatedUserResponse
 
+from v2.utils import mappings as mapping_utils
+from v2.type_util.cueuser import UserProviderMapping, UserProviderAddRequest, UserProvidersReplaceRequest
+
 router = APIRouter(prefix="/cueusers", tags=["V2 - CUE Users"])
 
 # --- All endpoints now accept `request: Request` ---
@@ -146,3 +149,49 @@ async def delete_user_endpoint(request: Request, user_id: UUID):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ------------------------------------------------------------------------------
+# User <-> provider mappings (many-to-many)
+# ------------------------------------------------------------------------------
+
+
+@router.get("/{user_id}/providers", response_model=List[UserProviderMapping],
+            dependencies=[Depends(require_privilege("user:read"))])
+async def list_user_providers_endpoint(request: Request, user_id: UUID, user: User = Depends(get_current_user)):
+    try:
+        return await mapping_utils.list_user_providers(request, user, user_id)
+    except mapping_utils.MappingError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.post("/{user_id}/providers", response_model=List[UserProviderMapping], status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_privilege("user:update"))])
+async def add_user_provider_endpoint(request: Request, user_id: UUID, body: UserProviderAddRequest,
+                                     user: User = Depends(get_current_user)):
+    """Assigns a provider (in one of the user's DAACs). 409 if already assigned."""
+    try:
+        return await mapping_utils.add_user_provider(request, user, user_id, body.provider_id)
+    except mapping_utils.MappingError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.put("/{user_id}/providers", response_model=List[UserProviderMapping],
+            dependencies=[Depends(require_privilege("user:update"))])
+async def replace_user_providers_endpoint(request: Request, user_id: UUID, body: UserProvidersReplaceRequest,
+                                          user: User = Depends(get_current_user)):
+    """Replaces the user's provider set in one transaction."""
+    try:
+        return await mapping_utils.replace_user_providers(request, user, user_id, body.provider_ids)
+    except mapping_utils.MappingError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.delete("/{user_id}/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(require_privilege("user:update"))])
+async def remove_user_provider_endpoint(request: Request, user_id: UUID, provider_id: UUID,
+                                        user: User = Depends(get_current_user)):
+    try:
+        await mapping_utils.remove_user_provider(request, user, user_id, provider_id)
+    except mapping_utils.MappingError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))

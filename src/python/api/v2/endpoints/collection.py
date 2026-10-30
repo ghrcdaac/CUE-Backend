@@ -11,6 +11,11 @@ from v2.type_util.auth import AuthUser
 from v2.utils import collection as collection_utils
 from v2.type_util.collection import CollectionCreate, CollectionUpdate, CollectionResponse,PaginatedCollectionResponse
 
+from v2.utils import mappings as mapping_utils
+from v2.type_util.collection import (
+    CollectionProviderMapping, CollectionProviderAddRequest, CollectionProvidersReplaceRequest
+)
+
 router = APIRouter(prefix="/collections", tags=["V2 - Collections"])
 
 @router.post("/", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED,
@@ -26,7 +31,7 @@ async def create_collection_endpoint(
     
     ngroup_id = UUID(user.active_ngroup_id)
     try:
-        new_collection = await collection_utils.create_collection(request, collection, ngroup_id)
+        new_collection = await collection_utils.create_collection(request, collection, ngroup_id, actor_id=user.id)
         return CollectionResponse.model_validate(new_collection)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -56,7 +61,7 @@ async def list_collections_endpoint(
 async def get_collection_endpoint(request: Request, collection_id: UUID, user: AuthUser = Depends(get_current_user)):
     """Retrieves a single collection by its ID."""
     try:
-        collection = await collection_utils.get_collection(request, collection_id)
+        collection = await collection_utils.get_collection(request, collection_id, include_providers=True)
         is_admin = "admin" in user.roles
         
         # --- Robustly build the user_ngroup_ids set ---
@@ -95,7 +100,7 @@ async def update_collection_endpoint(
         
         # Pass the already-fetched collection to the update function to avoid a second DB call
         updated_collection = await collection_utils.update_collection(
-            request, collection_id, collection_update, collection_to_update
+            request, collection_id, collection_update, collection_to_update, actor_id=user.id
         )
         return CollectionResponse.model_validate(updated_collection)
         
@@ -133,3 +138,65 @@ async def delete_collection_endpoint(request: Request, collection_id: UUID, user
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+# ------------------------------------------------------------------------------
+# Collection <-> provider mappings (many-to-many). collection.provider_id stays the primary.
+# ------------------------------------------------------------------------------
+
+
+def _mapping_http_error(e: "mapping_utils.MappingError") -> HTTPException:
+    return HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("/{collection_id}/providers", response_model=List[CollectionProviderMapping],
+            dependencies=[Depends(require_privilege("collection:read"))])
+async def list_collection_providers_endpoint(request: Request, collection_id: UUID, user: AuthUser = Depends(get_current_user)):
+    """Providers mapped to the collection, with an is_primary flag."""
+    try:
+        return await mapping_utils.list_collection_providers(request, user, collection_id)
+    except mapping_utils.MappingError as e:
+        raise _mapping_http_error(e)
+
+
+@router.post("/{collection_id}/providers", response_model=List[CollectionProviderMapping],
+             status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_privilege("collection:update"))])
+async def add_collection_provider_endpoint(request: Request, collection_id: UUID, body: CollectionProviderAddRequest,
+                                           user: AuthUser = Depends(get_current_user)):
+    """Maps another provider (same DAAC) to the collection. 409 if already mapped."""
+    try:
+        return await mapping_utils.add_collection_provider(request, user, collection_id, body.provider_id)
+    except mapping_utils.MappingError as e:
+        raise _mapping_http_error(e)
+
+
+@router.put("/{collection_id}/providers", response_model=List[CollectionProviderMapping],
+            dependencies=[Depends(require_privilege("collection:update"))])
+async def replace_collection_providers_endpoint(request: Request, collection_id: UUID, body: CollectionProvidersReplaceRequest,
+                                                user: AuthUser = Depends(get_current_user)):
+    """Replaces the whole mapped set in one transaction. Must include the primary."""
+    try:
+        return await mapping_utils.replace_collection_providers(request, user, collection_id, body.provider_ids)
+    except mapping_utils.MappingError as e:
+        raise _mapping_http_error(e)
+
+
+@router.delete("/{collection_id}/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT,
+               dependencies=[Depends(require_privilege("collection:update"))])
+async def remove_collection_provider_endpoint(request: Request, collection_id: UUID, provider_id: UUID,
+                                              user: AuthUser = Depends(get_current_user)):
+    """Removes a mapping. 400 for the primary (set another primary first)."""
+    try:
+        await mapping_utils.remove_collection_provider(request, user, collection_id, provider_id)
+    except mapping_utils.MappingError as e:
+        raise _mapping_http_error(e)
+
+
+@router.put("/{collection_id}/providers/{provider_id}/primary", response_model=List[CollectionProviderMapping],
+            dependencies=[Depends(require_privilege("collection:update"))])
+async def set_collection_primary_endpoint(request: Request, collection_id: UUID, provider_id: UUID,
+                                          user: AuthUser = Depends(get_current_user)):
+    """Makes an already mapped provider the primary; the old primary stays mapped as secondary."""
+    try:
+        return await mapping_utils.set_collection_primary(request, user, collection_id, provider_id)
+    except mapping_utils.MappingError as e:
+        raise _mapping_http_error(e)
