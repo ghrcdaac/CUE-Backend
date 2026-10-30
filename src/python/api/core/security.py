@@ -5,7 +5,7 @@
 import os
 import json
 import hashlib
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import uuid
 
 
@@ -80,6 +80,85 @@ class OIDCValidator:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
 
 
+API_KEY_PREFIX = "cue_sk_"
+
+
+async def _authorize_oidc_user(request: Request, payload: Dict[str, Any]) -> AuthUser:
+    """Loads roles, privileges, and ngroups from the DB for a validated JWT payload."""
+    user = AuthUser(**payload)
+
+    # The request.state.pool is attached by the middleware in main.py
+    async with request.state.pool.acquire() as conn:
+        db_details = await user_db.get_user_auth_details(conn, user.id)
+        if not db_details:
+            logger.warning("auth.user.not_in_local_db", user_id=str(user.id))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not registered in this application.")
+
+        user.roles = json.loads(db_details.get("roles", "[]"))
+        user.privileges = json.loads(db_details.get("privileges", "[]"))
+        ngroup_objects = json.loads(db_details.get("ngroups", "[]"))
+
+        user.ngroups = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
+        user_ngroup_ids = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
+
+        active_ngroup_header = request.headers.get("X-Active-Ngroup-Id")
+        if active_ngroup_header:
+            if active_ngroup_header not in user_ngroup_ids:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User does not have access to the specified ngroup.")
+            user.active_ngroup_id = active_ngroup_header
+
+    return user
+
+
+async def _authorize_api_key(request: Request, raw_key: str, required_scopes: set) -> Tuple[AuthUser, Dict[str, Any]]:
+    """Validates a cue_sk_ API key and resolves it to a user. Returns (user, key_data)."""
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+    async with request.state.pool.acquire() as conn:
+        key_data = await api_key_db.get_user_from_api_key(conn, key_hash)
+        if not key_data:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
+
+        key_scopes = set(key_data.get("scopes", []))
+        if not required_scopes.issubset(key_scopes):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API Key does not have the required permissions.")
+
+        user_id = key_data.get("user_id")
+
+        # Case 1: The key is associated with a real user.
+        if user_id:
+            db_details_record = await user_db.get_user_by_id(conn, user_id)
+            if not db_details_record:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
+
+            parsed_details = _parse_user_data(dict(db_details_record))
+
+            if parsed_details and 'ngroups' in parsed_details:
+                ngroup_objects = parsed_details['ngroups']
+                parsed_details['ngroups'] = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
+
+            return AuthUser.model_validate(parsed_details), key_data
+
+        # Case 2: The key is a proxy key.
+        proxy_name = key_data.get("proxy_user_name")
+        ngroup_id = key_data.get("ngroup_id")
+
+        if not proxy_name or not ngroup_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid proxy key configuration.")
+
+        # Build a synthetic user object for the proxy.
+        # The most important part is setting the 'ngroups' correctly.
+        proxy_user = AuthUser(
+            id=key_data.get("created_by_user_id"), # Use the creator's ID
+            name=proxy_name,
+            email=f"{proxy_name.lower().replace(' ', '_')}@proxy.internal",
+            roles=["proxy"],
+            privileges=list(key_scopes),
+            ngroups=[str(ngroup_id)] # This authorizes the key for its group
+        )
+        return proxy_user, key_data
+
+
 class OIDCBearer(HTTPBearer, OIDCValidator):
     """The main security dependency. Validates the token AND authorizes the user."""
     async def __call__(self, request: Request) -> AuthUser:
@@ -88,29 +167,7 @@ class OIDCBearer(HTTPBearer, OIDCValidator):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing Bearer token")
 
         payload = self.validate_token(request, credentials.credentials)
-        user = AuthUser(**payload)
-
-        # The request.state.pool is attached by the middleware in main.py
-        async with request.state.pool.acquire() as conn:
-            db_details = await user_db.get_user_auth_details(conn, user.id)
-            if not db_details:
-                logger.warning("auth.user.not_in_local_db", user_id=str(user.id))
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not registered in this application.")
-
-            user.roles = json.loads(db_details.get("roles", "[]"))
-            user.privileges = json.loads(db_details.get("privileges", "[]"))
-            ngroup_objects = json.loads(db_details.get("ngroups", "[]"))
-
-            user.ngroups = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
-            user_ngroup_ids = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
-
-            active_ngroup_header = request.headers.get("X-Active-Ngroup-Id")
-            if active_ngroup_header:
-                if active_ngroup_header not in user_ngroup_ids:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User does not have access to the specified ngroup.")
-                user.active_ngroup_id = active_ngroup_header
-        
-        return user
+        return await _authorize_oidc_user(request, payload)
 
 
 class OIDCClaimsBearer(HTTPBearer, OIDCValidator):
@@ -119,9 +176,9 @@ class OIDCClaimsBearer(HTTPBearer, OIDCValidator):
         credentials = await super().__call__(request)
         if not credentials or credentials.scheme != "Bearer":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing Bearer token")
-        
+
         payload = self.validate_token(request, credentials.credentials)
-        
+
 
         return AuthenticatedUserClaims(**payload)
 
@@ -137,53 +194,39 @@ class APIKeyBearer(HTTPBearer):
         if not credentials or credentials.scheme != "Bearer":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API Key")
 
-        key_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+        user, _key_data = await _authorize_api_key(request, credentials.credentials, self.required_scopes)
+        return user
 
-        async with request.state.pool.acquire() as conn:
-            key_data = await api_key_db.get_user_from_api_key(conn, key_hash)
-            if not key_data:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
 
-            key_scopes = set(key_data.get("scopes", []))
-            if not self.required_scopes.issubset(key_scopes):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API Key does not have the required permissions.")
+class JWTOrAPIKeyBearer(HTTPBearer, OIDCValidator):
+    """
+    Accepts EITHER a Keycloak JWT OR a cue_sk_ API key (with the required scopes).
+    Only for endpoints on the explicit API-key allow-list (see tests/test_api_key_allowlist.py).
+    Sets request.state.auth_kind ("jwt" | "api_key") and request.state.api_key_info
+    (the matched api_key row's non-secret fields, or None for a JWT).
+    """
+    def __init__(self, required_scopes: List[str]):
+        super().__init__()
+        self.required_scopes = set(required_scopes)
 
-            user_id = key_data.get("user_id")
+    async def __call__(self, request: Request) -> AuthUser:
+        credentials = await super().__call__(request)
+        if not credentials or credentials.scheme != "Bearer":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing Bearer token")
 
-            # Case 1: The key is associated with a real user.
-            if user_id:
-                db_details_record = await user_db.get_user_by_id(conn, user_id)
-                if not db_details_record:
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User associated with API Key not found.")
-                
-                parsed_details = _parse_user_data(dict(db_details_record))
-                
-                if parsed_details and 'ngroups' in parsed_details:
-                    ngroup_objects = parsed_details['ngroups']
-                    parsed_details['ngroups'] = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
+        token = credentials.credentials
+        if token.startswith(API_KEY_PREFIX):
+            user, key_data = await _authorize_api_key(request, token, self.required_scopes)
+            request.state.auth_kind = "api_key"
+            request.state.api_key_info = dict(key_data)
+            return user
 
-                return AuthUser.model_validate(parsed_details)
+        payload = self.validate_token(request, token)
+        user = await _authorize_oidc_user(request, payload)
+        request.state.auth_kind = "jwt"
+        request.state.api_key_info = None
+        return user
 
-            # Case 2: The key is a proxy key.
-            else:
-                proxy_name = key_data.get("proxy_user_name")
-                ngroup_id = key_data.get("ngroup_id")
-
-                if not proxy_name or not ngroup_id:
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid proxy key configuration.")
-
-                # Build a synthetic user object for the proxy.
-                # The most important part is setting the 'ngroups' correctly.
-                proxy_user = AuthUser(
-                    id=key_data.get("created_by_user_id"), # Use the creator's ID
-                    name=proxy_name,
-                    email=f"{proxy_name.lower().replace(' ', '_')}@proxy.internal",
-                    roles=["proxy"],
-                    privileges=list(key_scopes),
-                    ngroups=[str(ngroup_id)] # This authorizes the key for its group
-                )
-                return proxy_user
-           
 
 # --- Dependency Instances ---
 get_current_user = OIDCBearer()
