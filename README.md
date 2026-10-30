@@ -170,6 +170,12 @@ Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates
 - `GET /v2/me/upload-targets?include_unavailable=false&search=` — collections the caller can upload to, with their providers, plus non-secret `caller` info (name; for API keys also key name, last 4 characters, expiry, scopes, type). Accepts a Keycloak JWT **or** a `cue_sk_` API key with `file:upload`.
   - admin: all collections; `daac_manager` / `daac_staff` / `security` and proxy keys: all collections in their DAACs; everyone else: collections mapped to providers they're assigned to, within their DAACs.
 
+- Desktop sign-in (existing Keycloak client + PKCE S256 + loopback redirect). All three return 404 while `DESKTOP_REDIRECT_URIS` is empty; the Dashboard login endpoints are unchanged.
+  - `POST /v2/auth/desktop/login-url` `{redirect_uri, code_challenge, code_challenge_method: "S256", state}` → `{login_url}` (`redirect_uri` must be exactly in the allow-list).
+  - `POST /v2/auth/desktop/token` `{code, redirect_uri, code_verifier}` → tokens (same shape as `/v2/auth/exchange-code`). Keycloak rejections → 400 with a generic message; Keycloak/network failures → 502.
+  - `POST /v2/auth/desktop/logout` `{refresh_token}` → 204 always. Revokes the refresh token at Keycloak's `/revoke` endpoint (not `/logout`, so the browser/Dashboard session stays signed in).
+  - Refresh uses the existing `POST /v2/auth/refresh`.
+
 API keys are accepted only by `/v2/upload/*`, `POST /v2/files/list` (`apiKey` in the body), and `GET /v2/me/upload-targets`. `src/python/api/tests/test_api_key_allowlist.py` fails if any other endpoint starts accepting keys.
 
 ### 7.4. Tests
