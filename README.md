@@ -176,10 +176,24 @@ Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates
   - `POST /v2/auth/desktop/logout` `{refresh_token}` → 204 always. Revokes the refresh token at Keycloak's `/revoke` endpoint (not `/logout`, so the browser/Dashboard session stays signed in).
   - Refresh uses the existing `POST /v2/auth/refresh`.
 
+- Many-to-many provider mappings (full CRUD; every change writes a `mapping_history` row in the same transaction). Mappings never cross DAACs, for anyone, admins included.
+  - `GET|POST|PUT /v2/collections/{id}/providers`, `DELETE /v2/collections/{id}/providers/{provider_id}`, `PUT /v2/collections/{id}/providers/{provider_id}/primary` (`collection:read` / `collection:update`). The primary provider can't be removed; set another primary first.
+  - `GET /v2/providers/{id}/collections` (`provider:read`).
+  - `GET|POST|PUT /v2/cueusers/{user_id}/providers`, `DELETE /v2/cueusers/{user_id}/providers/{provider_id}` (`user:read` / `user:update`). Providers must be in one of the user's DAACs.
+  - Collection get/list responses gain an optional `providers` list. Provider filters on files and metrics include collections shared with the provider.
+
+### 7.4. Mapping model and history
+- `collection.provider_id` stays the **primary** provider, so every existing reader keeps working. `collection_provider` holds the extra mappings (and the primary, backfilled); `v_collection_provider` is the one read path.
+- `cueuser_provider` was already many-to-many.
+- Mapping tables only hold **current** mappings. Every add/remove/primary change (new endpoints, legacy collection `PATCH`, role change, application approval, provider delete) writes a permanent `mapping_history` row (`actor_id`, `occurred_at`, `action`).
+- Upload check (`UPLOAD_PROVIDER_CHECK_MODE`): `legacy` = today's rule, and it logs `upload.permission_check.strict_would_deny` whenever the strict rule would deny. `strict` = admin: any mapped provider allows uploads; `daac_manager` / `daac_staff` / `security` and proxy keys: collection in their DAAC and any mapped provider allows uploads; everyone else: collection in their DAAC and a mapped provider that allows uploads **and** is assigned to them.
+
 API keys are accepted only by `/v2/upload/*`, `POST /v2/files/list` (`apiKey` in the body), and `GET /v2/me/upload-targets`. `src/python/api/tests/test_api_key_allowlist.py` fails if any other endpoint starts accepting keys.
 
-### 7.4. Tests
+### 7.5. Tests
 ```bash
 pytest -o addopts="" src/python/api/tests
+# DB-backed mapping tests (local throwaway Postgres with the GUI objects only):
+CUE_GUI_TEST_PG_DSN=postgresql://postgres:test@127.0.0.1:55432/postgres pytest -o addopts="" src/python/api/tests
 ```
-These tests need no database (the DB layer is mocked). The older tests in `tests/` need a test database and currently fail to import (`tests/conftest.py` uses a relative import); that's a pre-existing issue.
+Without `CUE_GUI_TEST_PG_DSN` the tests need no database (the DB layer is mocked) and the DB-backed ones are skipped. The older tests in `tests/` need a test database and currently fail to import (`tests/conftest.py` uses a relative import); that's a pre-existing issue.
