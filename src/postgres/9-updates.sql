@@ -158,3 +158,53 @@ ALTER TABLE collection DROP CONSTRAINT IF EXISTS collection_short_name_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
 ON collection(short_name) 
 WHERE (is_deleted = FALSE);
+
+
+-- ===== GUI support: provider mappings — added 2026-10-29 =====
+-- Run each [GUI-n] statement on its own, in order (SIT -> UAT -> PROD). Every statement is idempotent.
+-- Existing tables (file, file_status, collection, cueuser_provider, ...) keep their data and constraints.
+
+-- [GUI-1] collection <-> provider many-to-many (collection.provider_id stays as the "primary" provider)
+CREATE TABLE IF NOT EXISTS collection_provider (
+    collection_id UUID NOT NULL REFERENCES collection(id) ON DELETE CASCADE,
+    provider_id   UUID NOT NULL REFERENCES provider(id)   ON DELETE CASCADE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by    UUID NULL REFERENCES cueuser(id) ON DELETE SET NULL,
+    PRIMARY KEY (collection_id, provider_id)
+);
+
+-- [GUI-2]
+CREATE INDEX IF NOT EXISTS idx_collection_provider_provider_id ON collection_provider(provider_id);
+
+-- [GUI-3]
+CREATE INDEX IF NOT EXISTS idx_cueuser_provider_provider_id ON cueuser_provider(provider_id);
+
+-- [GUI-4] audit history for BOTH mapping tables (rows are never deleted from here)
+CREATE TABLE IF NOT EXISTS mapping_history (
+    id           UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    mapping_type VARCHAR NOT NULL CHECK (mapping_type IN ('collection_provider','cueuser_provider')),
+    left_id      UUID NOT NULL,   -- collection_id or cueuser_id
+    right_id     UUID NOT NULL,   -- provider_id
+    action       VARCHAR NOT NULL CHECK (action IN ('added','removed','primary_set','primary_unset','backfilled')),
+    actor_id     UUID NULL,       -- cueuser who made the change (NULL = system/backfill)
+    occurred_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    details      JSONB NULL
+);
+
+-- [GUI-5]
+CREATE INDEX IF NOT EXISTS idx_mapping_history_lookup ON mapping_history(mapping_type, left_id, right_id, occurred_at DESC);
+
+-- [GUI-6] backfill (re-runnable)
+INSERT INTO collection_provider (collection_id, provider_id)
+SELECT id, provider_id FROM collection WHERE provider_id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- [GUI-7] one read path for "which providers serve which collection"
+CREATE OR REPLACE VIEW v_collection_provider AS
+    SELECT collection_id, provider_id FROM collection_provider
+    UNION
+    SELECT id AS collection_id, provider_id FROM collection WHERE provider_id IS NOT NULL;
+
+-- [GUI-check] expected = actual after GUI-6
+-- SELECT (SELECT count(*) FROM collection WHERE provider_id IS NOT NULL) AS expected,
+--        (SELECT count(*) FROM collection c JOIN collection_provider cp ON cp.collection_id=c.id AND cp.provider_id=c.provider_id) AS actual;

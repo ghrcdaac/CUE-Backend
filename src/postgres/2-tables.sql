@@ -6,6 +6,9 @@
 -- ==============================================================================
 
 -- Drop tables if they exist (in reverse order of creation due to dependencies)
+DROP VIEW IF EXISTS v_collection_provider;
+DROP TABLE IF EXISTS mapping_history CASCADE;
+DROP TABLE IF EXISTS collection_provider CASCADE;
 DROP TABLE IF EXISTS file_status CASCADE;
 DROP TYPE IF EXISTS file_status_type CASCADE;
 DROP TYPE IF EXISTS application_status CASCADE;
@@ -304,3 +307,33 @@ CREATE INDEX IF NOT EXISTS idx_file_status_upload_time ON file_status(upload_tim
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_collection_short_name 
 ON collection(short_name) 
 WHERE (is_deleted = FALSE);
+
+-- ==============================================================================
+-- GUI support: provider mappings (same objects as [GUI-1..7] in 9-updates.sql)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS collection_provider (
+    collection_id UUID NOT NULL REFERENCES collection(id) ON DELETE CASCADE,
+    provider_id   UUID NOT NULL REFERENCES provider(id)   ON DELETE CASCADE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by    UUID NULL REFERENCES cueuser(id) ON DELETE SET NULL,
+    PRIMARY KEY (collection_id, provider_id)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_provider_provider_id ON collection_provider(provider_id);
+CREATE INDEX IF NOT EXISTS idx_cueuser_provider_provider_id ON cueuser_provider(provider_id);
+
+CREATE TABLE IF NOT EXISTS mapping_history (
+    id           UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    mapping_type VARCHAR NOT NULL CHECK (mapping_type IN ('collection_provider','cueuser_provider')),
+    left_id      UUID NOT NULL,
+    right_id     UUID NOT NULL,
+    action       VARCHAR NOT NULL CHECK (action IN ('added','removed','primary_set','primary_unset','backfilled')),
+    actor_id     UUID NULL,
+    occurred_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    details      JSONB NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mapping_history_lookup ON mapping_history(mapping_type, left_id, right_id, occurred_at DESC);
+
+CREATE OR REPLACE VIEW v_collection_provider AS
+    SELECT collection_id, provider_id FROM collection_provider
+    UNION
+    SELECT id AS collection_id, provider_id FROM collection WHERE provider_id IS NOT NULL;
