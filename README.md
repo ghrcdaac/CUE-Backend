@@ -190,7 +190,14 @@ Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates
 
 API keys are accepted only by `/v2/upload/*`, `POST /v2/files/list` (`apiKey` in the body), and `GET /v2/me/upload-targets`. `src/python/api/tests/test_api_key_allowlist.py` fails if any other endpoint starts accepting keys.
 
-### 7.5. Tests
+### 7.5. Validation rules (always on)
+- **New API keys** (`POST /v2/api-keys/`): scopes must be a subset of `file:upload`, `file:read` **and** of the creator's own privileges; `personal` keys must use one of the creator's DAACs. Admins are exempt. Existing keys are not touched. Violations return 400.
+- **Upload continuation calls** (`/v2/upload/multipart/get-part-url`, `/multipart/complete`, `/multipart/abort`, `/complete-single`): the `file_id` must belong to the caller (`file.cueuser_uploaded`; proxy keys resolve to the key creator). Admins are exempt. Otherwise 403.
+
+### 7.6. Known issues
+- `POST /v2/auth/exchange-code` (Dashboard login) returns Keycloak's error body in its error message. It's left as is because the Dashboard depends on it; the desktop `/v2/auth/desktop/token` endpoint returns a generic message instead.
+
+### 7.7. Tests
 ```bash
 pytest -o addopts="" src/python/api/tests
 # DB-backed mapping tests (local throwaway Postgres with the GUI objects only):
