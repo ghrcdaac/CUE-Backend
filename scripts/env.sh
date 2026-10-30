@@ -49,6 +49,12 @@ export bamboo_KEYCLOAK_ADMIN_CLIENT_SECRET="YOUR_KEYCLOAK_ADMIN_CLIENT_SECRET"
 export bamboo_FRONTEND_URL="http://localhost:3000"
 export bamboo_FRONTEND_CALLBACK_URL="http://localhost:3000/callback"
 
+# --- CUE desktop app (GUI) ---
+# Exact allow-list of desktop sign-in redirect URIs (comma-separated). Empty = desktop sign-in disabled (404).
+export bamboo_DESKTOP_REDIRECT_URIS=""
+# Upload provider check: "legacy" (default) or "strict" (assigned-provider rule).
+export bamboo_UPLOAD_PROVIDER_CHECK_MODE="legacy"
+
 # --- SES (Email) Configuration ---
 export bamboo_SENDER_EMAIL="cue-no-reply@nasa.gov"
 export bamboo_SES_REGION="us-east-1"

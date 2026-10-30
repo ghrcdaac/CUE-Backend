@@ -44,6 +44,8 @@ module "lambda_functions" {
   keycloak_admin_client_id       = var.keycloak_admin_client_id
   keycloak_admin_client_secret   = var.keycloak_admin_client_secret
   keycloak_certs_file            = var.keycloak_certs_file
+  desktop_redirect_uris          = var.desktop_redirect_uris
+  upload_provider_check_mode     = var.upload_provider_check_mode
 
   # --- Role ARNs from the iam module ---
   api_lambda_role_arn            = module.iam_role.cue_api_lambda_role_arn

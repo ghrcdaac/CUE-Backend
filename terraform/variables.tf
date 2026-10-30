@@ -137,6 +137,19 @@ variable "keycloak_certs_file" {
   type        = string
 }
 
+# --- CUE desktop app (GUI) ---
+variable "desktop_redirect_uris" {
+  description = "Comma-separated exact allow-list of desktop sign-in redirect URIs. Empty disables desktop sign-in."
+  type        = string
+  default     = ""
+}
+
+variable "upload_provider_check_mode" {
+  description = "Upload provider check: 'legacy' (default) or 'strict'."
+  type        = string
+  default     = "legacy"
+}
+
 
 # --- SES (Email) Configuration ---
 variable "sender_email" {

@@ -52,6 +52,8 @@ resource "aws_lambda_function" "cue_api" {
       FRONTEND_URL                   = var.frontend_url
       FRONTEND_CALLBACK_URL          = var.frontend_callback_url
       KEYCLOAK_CERTS_FILE            = var.keycloak_certs_file
+      DESKTOP_REDIRECT_URIS          = var.desktop_redirect_uris
+      UPLOAD_PROVIDER_CHECK_MODE     = var.upload_provider_check_mode
       LOG_LEVEL                      = "INFO"
       POOL_ID          = var.pool_id
       CLIENT_ID        = var.client_id
