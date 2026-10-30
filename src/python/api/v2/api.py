@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from v2.endpoints import (auth,
      cueuser, ngroup, provider, role, collection, upload, archive, file_metrics, file,
-      user_application, api_keys, egress, upload_targets
+      user_application, api_keys, egress, upload_targets, desktop_auth
      )
 
 router = APIRouter()
@@ -11,6 +11,7 @@ async def root():
     return {"message": "Hello World - This is CUE API. visit /docs for more info."}
 
 router.include_router(auth.router)
+router.include_router(desktop_auth.router)
 router.include_router(upload.router)
 router.include_router(egress.router)
 router.include_router(ngroup.router)
