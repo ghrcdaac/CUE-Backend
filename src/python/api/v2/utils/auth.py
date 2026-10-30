@@ -71,6 +71,63 @@ class KeycloakClient:
         response.raise_for_status()
         return response.json()
 
+    # --- Desktop app (CUE GUI) sign-in: PKCE + loopback redirect. Existing methods above are unchanged. ---
+
+    def get_desktop_login_url(self, redirect_uri: str, code_challenge: str, state: str) -> str:
+        """Builds the Keycloak login URL for the desktop app (PKCE S256, no offline_access)."""
+        params = {
+            "client_id": self.admin_client_id,
+            "response_type": "code",
+            "scope": "openid profile email",
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        return f"{self.auth_url}?{urlencode(params)}"
+
+    async def exchange_code_with_pkce(self, code: str, redirect_uri: str, code_verifier: str) -> Dict[str, Any]:
+        """Exchanges a desktop authorization code (with its PKCE verifier) for tokens."""
+        payload = {
+            "grant_type": "authorization_code", "code": code,
+            "redirect_uri": redirect_uri, "client_id": self.admin_client_id,
+            "client_secret": self.admin_client_secret, "code_verifier": code_verifier,
+        }
+
+        log_ctx = {"idfs_endpoint": self.token_url, "grant_type": "authorization_code", "flow": "desktop_pkce"}
+        logger.info("idfs.api.call.start", **log_ctx)
+        t0 = time.perf_counter()
+
+        response = await self.http_client.post(self.token_url, data=payload)
+
+        duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.info("idfs.api.call.complete", duration_ms=duration_ms, status_code=response.status_code, **log_ctx)
+
+        response.raise_for_status()
+        return response.json()
+
+    async def revoke_refresh_token(self, refresh_token: str) -> None:
+        """
+        Revokes a refresh token (RFC 7009) at Keycloak's /revoke endpoint.
+        Uses /revoke, NOT /logout, so the user's browser (Dashboard) session stays signed in.
+        """
+        revoke_url = f"{self.base_url}/protocol/openid-connect/revoke"
+        payload = {
+            "token": refresh_token, "token_type_hint": "refresh_token",
+            "client_id": self.admin_client_id, "client_secret": self.admin_client_secret,
+        }
+
+        log_ctx = {"idfs_endpoint": revoke_url, "action": "revoke_refresh_token"}
+        logger.info("idfs.api.call.start", **log_ctx)
+        t0 = time.perf_counter()
+
+        response = await self.http_client.post(revoke_url, data=payload)
+
+        duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.info("idfs.api.call.complete", duration_ms=duration_ms, status_code=response.status_code, **log_ctx)
+
+        response.raise_for_status()
+
     async def _get_service_token(self) -> str:
         """Gets a service account access token, caching it until expiration."""
         if self._access_token and time.time() < self._token_expires_at:

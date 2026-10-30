@@ -2,7 +2,7 @@
 # File: src/python/api/v2/type_util/auth.py 
 # Purpose: Defines all Pydantic models for the v2 authentication process.
 # ==============================================================================
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from typing import Optional, Dict, Any, Literal, List
 from uuid import UUID
 
@@ -108,6 +108,35 @@ class UserClaimsResponse(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     cueusername: Optional[str] = None
+
+
+# --- Desktop app (CUE GUI) sign-in: PKCE + loopback redirect ---
+
+class DesktopLoginUrlRequest(BaseModel):
+    """Body for POST /v2/auth/desktop/login-url."""
+    model_config = ConfigDict(extra="forbid")
+
+    redirect_uri: str = Field(..., max_length=200)
+    code_challenge: str = Field(..., pattern=r"^[A-Za-z0-9_-]{43}$")
+    code_challenge_method: Literal["S256"]
+    state: str = Field(..., pattern=r"^[A-Za-z0-9_-]{16,128}$")
+
+class DesktopLoginUrlResponse(BaseModel):
+    login_url: str
+
+class DesktopTokenRequest(BaseModel):
+    """Body for POST /v2/auth/desktop/token."""
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(..., min_length=1, max_length=2048)
+    redirect_uri: str = Field(..., max_length=200)
+    code_verifier: str = Field(..., pattern=r"^[A-Za-z0-9._~-]{43,128}$")
+
+class DesktopLogoutRequest(BaseModel):
+    """Body for POST /v2/auth/desktop/logout."""
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str = Field(..., min_length=1, max_length=16384)
 
 
 class ApiKeyPrincipal(BaseModel):
