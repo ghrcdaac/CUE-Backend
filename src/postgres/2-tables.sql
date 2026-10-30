@@ -336,4 +336,6 @@ CREATE INDEX IF NOT EXISTS idx_mapping_history_lookup ON mapping_history(mapping
 CREATE OR REPLACE VIEW v_collection_provider AS
     SELECT collection_id, provider_id FROM collection_provider
     UNION
-    SELECT id AS collection_id, provider_id FROM collection WHERE provider_id IS NOT NULL;
+    SELECT c.id AS collection_id, c.provider_id
+    FROM collection c
+    JOIN provider p ON p.id = c.provider_id;

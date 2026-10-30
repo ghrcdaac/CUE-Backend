@@ -164,7 +164,7 @@ Glue job runs are logged into Cloudwatch.
 Both are wired like `KEYCLOAK_ISSUER`: `bamboo_*` in the env files → `TF_VAR_*` in `scripts/build-local.sh` → `terraform/variables.tf` → `terraform/modules.tf` → `terraform/lambda`.
 
 ### 7.2. Database updates
-Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates.sql` one at a time (SIT → UAT → PROD), then the `[GUI-check]` query (expected = actual). They only add new objects (`collection_provider`, `mapping_history`, the `v_collection_provider` view, two indexes) and backfill one row per collection; existing tables are untouched. Every statement is idempotent. Fresh databases get the same objects from `2-tables.sql`.
+Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates.sql` one at a time (SIT → UAT → PROD), then the `[GUI-check]` query (expected = actual). Run the read-only `[GUI-orphans]` query first: it lists collections whose `provider_id` points to a provider that no longer exists, which the backfill and the view skip. They only add new objects (`collection_provider`, `mapping_history`, the `v_collection_provider` view, two indexes) and backfill one row per collection; existing tables are untouched. Every statement is idempotent. Fresh databases get the same objects from `2-tables.sql`.
 
 ### 7.3. Endpoints
 - `GET /v2/me/upload-targets?include_unavailable=false&search=` — collections the caller can upload to, with their providers, plus non-secret `caller` info (name; for API keys also key name, last 4 characters, expiry, scopes, type). Accepts a Keycloak JWT **or** a `cue_sk_` API key with `file:upload`.

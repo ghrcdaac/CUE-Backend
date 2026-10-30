@@ -194,17 +194,28 @@ CREATE TABLE IF NOT EXISTS mapping_history (
 -- [GUI-5]
 CREATE INDEX IF NOT EXISTS idx_mapping_history_lookup ON mapping_history(mapping_type, left_id, right_id, occurred_at DESC);
 
--- [GUI-6] backfill (re-runnable)
+-- [GUI-orphans] read-only: collections whose provider_id points to a provider that no longer exists.
+-- These are skipped by GUI-6 and GUI-7 (they can't upload today either). Fix them separately if needed.
+SELECT c.id, c.short_name, c.provider_id, c.active, c.is_deleted
+FROM collection c
+LEFT JOIN provider p ON p.id = c.provider_id
+WHERE c.provider_id IS NOT NULL AND p.id IS NULL;
+
+-- [GUI-6] backfill (re-runnable); only collections whose provider exists
 INSERT INTO collection_provider (collection_id, provider_id)
-SELECT id, provider_id FROM collection WHERE provider_id IS NOT NULL
+SELECT c.id, c.provider_id
+FROM collection c
+JOIN provider p ON p.id = c.provider_id
 ON CONFLICT DO NOTHING;
 
 -- [GUI-7] one read path for "which providers serve which collection"
 CREATE OR REPLACE VIEW v_collection_provider AS
     SELECT collection_id, provider_id FROM collection_provider
     UNION
-    SELECT id AS collection_id, provider_id FROM collection WHERE provider_id IS NOT NULL;
+    SELECT c.id AS collection_id, c.provider_id
+    FROM collection c
+    JOIN provider p ON p.id = c.provider_id;
 
--- [GUI-check] expected = actual after GUI-6
--- SELECT (SELECT count(*) FROM collection WHERE provider_id IS NOT NULL) AS expected,
---        (SELECT count(*) FROM collection c JOIN collection_provider cp ON cp.collection_id=c.id AND cp.provider_id=c.provider_id) AS actual;
+-- [GUI-check] read-only: expected = actual after GUI-6 (orphans from GUI-orphans are not counted)
+SELECT (SELECT count(*) FROM collection c JOIN provider p ON p.id = c.provider_id) AS expected,
+       (SELECT count(*) FROM collection c JOIN collection_provider cp ON cp.collection_id = c.id AND cp.provider_id = c.provider_id) AS actual;
