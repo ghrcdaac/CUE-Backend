@@ -11,6 +11,7 @@ import json
 
 
 from v2.database_util import provider as provider_db
+from v2.database_util import mapping_history
 from v2.type_util.provider import ProviderCreate, ProviderUpdate
 # We need to import the user utils to validate the point_of_contact
 from v2.utils import cueuser as cueuser_utils
@@ -130,10 +131,23 @@ async def update_provider(request: Request, provider_id: UUID, provider_update: 
     logger.info("provider.updated", provider_id=str(provider_id))
     return dict(updated_provider)
 
-async def delete_provider(request: Request, provider_id: UUID):
+async def delete_provider(request: Request, provider_id: UUID, actor_id: Optional[UUID] = None):
     """Deletes a provider record by its ID."""
     async with request.state.pool.acquire() as conn:
-        success = await provider_db.delete_provider(conn, provider_id)
+        async with conn.transaction():
+            # Mappings cascade on delete: record a 'removed' history row for each one first.
+            user_ids = [r["cueuser_id"] for r in await conn.fetch(
+                "SELECT cueuser_id FROM cueuser_provider WHERE provider_id = $1", provider_id)]
+            collection_ids = [r["collection_id"] for r in await conn.fetch(
+                "SELECT collection_id FROM collection_provider WHERE provider_id = $1", provider_id)]
+            details = {"via": "provider_delete"}
+            for uid in user_ids:
+                await mapping_history.record(conn, mapping_history.CUEUSER_PROVIDER, uid, provider_id,
+                                             "removed", actor_id, details)
+            for cid in collection_ids:
+                await mapping_history.record(conn, mapping_history.COLLECTION_PROVIDER, cid, provider_id,
+                                             "removed", actor_id, details)
+            success = await provider_db.delete_provider(conn, provider_id)
     if not success:
         raise ProviderNotFoundError(provider_id=provider_id)
     logger.info("provider.deleted", provider_id=str(provider_id))

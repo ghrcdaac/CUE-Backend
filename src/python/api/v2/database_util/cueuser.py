@@ -4,6 +4,8 @@
 # ==============================================================================
 from asyncpg import Connection, ForeignKeyViolationError
 from typing import List, Dict, Any, Optional
+
+from v2.database_util import mapping_history
 from uuid import UUID
 import structlog
 import json
@@ -261,10 +263,16 @@ async def assign_ngroups_to_user(conn: Connection, user_id: UUID, ngroup_ids: Li
     await conn.executemany("INSERT INTO cueuser_ngroup (cueuser_id, ngroup_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
                            [(user_id, ngroup_id) for ngroup_id in ngroup_ids])
 
-async def assign_providers_to_user(conn: Connection, user_id: UUID, provider_ids: List[UUID]):
-    """Assigns a list of providers to a user."""
-    await conn.executemany("INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-                            [(user_id, provider_id) for provider_id in provider_ids])
+async def assign_providers_to_user(conn: Connection, user_id: UUID, provider_ids: List[UUID], actor_id: Optional[UUID] = None):
+    """Assigns a list of providers to a user and records an 'added' history row for each new mapping."""
+    added = []
+    for provider_id in provider_ids:
+        inserted = await conn.fetchval(
+            "INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING provider_id",
+            user_id, provider_id)
+        if inserted is not None:
+            added.append(provider_id)
+    await mapping_history.record_many(conn, mapping_history.CUEUSER_PROVIDER, user_id, added, "added", actor_id)
 
 async def update_user(conn: Connection, user_id: UUID, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """--- OPTIMIZED: Updates user details and returns the full updated record. ---"""

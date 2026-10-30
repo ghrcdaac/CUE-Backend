@@ -128,7 +128,7 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
                     
                     await user_db.assign_ngroups_to_user(conn, user_id, ngroups_to_assign)
                     if providers_to_assign:
-                        await user_db.assign_providers_to_user(conn, user_id, providers_to_assign)
+                        await user_db.assign_providers_to_user(conn, user_id, providers_to_assign, actor_id=approver.id)
                     
                     if provider_id_to_assign is not None and provider_id_to_assign != app_data.get('provider_id'):
                         await conn.execute("UPDATE user_application SET provider_id = $1 WHERE id = $2", provider_id_to_assign, application_id)

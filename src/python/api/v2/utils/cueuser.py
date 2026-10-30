@@ -11,6 +11,7 @@ from fastapi import Request
 from v2.type_util.auth import AuthUser
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db
+from v2.database_util import mapping_history
 from v2.type_util.cueuser import UserUpdateRequest
 
 logger = structlog.get_logger(__name__)
@@ -196,13 +197,21 @@ async def update_user_role(request: Request, user_id: UUID, role_id: UUID, curre
                 raise ValueError("You do not have permission to assign this role.")
 
         async with request.state.pool.acquire() as conn:
-            await user_db.update_user_roles(conn, user_id, [role_id])
-            if target_role['short_name'] == 'provider':
-                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
-                if provider_id:
+            async with conn.transaction():
+                await user_db.update_user_roles(conn, user_id, [role_id])
+                # Replace-all is kept on purpose (the Dashboard relies on it until plan 15 ships);
+                # every mapping it changes is recorded in mapping_history.
+                removed = {r["provider_id"] for r in await conn.fetch(
+                    "DELETE FROM cueuser_provider WHERE cueuser_id = $1 RETURNING provider_id", user_id)}
+                added = set()
+                if target_role['short_name'] == 'provider' and provider_id:
                     await conn.execute("INSERT INTO cueuser_provider (cueuser_id, provider_id) VALUES ($1, $2)", user_id, provider_id)
-            else:
-                await conn.execute("DELETE FROM cueuser_provider WHERE cueuser_id = $1", user_id)
+                    added = {provider_id}
+                details = {"via": "role_update"}
+                await mapping_history.record_many(conn, mapping_history.CUEUSER_PROVIDER, user_id,
+                                                  sorted(removed - added, key=str), "removed", current_user.id, details)
+                await mapping_history.record_many(conn, mapping_history.CUEUSER_PROVIDER, user_id,
+                                                  sorted(added - removed, key=str), "added", current_user.id, details)
     
     logger.info("user.role.updated", user_id=str(user_id), new_role_id=str(role_id), updater_id=str(current_user.id))
     # Fetch the final profile. This is now fast due to the optimized database query.

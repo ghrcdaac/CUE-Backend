@@ -12,8 +12,10 @@ import json
 from v2.database_util import collection as collection_db
 from v2.database_util import provider as provider_db
 from v2.database_util import egress as egress_db
+from v2.database_util import collection_provider as cp_db
 from v2.type_util.collection import CollectionCreate, CollectionUpdate
 from v2.type_util.auth import AuthUser
+from v2.utils import mappings as mapping_utils
 
 logger = structlog.get_logger(__name__)
 
@@ -23,7 +25,7 @@ class CollectionNotFoundError(Exception):
 
 # --- Functions now accept the `request` object ---
 
-async def create_collection(request: Request, collection: CollectionCreate, ngroup_id: UUID) -> Dict[str, Any]:
+async def create_collection(request: Request, collection: CollectionCreate, ngroup_id: UUID, actor_id: Optional[UUID] = None) -> Dict[str, Any]:
     """Creates a new collection record after validating dependencies."""
     async with request.state.pool.acquire() as conn:
         provider = await provider_db.get_provider_by_id(conn, collection.provider_id)
@@ -34,19 +36,28 @@ async def create_collection(request: Request, collection: CollectionCreate, ngro
         if not egress or egress['ngroup_id'] != ngroup_id:
             raise ValueError(f"Egress target with ID '{collection.egress_id}' not found in this ngroup.")
 
-        new_collection = await collection_db.create_collection(
-            conn, collection.short_name, collection.active, ngroup_id, collection.provider_id, collection.egress_id
-        )
+        async with conn.transaction():
+            new_collection = await collection_db.create_collection(
+                conn, collection.short_name, collection.active, ngroup_id, collection.provider_id, collection.egress_id
+            )
+            # Many-to-many: the primary is also a row in collection_provider (+ history).
+            await mapping_utils.on_collection_created(conn, new_collection['id'], collection.provider_id, actor_id)
     logger.info("collection.created", collection_id=str(new_collection['id']))
     return dict(new_collection)
 
-async def get_collection(request: Request, collection_id: UUID) -> Dict[str, Any]:
-    """Retrieves a collection record by its ID."""
+async def get_collection(request: Request, collection_id: UUID, include_providers: bool = False) -> Dict[str, Any]:
+    """Retrieves a collection record by its ID (optionally with all mapped providers)."""
+    rows = []
     async with request.state.pool.acquire() as conn:
         collection = await collection_db.get_collection_by_id(conn, collection_id)
+        if collection and include_providers:
+            rows = await cp_db.list_providers_for_collection(conn, collection_id)
     if not collection:
         raise CollectionNotFoundError(f"Collection not found with ID: {collection_id}")
-    return dict(collection)
+    result = dict(collection)
+    if include_providers:
+        result["providers"] = [mapping_utils.collection_mapping(r) for r in rows]
+    return result
 
 async def list_collections(
     request: Request,
@@ -82,6 +93,11 @@ async def list_collections(
                     row["egress"] = json.loads(row["egress"])
 
                 result.append(row)
+
+            # Many-to-many: all mapped providers per collection (optional extra field).
+            by_collection = await cp_db.providers_for_collections(conn, [r["id"] for r in result])
+            for row in result:
+                row["providers"] = [mapping_utils.collection_mapping(p) for p in by_collection.get(row["id"], [])]
     return {
         "total": total,
         "collections": result,
@@ -94,7 +110,8 @@ async def update_collection(
     request: Request, 
     collection_id: UUID, 
     collection_update: CollectionUpdate,
-    current_collection: Dict[str, Any] 
+    current_collection: Dict[str, Any],
+    actor_id: Optional[UUID] = None
 ) -> Dict[str, Any]:
     """Updates an existing collection record."""
     update_data = collection_update.model_dump(exclude_unset=True)
@@ -114,7 +131,14 @@ async def update_collection(
             if not egress or egress['ngroup_id'] != ngroup_id:
                 raise ValueError(f"Egress target with ID '{update_data['egress_id']}' not found in this ngroup.")
 
-        updated_collection = await collection_db.update_collection(conn, collection_id, update_data)
+        async with conn.transaction():
+            updated_collection = await collection_db.update_collection(conn, collection_id, update_data)
+            new_provider = update_data.get('provider_id')
+            if updated_collection and new_provider and str(new_provider) != str(current_collection['provider_id']):
+                # Legacy PATCH keeps its "move" meaning (add new, remove old) and records history.
+                await mapping_utils.on_legacy_primary_move(
+                    conn, collection_id, current_collection['provider_id'], new_provider, actor_id
+                )
     
     if not updated_collection:
         raise CollectionNotFoundError(f"Collection not found with ID: {collection_id}")
