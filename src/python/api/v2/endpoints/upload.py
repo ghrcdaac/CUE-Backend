@@ -20,6 +20,14 @@ router = APIRouter(prefix="/upload", tags=["V2 - File Upload (CLI)"])
 
 require_upload_key = APIKeyBearer(required_scopes=["file:upload"])
 
+
+async def _require_owner(request: Request, file_id, user: AuthUser) -> None:
+    """403 unless the caller started this upload (admins exempt)."""
+    try:
+        await upload_utils.assert_file_owner(request, file_id, user)
+    except upload_utils.UploadOwnershipError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
 # --- Single File Upload ---
 
 @router.post("/prepare-single", response_model=PrepareUploadResponse)
@@ -48,6 +56,7 @@ async def complete_single_upload(
     user: AuthUser = Depends(require_upload_key)
 ):
     """Step 2 (Single File): Confirm upload and create database records."""
+    await _require_owner(request, params.file_id, user)
     try:
         file_id = await upload_utils.complete_single_file_upload(request, params, user)
         return UploadSuccessResponse(
@@ -80,9 +89,11 @@ async def multipart_start(
 
 @router.post("/multipart/get-part-url", response_model=MultipartGetPartUrlResponse)
 async def multipart_get_part_url(
-    params: MultipartGetPartUrlRequest, _user: AuthUser = Depends(require_upload_key)
+    request: Request,
+    params: MultipartGetPartUrlRequest, user: AuthUser = Depends(require_upload_key)
 ):
     """Step 2 (Multipart): Get a presigned URL for a single part."""
+    await _require_owner(request, params.file_id, user)
     try:
        
         response_data = await upload_utils.get_multipart_presigned_url(params)
@@ -97,6 +108,7 @@ async def multipart_complete(
     user: AuthUser = Depends(require_upload_key)
 ):
     """Step 3 (Multipart): Complete the upload and create DB records."""
+    await _require_owner(request, params.file_id, user)
     try:
         file_id = await upload_utils.complete_multipart_upload(request, params, user)
         return UploadSuccessResponse(
@@ -110,9 +122,11 @@ async def multipart_complete(
 
 @router.post("/multipart/abort", status_code=status.HTTP_204_NO_CONTENT)
 async def multipart_abort(
-    params: MultipartAbortRequest, _user: AuthUser = Depends(require_upload_key)
+    request: Request,
+    params: MultipartAbortRequest, user: AuthUser = Depends(require_upload_key)
 ):
     """Abort a multipart upload."""
+    await _require_owner(request, params.file_id, user)
     try:
         await upload_utils.abort_multipart_upload(params)
     except upload_utils.S3ClientError as e:

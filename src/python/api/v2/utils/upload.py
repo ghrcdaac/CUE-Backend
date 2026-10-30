@@ -29,6 +29,23 @@ ENV = os.environ.get("ENV", "production")
  
 class S3ClientError(Exception): pass
 class UploadValidationError(Exception): pass
+class UploadOwnershipError(Exception): pass
+
+
+async def assert_file_owner(request: Request, file_id: UUID, user: AuthUser) -> None:
+    """
+    Multipart/complete calls must come from whoever started the upload (plan 11 B4.2).
+    Proxy keys resolve to the key creator's id, which is also what 'prepare'/'start' recorded.
+    Admins are exempt. One primary-key lookup.
+    """
+    if "admin" in (user.roles or []):
+        return
+    async with request.state.pool.acquire() as conn:
+        owner = await file_db.get_file_uploader(conn, file_id)
+    if owner is None or str(owner) != str(user.id):
+        logger.warning("upload.ownership_check.failed", file_id=str(file_id), user_id=str(user.id),
+                       reason="not_found" if owner is None else "not_owner")
+        raise UploadOwnershipError("You are not allowed to modify this upload.")
 
 def _get_s3_client():
     return boto3.client('s3', region_name=os.environ.get("AWS_REGION", "us-west-2"))

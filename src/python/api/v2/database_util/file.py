@@ -362,3 +362,8 @@ async def get_file_details_for_group(conn: Connection, file_id: UUID, ngroup_id:
         WHERE f.id = $1 AND c.ngroup_id = $2;
     """
     return await conn.fetchrow(query, file_id, ngroup_id)
+
+
+async def get_file_uploader(conn: Connection, file_id: UUID) -> Optional[UUID]:
+    """Primary-key lookup of who started the upload (multipart ownership check)."""
+    return await conn.fetchval("SELECT cueuser_uploaded FROM file WHERE id = $1", file_id)
