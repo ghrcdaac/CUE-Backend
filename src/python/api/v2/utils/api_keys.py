@@ -57,6 +57,30 @@ async def _can_manager_access_key(manager: AuthUser, key_info: Dict[str, Any], c
 
 
 # Logic is now driven by the explicit `key_type`.
+# Scopes an API key may carry (plan 11 B4.1). file:read stays allowed: users track file status
+# with POST /v2/files/list.
+ALLOWED_KEY_SCOPES = {"file:upload", "file:read"}
+
+
+def _validate_new_key_request(create_body: ApiKeyCreateRequest, creator: AuthUser) -> None:
+    """
+    New keys can't exceed the creator's own DAACs or privileges. Admins are exempt.
+    Existing keys are not touched. Raises ValueError (-> 400).
+    """
+    if "admin" in (creator.roles or []):
+        return
+    scopes = set(create_body.scopes or [])
+    unsupported = scopes - ALLOWED_KEY_SCOPES
+    if unsupported:
+        raise ValueError(f"Unsupported API key scope(s): {', '.join(sorted(unsupported))}. "
+                         f"Allowed: file:upload, file:read.")
+    not_held = scopes - set(creator.privileges or [])
+    if not_held:
+        raise ValueError(f"You can't create a key with scope(s) you don't have: {', '.join(sorted(not_held))}.")
+    if create_body.key_type == "personal" and str(create_body.ngroup_id) not in {str(g) for g in creator.ngroups or []}:
+        raise ValueError("Personal keys must be created for one of your own DAACs.")
+
+
 async def create_api_key(request: Request, create_body: ApiKeyCreateRequest, creator: AuthUser) -> Dict[str, Any]:
     """Orchestrates the creation of a new API key based on its type."""
     creator_roles = set(creator.roles)
@@ -65,6 +89,8 @@ async def create_api_key(request: Request, create_body: ApiKeyCreateRequest, cre
     is_privileged_creator = creator_roles.intersection({'admin', 'security', 'daac_manager', 'daac_staff'})
     if key_type in ['managed_user', 'proxy'] and not is_privileged_creator:
         raise ApiKeyPermissionError("You do not have permission to create managed or proxy keys.")
+
+    _validate_new_key_request(create_body, creator)
 
     user_id_to_assign = None
     ngroup_id_to_assign = create_body.ngroup_id
