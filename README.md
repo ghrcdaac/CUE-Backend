@@ -160,8 +160,11 @@ Glue job runs are logged into Cloudwatch.
 | --- | --- | --- |
 | `DESKTOP_REDIRECT_URIS` | empty | Comma-separated exact allow-list of desktop sign-in redirect URIs (for example `http://127.0.0.1:53117/callback,http://127.0.0.1:53118/callback,http://127.0.0.1:53119/callback`). Empty disables the desktop sign-in endpoints (404). |
 | `UPLOAD_PROVIDER_CHECK_MODE` | `legacy` | `legacy` = today's upload check; `strict` = the uploader must be assigned to a provider mapped to the collection. |
+| `APPLICATION_IDP_GATE` | `off` | Launchpad gate on user applications (section 8): `off`, `log` (allow, log `application.idp_gate.would_deny`), `enforce`. |
+| `LAUNCHPAD_IDP_ALIASES` | `launchpad` | Comma-separated Keycloak `identity_provider` values that count as NASA Launchpad. |
+| `APPLICATION_IDP_GATE_BYPASS_EMAILS` | empty | Comma-separated test emails (exact match) that skip the gate. **Ignored when `APP_ENV=prod`.** Keep empty unless testing. |
 
-Both are wired like `KEYCLOAK_ISSUER`: `bamboo_*` in the env files → `TF_VAR_*` in `scripts/build-local.sh` → `terraform/variables.tf` → `terraform/modules.tf` → `terraform/lambda`.
+All of these are wired like `KEYCLOAK_ISSUER`: `bamboo_*` in the env files → `TF_VAR_*` in `scripts/build-local.sh` → `terraform/variables.tf` → `terraform/modules.tf` → `terraform/lambda`.
 
 ### 7.2. Database updates
 Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates.sql` one at a time (SIT → UAT → PROD), then the `[GUI-check]` query (expected = actual). Run the read-only `[GUI-orphans]` query first: it lists collections whose `provider_id` points to a provider that no longer exists, which the backfill and the view skip. They only add new objects (`collection_provider`, `mapping_history`, the `v_collection_provider` view, two indexes) and backfill one row per collection; existing tables are untouched. Every statement is idempotent. Fresh databases get the same objects from `2-tables.sql`.
@@ -204,3 +207,19 @@ pytest -o addopts="" src/python/api/tests
 CUE_GUI_TEST_PG_DSN=postgresql://postgres:test@127.0.0.1:55432/postgres pytest -o addopts="" src/python/api/tests
 ```
 Without `CUE_GUI_TEST_PG_DSN` the tests need no database (the DB layer is mocked) and the DB-backed ones are skipped. The older tests in `tests/` need a test database and currently fail to import (`tests/conftest.py` uses a relative import); that's a pre-existing issue.
+
+## 8. Launchpad gate and email environment
+
+### 8.1. Launchpad gate on user applications
+Keycloak signs `identity_provider` (`launchpad`, `google`, ...) into every access token, so the API reads it from the token it already validates: no extra calls, nothing stored.
+
+With `APPLICATION_IDP_GATE=enforce`:
+- `POST /v2/user_application/`: only a Launchpad login may apply with `account_type=daac` or to the ESDIS Security group. Anyone else (Google, EDL, any other IdP, or no claim) gets 403 and may only apply as a Data Provider.
+- `POST /v2/user_application/{id}/approve`: a `provider` application can only be approved with the `provider` role (403 otherwise). ESDIS Security applications are not affected.
+- `GET /v2/auth/status` also returns `idp_gate` and `provider_only` so the Dashboard signup form can lock the account type.
+- Log only, never blocks: a non-Launchpad login that holds more than the `provider` role logs `auth.idp_gate.non_launchpad_privileged` once per user per container (also in `log` mode).
+
+Before switching to `enforce`, review the pending applications: ones submitted earlier may be `daac` from a Google or EDL login.
+
+### 8.2. Email environment and links
+`notification_manager` gets `APP_ENV` and `FRONTEND_URL`. Every email has `[SIT]` / `[UAT]` / `[PROD]` in the subject, an "Environment" line, and a dashboard button and link (application alerts: `/users/pending-requests`; infected-file reports: `/files-by-status`). Application alerts also show how the applicant signed in (from the event, not stored). Values in the templates are HTML-escaped.

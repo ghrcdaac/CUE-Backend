@@ -150,6 +150,24 @@ variable "upload_provider_check_mode" {
   default     = "legacy"
 }
 
+variable "application_idp_gate" {
+  description = "Launchpad gate on user applications: 'off' (default), 'log' or 'enforce'."
+  type        = string
+  default     = "off"
+}
+
+variable "launchpad_idp_aliases" {
+  description = "Comma-separated Keycloak identity_provider values that count as NASA Launchpad."
+  type        = string
+  default     = "launchpad"
+}
+
+variable "application_idp_gate_bypass_emails" {
+  description = "Comma-separated test emails that skip the Launchpad gate. Ignored when app_env is prod. Keep empty unless testing."
+  type        = string
+  default     = ""
+}
+
 
 # --- SES (Email) Configuration ---
 variable "sender_email" {

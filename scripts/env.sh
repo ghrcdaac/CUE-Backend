@@ -54,6 +54,13 @@ export bamboo_FRONTEND_CALLBACK_URL="http://localhost:3000/callback"
 export bamboo_DESKTOP_REDIRECT_URIS=""
 # Upload provider check: "legacy" (default) or "strict" (assigned-provider rule).
 export bamboo_UPLOAD_PROVIDER_CHECK_MODE="legacy"
+# Launchpad gate on user applications: "off" (default), "log" or "enforce".
+# Only Launchpad logins may apply for DAAC accounts or ESDIS Security; everyone else gets Data Provider only.
+export bamboo_APPLICATION_IDP_GATE="off"
+# Keycloak identity_provider values that count as Launchpad (comma-separated).
+export bamboo_LAUNCHPAD_IDP_ALIASES="launchpad"
+# Test emails that skip the gate (comma-separated, exact match). Ignored in prod. Keep empty unless testing.
+export bamboo_APPLICATION_IDP_GATE_BYPASS_EMAILS=""
 
 # --- SES (Email) Configuration ---
 export bamboo_SENDER_EMAIL="cue-no-reply@nasa.gov"

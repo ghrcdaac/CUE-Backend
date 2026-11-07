@@ -20,6 +20,7 @@ from v2.database_util import cueuser as user_db
 from v2.database_util import api_keys as api_key_db
 from v2.type_util.auth import AuthUser, AuthenticatedUserClaims
 from v2.utils.cueuser import _parse_user_data
+from v2.utils import idp_gate
 
 # --- Environment Variables ---
 KEYCLOAK_ISSUER = os.getenv("KEYCLOAK_ISSUER", "https://idfs.uat.earthdatacloud.nasa.gov/realms/cue")
@@ -99,6 +100,8 @@ async def _authorize_oidc_user(request: Request, payload: Dict[str, Any]) -> Aut
         ngroup_objects = json.loads(db_details.get("ngroups", "[]"))
 
         user.ngroups = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
+        # Log-only (never blocks): non-Launchpad logins holding more than the provider role.
+        idp_gate.report_non_launchpad_privileged(user.id, user.identity_provider, user.roles)
         user_ngroup_ids = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
 
         active_ngroup_header = request.headers.get("X-Active-Ngroup-Id")

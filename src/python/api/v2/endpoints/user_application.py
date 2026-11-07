@@ -9,6 +9,7 @@ from typing import List, Optional
 from core.security import get_current_user, require_privilege, get_authenticated_user_claims
 from v2.type_util.auth import AuthUser as User, AuthenticatedUserClaims
 from v2.utils import user_application as app_utils
+from v2.utils.idp_gate import IdpNotAllowedError
 from v2.type_util.user_application import (
     UserApplicationCreate, UserApplicationResponse, ApplicationStatus
 )
@@ -27,8 +28,10 @@ async def submit_user_application(
     is protected to ensure we have the user's verified Keycloak ID.
     """
     try:
-        new_app = await app_utils.submit_application(request, application_data, claims.id)
+        new_app = await app_utils.submit_application(request, application_data, claims)
         return UserApplicationResponse.model_validate(new_app)
+    except IdpNotAllowedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         if "spam" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This email address is not permitted to submit applications. If you believe this is an error, please contact your Group Representative.")

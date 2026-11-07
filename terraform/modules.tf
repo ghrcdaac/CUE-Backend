@@ -46,6 +46,9 @@ module "lambda_functions" {
   keycloak_certs_file            = var.keycloak_certs_file
   desktop_redirect_uris          = var.desktop_redirect_uris
   upload_provider_check_mode     = var.upload_provider_check_mode
+  application_idp_gate               = var.application_idp_gate
+  launchpad_idp_aliases              = var.launchpad_idp_aliases
+  application_idp_gate_bypass_emails = var.application_idp_gate_bypass_emails
 
   # --- Role ARNs from the iam module ---
   api_lambda_role_arn            = module.iam_role.cue_api_lambda_role_arn

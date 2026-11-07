@@ -54,6 +54,10 @@ resource "aws_lambda_function" "cue_api" {
       KEYCLOAK_CERTS_FILE            = var.keycloak_certs_file
       DESKTOP_REDIRECT_URIS          = var.desktop_redirect_uris
       UPLOAD_PROVIDER_CHECK_MODE     = var.upload_provider_check_mode
+      APP_ENV                        = var.app_env
+      APPLICATION_IDP_GATE           = var.application_idp_gate
+      LAUNCHPAD_IDP_ALIASES          = var.launchpad_idp_aliases
+      APPLICATION_IDP_GATE_BYPASS_EMAILS = var.application_idp_gate_bypass_emails
       LOG_LEVEL                      = "INFO"
       POOL_ID          = var.pool_id
       CLIENT_ID        = var.client_id
@@ -67,7 +71,7 @@ resource "aws_lambda_function" "cue_api" {
       API_ROOT_PATH = "/api"
       DEBUG = "True"
       ENV = "production"
-      REDEPLOY_TRIGGER = "24"
+      REDEPLOY_TRIGGER = "27"
     }
   }
 
@@ -144,10 +148,11 @@ resource "aws_lambda_function" "notification_manager" {
       PG_PASS          = var.db_password
       EMAIL_SENDER_ARN = aws_lambda_function.email_sender.arn
       FRONTEND_URL     = var.frontend_url
+      APP_ENV          = var.app_env
       LOG_LEVEL        = "INFO"
       DB_SSL_MODE    = "require"
       ENV = "production"
-      REDEPLOY_TRIGGER = "10"
+      REDEPLOY_TRIGGER = "11"
       NOTIFICATION_SCHEDULE_MINUTES = tostring(var.notification_schedule_minutes)
       INFECTED_FILE_THRESHOLD       = "6"
       BLOCKING_LOOKBACK_HOURS = "1"

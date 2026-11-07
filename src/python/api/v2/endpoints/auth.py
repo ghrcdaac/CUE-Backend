@@ -17,6 +17,7 @@ from v2.type_util.auth import (
     RefreshTokenRequest
 )
 from v2.utils.auth import get_keycloak_client, KeycloakClient, get_user_login_status
+from v2.utils import idp_gate
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
 
@@ -55,7 +56,11 @@ async def get_user_status(
     Checks if the authenticated user is registered, pending approval, or new.
     """
     status_result = await get_user_login_status(request, claims.id)
-    return UserStatusResponse(status=status_result)
+    return UserStatusResponse(
+        status=status_result,
+        idp_gate=idp_gate.gate_mode(),
+        provider_only=idp_gate.provider_only(claims.identity_provider, claims.email),
+    )
 
 @router.get("/claims", response_model=UserClaimsResponse)
 async def get_user_claims_for_registration(

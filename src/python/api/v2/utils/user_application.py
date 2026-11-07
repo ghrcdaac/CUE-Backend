@@ -13,12 +13,13 @@ from v2.database_util import user_application as app_db
 from v2.database_util import cueuser as user_db
 from v2.database_util import role as role_db
 from v2.database_util import ngroup as ngroup_db
-from v2.type_util.auth import AuthUser as User
+from v2.type_util.auth import AuthUser as User, AuthenticatedUserClaims
 from v2.type_util.user_application import UserApplicationCreate, ApplicationStatus, AccountType
 from v2.utils.cueuser import get_user_profile
 from asyncpg.exceptions import UniqueViolationError, ForeignKeyViolationError
 # --- Import the new event publisher utility ---
 from .event_publisher import publish_event
+from . import idp_gate
 
 logger = structlog.get_logger(__name__)
 
@@ -31,16 +32,22 @@ class ApplicationNotFoundError(Exception):
 class ApplicationInvalidStateError(Exception):
     pass
 
-async def submit_application(request: Request, app_data: UserApplicationCreate, user_id: UUID) -> Dict[str, Any]:
+async def submit_application(request: Request, app_data: UserApplicationCreate, claims: AuthenticatedUserClaims) -> Dict[str, Any]:
     """Submits a new user application and publishes an event."""
+    # Launchpad gate: raises idp_gate.IdpNotAllowedError before anything is written.
+    idp_gate.check_application(
+        claims.identity_provider, claims.email, claims.id,
+        app_data.account_type.value, app_data.ngroup_id,
+    )
     async with request.state.pool.acquire() as conn:
-        new_app = await app_db.create_user_application(conn, app_data, user_id)
+        new_app = await app_db.create_user_application(conn, app_data, claims.id)
     
     # --- Publish event to notify admins ---
+    # identity_provider goes to the email only (from the verified token); it isn't stored.
     publish_event(
         source="com.cue.api",
         detail_type="UserApplicationSubmitted",
-        detail={"application_id": str(new_app['id'])}
+        detail={"application_id": str(new_app['id']), "identity_provider": claims.identity_provider}
     )
     
     logger.info("application.submitted", application_id=str(new_app['id']))
@@ -105,6 +112,9 @@ async def approve_application(request: Request, application_id: UUID, role_id_to
                 raise ApplicationNotFoundError("Application not found.")
             if app_data['status'] != 'pending':
                 raise ApplicationInvalidStateError(f"Application is not in 'pending' state.")
+
+            # Launchpad gate: provider applications may only get the provider role.
+            idp_gate.check_approval(app_data, role_to_assign)
 
             user_id = app_data['user_id']
             if not user_id:

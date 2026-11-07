@@ -14,6 +14,8 @@ class AuthenticatedUserClaims(BaseModel):
     email: Optional[EmailStr] = None
     cueusername: Optional[str] = Field(None, alias="preferred_username")
     name: Optional[str] = None
+    # Which upstream sign-in Keycloak used (e.g. "launchpad", "google"); signed into the token.
+    identity_provider: Optional[str] = None
 
     class Config:
         populate_by_name = True
@@ -102,6 +104,9 @@ class LogoutUrlResponse(BaseModel):
 class UserStatusResponse(BaseModel):
     """Response model for the GET /auth/status endpoint."""
     status: Literal["registered", "pending_approval", "unregistered"]
+    # Launchpad gate (APPLICATION_IDP_GATE). provider_only = this login may only apply as a Data Provider.
+    idp_gate: Literal["off", "log", "enforce"] = "off"
+    provider_only: bool = False
 
 class UserClaimsResponse(BaseModel):
     """A minimal set of user claims for pre-filling registration forms."""
