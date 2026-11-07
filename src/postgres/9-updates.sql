@@ -164,7 +164,7 @@ WHERE (is_deleted = FALSE);
 -- Run each [GUI-n] statement on its own, in order (SIT -> UAT -> PROD). Every statement is idempotent.
 -- Existing tables (file, file_status, collection, cueuser_provider, ...) keep their data and constraints.
 
--- [GUI-1] collection <-> provider many-to-many (collection.provider_id stays as the "primary" provider)
+-- [GUI-1] collection <-> provider many-to-many (collection.provider_id stays as the "primary" provider) UAT
 CREATE TABLE IF NOT EXISTS collection_provider (
     collection_id UUID NOT NULL REFERENCES collection(id) ON DELETE CASCADE,
     provider_id   UUID NOT NULL REFERENCES provider(id)   ON DELETE CASCADE,
@@ -173,13 +173,13 @@ CREATE TABLE IF NOT EXISTS collection_provider (
     PRIMARY KEY (collection_id, provider_id)
 );
 
--- [GUI-2]
+-- [GUI-2] UAT
 CREATE INDEX IF NOT EXISTS idx_collection_provider_provider_id ON collection_provider(provider_id);
 
--- [GUI-3]
+-- [GUI-3] UAT
 CREATE INDEX IF NOT EXISTS idx_cueuser_provider_provider_id ON cueuser_provider(provider_id);
 
--- [GUI-4] audit history for BOTH mapping tables (rows are never deleted from here)
+-- [GUI-4] audit history for BOTH mapping tables (rows are never deleted from here) UAT
 CREATE TABLE IF NOT EXISTS mapping_history (
     id           UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     mapping_type VARCHAR NOT NULL CHECK (mapping_type IN ('collection_provider','cueuser_provider')),
@@ -191,24 +191,24 @@ CREATE TABLE IF NOT EXISTS mapping_history (
     details      JSONB NULL
 );
 
--- [GUI-5]
+-- [GUI-5] UAT
 CREATE INDEX IF NOT EXISTS idx_mapping_history_lookup ON mapping_history(mapping_type, left_id, right_id, occurred_at DESC);
 
--- [GUI-orphans] read-only: collections whose provider_id points to a provider that no longer exists.
+-- [GUI-orphans] read-only: collections whose provider_id points to a provider that no longer exists. UAT
 -- These are skipped by GUI-6 and GUI-7 (they can't upload today either). Fix them separately if needed.
 SELECT c.id, c.short_name, c.provider_id, c.active, c.is_deleted
 FROM collection c
 LEFT JOIN provider p ON p.id = c.provider_id
 WHERE c.provider_id IS NOT NULL AND p.id IS NULL;
 
--- [GUI-6] backfill (re-runnable); only collections whose provider exists
+-- [GUI-6] backfill (re-runnable); only collections whose provider exists UAT
 INSERT INTO collection_provider (collection_id, provider_id)
 SELECT c.id, c.provider_id
 FROM collection c
 JOIN provider p ON p.id = c.provider_id
 ON CONFLICT DO NOTHING;
 
--- [GUI-7] one read path for "which providers serve which collection"
+-- [GUI-7] one read path for "which providers serve which collection" UAT
 CREATE OR REPLACE VIEW v_collection_provider AS
     SELECT collection_id, provider_id FROM collection_provider
     UNION
@@ -216,6 +216,6 @@ CREATE OR REPLACE VIEW v_collection_provider AS
     FROM collection c
     JOIN provider p ON p.id = c.provider_id;
 
--- [GUI-check] read-only: expected = actual after GUI-6 (orphans from GUI-orphans are not counted)
+-- [GUI-check] read-only: expected = actual after GUI-6 (orphans from GUI-orphans are not counted) UAT
 SELECT (SELECT count(*) FROM collection c JOIN provider p ON p.id = c.provider_id) AS expected,
        (SELECT count(*) FROM collection c JOIN collection_provider cp ON cp.collection_id = c.id AND cp.provider_id = c.provider_id) AS actual;
