@@ -16,6 +16,7 @@
   <div class="container">
     <div class="header"><h2>New CUE User Application</h2></div>
     <div class="content">
+      <p style="font-size: 0.9em; color: #555;"><strong>Environment:</strong> {{ env_label }}</p>
       <p>A new user has submitted an application for access to the CUE system in the <strong>{{ ngroup_name }}</strong> group. Please review their application in the CUE dashboard.</p>
       <h3>Application Details</h3>
       <table>
@@ -24,7 +25,20 @@
         <tr><th>Username</th><td>{{ user_username }}</td></tr>
         <tr><th>Account Type</th><td>{{ account_type }}</td></tr>
         <tr><th>Justification</th><td>{{ justification }}</td></tr>
+        <tr><th>Signed in with</th><td>{{ identity_provider_label }}</td></tr>
       </table>
+      <p>Open <strong>Users &rarr; Pending User Requests</strong> in the CUE Dashboard to review it.</p>
+      <table border="0" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+        <tr>
+          <td style="background-color: #19577F; border-radius: 5px; text-align: center;">
+            <a href="{{ dashboard_url }}" target="_blank" style="font-size: 16px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; padding: 12px 25px; border-radius: 5px; display: inline-block; font-weight: bold;">
+              Review in CUE Dashboard
+            </a>
+          </td>
+        </tr>
+      </table>
+      <p style="font-size: 0.9em; color: #777;">If the button above does not work, copy and paste this link into your browser:<br>
+      <a href="{{ dashboard_url }}" target="_blank" style="color: #19577F; text-decoration: underline;">{{ dashboard_url }}</a></p>
     </div>
     <div class="footer"><p>This is an automated message from the CUE system.</p></div>
   </div>

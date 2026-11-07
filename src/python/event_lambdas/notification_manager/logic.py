@@ -1,4 +1,5 @@
 # ./src/python/event_lambdas/notification_manager/logic.py
+from html import escape
 from typing import Dict, Tuple, Any, List
 import structlog
 
@@ -106,35 +107,35 @@ async def create_file_table(file_details:Dict[str,str]) -> str:
     <table>
         <tr>
             <th>File Name</th>
-            <td>{file_details.get("file_name", "N/A")}</td>
+            <td>{escape(str(file_details.get("file_name", "N/A")))}</td>
         </tr>
         <tr>
             <th>Uploaded By</th>
-            <td>{file_details.get("uploader_name", "N/A")}</td>
+            <td>{escape(str(file_details.get("uploader_name", "N/A")))}</td>
         </tr>
         <tr>
             <th>Uploader IP Address</th>
-            <td>{file_details.get("uploader_ip", "N/A")}</td>
+            <td>{escape(str(file_details.get("uploader_ip", "N/A")))}</td>
         </tr>
         <tr>
             <th>Collection</th>
-            <td>{file_details.get("collection_name", "N/A")}</td>
+            <td>{escape(str(file_details.get("collection_name", "N/A")))}</td>
         </tr>
         <tr>
             <th>Date Scanned</th>
-            <td>{file_details.get("date_scanned", "N/A")}</td>
+            <td>{escape(str(file_details.get("date_scanned", "N/A")))}</td>
         </tr>
         <tr>
             <th>Scan Result</th>
-            <td><strong>{file_details.get("scan_result", "N/A")}</strong></td>
+            <td><strong>{escape(str(file_details.get("scan_result", "N/A")))}</strong></td>
         </tr>
         <tr>
             <th>Detected Threats</th>
-            <td>{file_details.get("virusName_processed", "N/A")}</td>
+            <td>{escape(str(file_details.get("virusName_processed", "N/A")))}</td>
         </tr>
         <tr>
             <th>File ID (Key)</th>
-            <td><small>{file_details.get("file_id", "N/A" )}</small></td>
+            <td><small>{escape(str(file_details.get("file_id", "N/A" )))}</small></td>
         </tr>
     </table>
     """
@@ -161,9 +162,9 @@ async def process_providers_report(providers_exceeding_threshold:List[Dict]) -> 
         
         table_row = f"""
             <tr>
-                <td>{provider_name}</td>
+                <td>{escape(str(provider_name))}</td>
                 <td>{is_blocked}</td>
-                <td>{reason}</td>
+                <td>{escape(str(reason))}</td>
             </tr>
         """ 
         provider_html += table_row

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import os
 import boto3
@@ -45,14 +46,61 @@ BLOCKING_LOOKBACK_HOURS = int(os.getenv("BLOCKING_LOOKBACK_HOURS", "24"))
 
 
 
-def load_template(template_name: str, context: dict) -> str:
-    """Loads and populates an HTML email template."""
+ENV_LABELS = {"sit": "SIT", "uat": "UAT", "prod": "PROD"}
+PENDING_REQUESTS_PAGE = "/users/pending-requests"
+INFECTED_FILES_PAGE = "/files-by-status"
+# Template keys that hold HTML built (and escaped) in logic.py
+INFECTED_REPORT_RAW_KEYS = frozenset({"files", "providers"})
+IDP_LABELS = {"launchpad": "NASA Launchpad", "google": "Google"}
+
+
+def env_label() -> str:
+    """SIT / UAT / PROD from APP_ENV (LOCAL when unset)."""
+    app_env = (os.getenv("APP_ENV") or "").strip().lower()
+    return ENV_LABELS.get(app_env, app_env.upper() or "LOCAL")
+
+
+def dashboard_base_url() -> str:
+    return (os.getenv("FRONTEND_URL") or "http://localhost:3000").rstrip("/")
+
+
+def env_subject(subject: str) -> str:
+    """Prefixes the subject with the environment, e.g. '[UAT] New CUE User Application'."""
+    return f"[{env_label()}] {subject}"
+
+
+def common_context(page_path: str = "") -> dict:
+    """Values every template can use: the environment and a dashboard link."""
+    return {
+        "env_label": env_label(),
+        "dashboard_url": dashboard_base_url() + page_path,
+    }
+
+
+def text_footer(context: dict) -> str:
+    return f"\n\nEnvironment: {context['env_label']}\nCUE Dashboard: {context['dashboard_url']}"
+
+
+def idp_label(identity_provider) -> str:
+    if not identity_provider:
+        return "Unknown"
+    return IDP_LABELS.get(str(identity_provider).lower(), str(identity_provider))
+
+
+def load_template(template_name: str, context: dict, raw_keys: frozenset = frozenset()) -> str:
+    """Loads and populates an HTML email template.
+
+    Values are HTML-escaped (they can contain user input such as names and
+    justifications). Keys in raw_keys hold HTML we built ourselves (and escaped
+    while building) and are inserted as-is.
+    """
     try:
         template_path = Path(__file__).parent / "templates" / template_name
         with open(template_path, 'r') as f:
             html_content = f.read()
         for key, value in context.items():
-            html_content = html_content.replace(f"{{{{ {key} }}}}", str(value))
+            text = str(value) if key in raw_keys else html.escape(str(value))
+            html_content = html_content.replace(f"{{{{ {key} }}}}", text)
         return html_content
     except Exception as e:
         logger.error(f"template.load.failed", template=template_name, exc_info=True)
@@ -83,12 +131,13 @@ async def handle_infected_file(detail: dict, pool: asyncpg.Pool):
         "collection_name": db_details.get('collection_name', 'N/A'),
         "date_scanned": detail.get('dateScanned', 'N/A'),
         "scan_result": detail.get('result', 'N/A'),
-        "virus_names": virus_names
+        "virus_names": virus_names,
+        **common_context(INFECTED_FILES_PAGE),
     }
-    
-    subject = f"CUE Security Alert: Infected File Detected - {db_details.get('file_name', str(file_id))}"
+
+    subject = env_subject(f"CUE Security Alert: Infected File Detected - {db_details.get('file_name', str(file_id))}")
     body_html = load_template("infected_file_template.html", template_context)
-    body_text = f"An infected file was detected: {db_details.get('file_name')}"
+    body_text = f"An infected file was detected: {db_details.get('file_name')}" + text_footer(template_context)
     await invoke_email_sender(db_details['recipient_emails'], subject, body_html, body_text)
 
 async def handle_infected_files_scheduled(detail: dict, pool):
@@ -167,10 +216,13 @@ async def handle_infected_files_scheduled(detail: dict, pool):
             provider_report_details = providers_exceeding.get(ngroup_id, []) # Use empty list if none for this group
             
             subject, html_details, body_text = await process_infected_scheduled_notification(
-                infected_file_details, 
+                infected_file_details,
                 provider_report_details # Pass the list for this group
             )
-            body_html = load_template("infected_files_template.html", html_details)
+            html_details.update(common_context(INFECTED_FILES_PAGE))
+            subject = env_subject(subject)
+            body_text += text_footer(html_details)
+            body_html = load_template("infected_files_template.html", html_details, INFECTED_REPORT_RAW_KEYS)
             # Use recipient emails from infected_file_details as before
             await invoke_email_sender(infected_file_details.get('recipient_emails', []), subject, body_html, body_text)
 
@@ -201,10 +253,13 @@ async def handle_infected_files_scheduled(detail: dict, pool):
                 provider_report_details # Pass the provider list
             )
             # Update subject to reflect no files, just provider issues, using correct name
-            subject = f"CUE Security Alert: Providers Exceeded Infected File Threshold - {actual_short_name}" 
+            subject = f"CUE Security Alert: Providers Exceeded Infected File Threshold - {actual_short_name}"
             html_details['header'] = subject # Update header in details
+            html_details.update(common_context(INFECTED_FILES_PAGE))
+            subject = env_subject(subject)
+            body_text += text_footer(html_details)
 
-            body_html = load_template("infected_files_template.html", html_details)
+            body_html = load_template("infected_files_template.html", html_details, INFECTED_REPORT_RAW_KEYS)
             await invoke_email_sender(recipient_emails, subject, body_html, body_text)
 
 async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
@@ -229,8 +284,15 @@ async def handle_application_submitted(detail: dict, pool: asyncpg.Pool):
         template_name = "new_application_admin_alert.html"
         subject = f"New CUE User Application for {details.get('ngroup_name', 'N/A')}"
 
+    # How the applicant signed in comes with the event (from their verified token); it isn't stored.
+    details["identity_provider_label"] = idp_label(detail.get("identity_provider"))
+    details.update(common_context(PENDING_REQUESTS_PAGE))
+    subject = env_subject(subject)
     body_html = load_template(template_name, details)
-    body_text = f"A new user application from {details.get('user_name')} has been submitted."
+    body_text = (
+        f"A new user application from {details.get('user_name')} has been submitted "
+        f"(signed in with {details['identity_provider_label']})." + text_footer(details)
+    )
     await invoke_email_sender(details['recipient_emails'], subject, body_html, body_text)
 
 async def handle_application_approved(detail: dict, pool: asyncpg.Pool):
@@ -246,10 +308,10 @@ async def handle_application_approved(detail: dict, pool: asyncpg.Pool):
         logger.warning("notification.user_details.not_found", alert_type="application_approved", user_id=str(user_id))
         return
         
-    subject = "Welcome to the CUE System!"
-    details["dashboard_url"] = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    subject = env_subject("Welcome to the CUE System!")
+    details.update(common_context())
     body_html = load_template("application_approved_user_welcome.html", details)
-    body_text = f"Welcome, {details.get('user_name')}! Your application has been approved."
+    body_text = f"Welcome, {details.get('user_name')}! Your application has been approved." + text_footer(details)
     await invoke_email_sender([details['user_email']], subject, body_html, body_text)
 
 async def invoke_email_sender(recipients: list, subject: str, body_html: str, body_text: str):
