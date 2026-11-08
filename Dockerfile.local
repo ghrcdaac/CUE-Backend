@@ -7,7 +7,7 @@ COPY ./src/python/api /app/
 COPY ./src/python/lambda_utils /app/lambda_utils
 
 RUN apt-get update && \
-    apt-get --only-upgrade install -y apt libapt-pkg* && \
+    apt-get --only-upgrade install -y apt libapt-pkg* zlib1g && \
     apt-get install -y --no-install-recommends build-essential && \
     rm -rf /var/lib/apt/lists/*
 

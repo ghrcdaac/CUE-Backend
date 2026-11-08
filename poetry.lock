@@ -539,51 +539,26 @@ dnspython = ">=2.0.0"
 idna = ">=2.0.0"
 
 [[package]]
-name = "envs"
-version = "1.4"
-description = "Easy access of environment variables from Python with support for strings, booleans, list, tuples, and dicts."
-optional = false
-python-versions = ">=3.6,<4.0"
-groups = ["main"]
-files = [
-    {file = "envs-1.4-py3-none-any.whl", hash = "sha256:4a1fcf85e4d4443e77c348ff7cdd3bfc4c0178b181d447057de342e4172e5ed1"},
-    {file = "envs-1.4.tar.gz", hash = "sha256:9d8435c6985d1cdd68299e04c58e2bdb8ae6cf66b2596a8079e6f9a93f2a0398"},
-]
-
-[package.extras]
-cli = ["Jinja2[cli] (>=3.0.3,<4.0.0)", "click[cli] (>=8.0.3,<9.0.0)", "terminaltables[cli] (>=3.1.10,<4.0.0)"]
-
-[[package]]
 name = "fastapi"
-version = "0.112.2"
+version = "0.119.1"
 description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "fastapi-0.112.2-py3-none-any.whl", hash = "sha256:db84b470bd0e2b1075942231e90e3577e12a903c4dc8696f0d206a7904a7af1c"},
-    {file = "fastapi-0.112.2.tar.gz", hash = "sha256:3d4729c038414d5193840706907a41839d839523da6ed0c2811f1168cac1798c"},
+    {file = "fastapi-0.119.1-py3-none-any.whl", hash = "sha256:0b8c2a2cce853216e150e9bd4faaed88227f8eb37de21cb200771f491586a27f"},
+    {file = "fastapi-0.119.1.tar.gz", hash = "sha256:a5e3426edce3fe221af4e1992c6d79011b247e3b03cc57999d697fe76cbf8ae0"},
 ]
 
 [package.dependencies]
 pydantic = ">=1.7.4,!=1.8,!=1.8.1,!=2.0.0,!=2.0.1,!=2.1.0,<3.0.0"
-starlette = ">=0.37.2,<0.39.0"
+starlette = ">=0.40.0,<0.49.0"
 typing-extensions = ">=4.8.0"
 
 [package.extras]
-all = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.5)", "httpx (>=0.23.0)", "itsdangerous (>=1.1.0)", "jinja2 (>=2.11.2)", "orjson (>=3.2.1)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.7)", "pyyaml (>=5.3.1)", "ujson (>=4.0.1,!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0)", "uvicorn[standard] (>=0.12.0)"]
-standard = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.5)", "httpx (>=0.23.0)", "jinja2 (>=2.11.2)", "python-multipart (>=0.0.7)", "uvicorn[standard] (>=0.12.0)"]
-
-[[package]]
-name = "future"
-version = "0.18.3"
-description = "Clean single-source support for Python 3 and 2"
-optional = false
-python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
-groups = ["main"]
-files = [
-    {file = "future-0.18.3.tar.gz", hash = "sha256:34a17436ed1e96697a86f9de3d15a3b0be01d8bc8de9c1dffd59fb8234ed5307"},
-]
+all = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "itsdangerous (>=1.1.0)", "jinja2 (>=3.1.5)", "orjson (>=3.2.1)", "pydantic-extra-types (>=2.0.0)", "pydantic-settings (>=2.0.0)", "python-multipart (>=0.0.18)", "pyyaml (>=5.3.1)", "ujson (>=4.0.1,!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0)", "uvicorn[standard] (>=0.12.0)"]
+standard = ["email-validator (>=2.0.0)", "fastapi-cli[standard] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
+standard-no-fastapi-cloud-cli = ["email-validator (>=2.0.0)", "fastapi-cli[standard-no-fastapi-cloud-cli] (>=0.0.8)", "httpx (>=0.23.0,<1.0.0)", "jinja2 (>=3.1.5)", "python-multipart (>=0.0.18)", "uvicorn[standard] (>=0.12.0)"]
 
 [[package]]
 name = "h11"
@@ -749,25 +724,6 @@ markers = "platform_python_implementation != \"PyPy\" and implementation_name !=
 files = [
     {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
     {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
-]
-
-[[package]]
-name = "pycryptodome"
-version = "3.3.1"
-description = "Cryptographic library for Python"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "pycryptodome-3.3.1-cp27-none-win32.whl", hash = "sha256:c292deeca9176c162e5a8e19be9c60edb99e855dbad3ea032f94e23249873ba6"},
-    {file = "pycryptodome-3.3.1-cp27-none-win_amd64.whl", hash = "sha256:ba62f6b9ae09a88cbe3328aa1ccc1696462d489c92f73920ec473773f2f92f84"},
-    {file = "pycryptodome-3.3.1-cp33-none-win32.whl", hash = "sha256:6277eee3979f19d03d7d02a4d256c4a52a5958709720a060faeb716ea83f2d48"},
-    {file = "pycryptodome-3.3.1-cp33-none-win_amd64.whl", hash = "sha256:234c416c8ae31b4ffab57bf89e4b2812687f247263a90dbadc540ec511a2837d"},
-    {file = "pycryptodome-3.3.1-cp34-none-win32.whl", hash = "sha256:ab96ff95cf879a57e2736f78238e2b731516f4b0e7c572b861d6b3eced42caf5"},
-    {file = "pycryptodome-3.3.1-cp34-none-win_amd64.whl", hash = "sha256:76d03ca52cf61a0d21e161c251cd81f0c13494b6f6771cb934770fabceb58068"},
-    {file = "pycryptodome-3.3.1-cp35-none-win32.whl", hash = "sha256:6e09c84b9e4e97bd9b1c763f43e48d248e8733f597c7c9f8cefca658d9c9f6b9"},
-    {file = "pycryptodome-3.3.1-cp35-none-win_amd64.whl", hash = "sha256:4e83913f03358e66ec675d5963886335919e0c3efaadb4b6e920f44199fd2ab9"},
-    {file = "pycryptodome-3.3.1.tar.gz", hash = "sha256:1b52d5643e243a6d5ba4b5706e6ae59ee61b14e800ff812c1e47ec4dfe8e4761"},
 ]
 
 [[package]]
@@ -1007,24 +963,6 @@ pycryptodome = ["pycryptodome (>=3.3.1,<4.0.0)"]
 test = ["pytest", "pytest-cov"]
 
 [[package]]
-name = "python-jose-cryptodome"
-version = "1.3.2"
-description = "JOSE implementation in Python using pycryptodome"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "python-jose-cryptodome-1.3.2.tar.gz", hash = "sha256:9226693ee9ff52795ea8bfc70e0b77c62dca9a0f0fcbf9635c248d190211826e"},
-    {file = "python_jose_cryptodome-1.3.2-py2.py3-none-any.whl", hash = "sha256:4c42416ae9cf06cab312bc2f236099647162cc61f4376d3c8af60e465a5b5697"},
-]
-
-[package.dependencies]
-ecdsa = "<1.0"
-future = "<1.0"
-pycryptodome = ">=3.3.1,<3.4.0"
-six = "<2.0"
-
-[[package]]
 name = "requests"
 version = "2.34.2"
 description = "Python HTTP for Humans."
@@ -1093,21 +1031,22 @@ files = [
 
 [[package]]
 name = "starlette"
-version = "0.38.2"
+version = "0.48.0"
 description = "The little ASGI library that shines."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "starlette-0.38.2-py3-none-any.whl", hash = "sha256:4ec6a59df6bbafdab5f567754481657f7ed90dc9d69b0c9ff017907dd54faeff"},
-    {file = "starlette-0.38.2.tar.gz", hash = "sha256:c7c0441065252160993a1a37cf2a73bb64d271b17303e0b0c1eb7191cfb12d75"},
+    {file = "starlette-0.48.0-py3-none-any.whl", hash = "sha256:0764ca97b097582558ecb498132ed0c7d942f233f365b86ba37770e026510659"},
+    {file = "starlette-0.48.0.tar.gz", hash = "sha256:7e8cee469a8ab2352911528110ce9088fdc6a37d9876926e73da7ce4aa4c7a46"},
 ]
 
 [package.dependencies]
-anyio = ">=3.4.0,<5"
+anyio = ">=3.6.2,<5"
+typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""}
 
 [package.extras]
-full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
+full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
 [[package]]
 name = "structlog"
@@ -1169,27 +1108,6 @@ h11 = ">=0.8"
 
 [package.extras]
 standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.5.0)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.14.0,!=0.15.0,!=0.15.1) ; sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\"", "watchfiles (>=0.13)", "websockets (>=10.4)"]
-
-[[package]]
-name = "warrant"
-version = "0.6.1"
-description = "Python class to integrate Boto3's Cognito client so it is easy to login users. With SRP support."
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "warrant-0.6.1-py2.py3-none-any.whl", hash = "sha256:a4099c566086be45d616ed4f58ed1567893ac74de125e201fc89c9023d8adf7d"},
-    {file = "warrant-0.6.1.tar.gz", hash = "sha256:749bde7f775c077a64edfe21464654e0a39fc93dd76e27d5d2a61997b6dcaa0a"},
-]
-
-[package.dependencies]
-boto3 = ">=1.4.3"
-envs = ">=0.3.0"
-python-jose-cryptodome = ">=1.3.2"
-requests = ">=2.13.0"
-
-[package.extras]
-test = ["coverage", "mock (>=2.0.0)", "nose"]
 
 [[package]]
 name = "wrapt"
@@ -1308,4 +1226,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "f8f24069ba00fa1987ccf9006f444a8cf997f1095234f9e246f588a822cd1bf5"
+content-hash = "abe441e747bf0d454e65ffc9109a46ba53f17df66a732cfc10437aea41451848"

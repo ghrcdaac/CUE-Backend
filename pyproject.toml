@@ -9,7 +9,8 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
-fastapi = "~0.112.2"
+fastapi = ">=0.115.7,<0.120.0"
+starlette = ">=0.46.0,<0.49.0"
 pydantic = {extras = ["email"], version = "~2.8.2"}  
 uvicorn = "~0.30.6"
 python-dotenv = ">=1.1.0"
@@ -17,7 +18,6 @@ mangum = "~0.17.0"
 boto3 = "~1.35.7"
 asyncpg = "^0.30.0"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"} # Added: For JWT
-warrant = "^0.6.1"  # Added: For Cognito SRP
 requests = ">=2.34.0" # Added for jwks fetch
 structlog = "~25.4.0"
 httpx = "~0.28.1"
