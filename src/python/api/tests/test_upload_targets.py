@@ -54,6 +54,11 @@ def fake_db(monkeypatch):
     monkeypatch.setattr(targets_db, "list_ngroup_target_rows", ngroup_rows)
     monkeypatch.setattr(targets_db, "list_assigned_target_rows", assigned_rows)
     monkeypatch.setattr(targets_db, "get_user_name", user_name)
+
+    async def ngroup(conn, ngroup_id):
+        return {"id": ngroup_id, "short_name": "GHRC" if ngroup_id == NGROUP_A else "ASDC"}
+
+    monkeypatch.setattr(targets_db, "get_ngroup", ngroup)
     return calls
 
 

@@ -49,3 +49,8 @@ async def list_assigned_target_rows(conn: Connection, user_id: UUID, ngroup_ids:
 
 async def get_user_name(conn: Connection, user_id: UUID) -> Optional[str]:
     return await conn.fetchval("SELECT name FROM cueuser WHERE id = $1", user_id)
+
+
+async def get_ngroup(conn, ngroup_id):
+    """The DAAC's id and short name (for an API key's caller info)."""
+    return await conn.fetchrow("SELECT id, short_name FROM ngroup WHERE id = $1", ngroup_id)

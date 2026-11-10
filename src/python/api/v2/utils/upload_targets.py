@@ -21,9 +21,9 @@ NGROUP_WIDE_UPLOAD_ROLES = {"daac_manager", "daac_staff", "security"}
 def _scope_for(user: AuthUser) -> str:
     """Which selection rule applies: 'all' (admin), 'ngroups' (DAAC roles, proxy keys), or 'assigned'."""
     roles = set(user.roles or [])
-    if "admin" in roles:
+    if "admin" in roles and not user.key_ngroup_id:
         return "all"
-    if "proxy" in roles or roles & NGROUP_WIDE_UPLOAD_ROLES:
+    if "proxy" in roles or "admin" in roles or roles & NGROUP_WIDE_UPLOAD_ROLES:
         return "ngroups"
     return "assigned"
 
@@ -85,7 +85,13 @@ def filter_targets(targets: List[Dict[str, Any]], include_unavailable: bool, sea
     return targets
 
 
-def _caller_info(auth_kind: str, user: AuthUser, key_info: Optional[Dict[str, Any]], db_name: Optional[str]) -> Dict[str, Any]:
+def _caller_info(
+    auth_kind: str,
+    user: AuthUser,
+    key_info: Optional[Dict[str, Any]],
+    db_name: Optional[str],
+    key_ngroup: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     if auth_kind == "api_key" and key_info is not None:
         is_proxy = key_info.get("key_type") == "proxy" or not key_info.get("user_id")
         return {
@@ -97,6 +103,8 @@ def _caller_info(auth_kind: str, user: AuthUser, key_info: Optional[Dict[str, An
                 "expires_at": key_info.get("expires_at"),
                 "scopes": list(key_info.get("scopes") or []),
                 "type": str(key_info["key_type"]) if key_info.get("key_type") else None,
+                # The key's DAAC (None for older keys without one), plan 23 B-K2.
+                "ngroup": key_ngroup,
             },
         }
     return {"auth_kind": "jwt", "name": db_name or user.name, "key": None}
@@ -119,12 +127,19 @@ async def list_upload_targets(
             rows = await targets_db.list_assigned_target_rows(conn, user.id, _ngroup_uuids(user))
         if auth_kind == "jwt":
             db_name = await targets_db.get_user_name(conn, user.id)
+        key_ngroup = None
+        if key_info is not None and key_info.get("ngroup_id"):
+            g = await targets_db.get_ngroup(conn, key_info["ngroup_id"])
+            key_ngroup = {"id": str(g["id"]), "short_name": g["short_name"]} if g else None
 
     targets = filter_targets(group_target_rows(rows), include_unavailable, search)
-    logger.info("upload_targets.listed", user_id=str(user.id), auth_kind=auth_kind, count=len(targets))
+    logger.info(
+        "upload_targets.listed", user_id=str(user.id), auth_kind=auth_kind, count=len(targets),
+        user_agent=request.headers.get("user-agent", ""),
+    )
     return {
         "generated_at": datetime.now(timezone.utc),
         "auth_kind": auth_kind,
-        "caller": _caller_info(auth_kind, user, key_info, db_name),
+        "caller": _caller_info(auth_kind, user, key_info, db_name, key_ngroup),
         "targets": targets,
     }

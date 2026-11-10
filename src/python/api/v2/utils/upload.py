@@ -93,12 +93,30 @@ def strict_denial(collection, user: AuthUser, provider_rows) -> Optional[Tuple[s
     return None if any(r['can_upload'] for r in assigned) else none_allow
 
 
+def _check_key_daac(collection, collection_name: str, user: AuthUser) -> None:
+    """A key made for one DAAC can't upload to another DAAC's collection, admins included
+    (plan 23 B-K1). Keys without a DAAC and signed-in users are not affected."""
+    if user.key_ngroup_id and str(collection['ngroup_id']) != str(user.key_ngroup_id):
+        logger.warning(
+            "upload.permission_check.failed", reason="key_daac_mismatch", user_id=str(user.id),
+            collection_name=collection_name, key_ngroup_id=user.key_ngroup_id,
+            collection_ngroup_id=str(collection['ngroup_id']),
+        )
+        raise UploadValidationError(
+            f"Upload Denied: this upload key is for a different DAAC than collection '{collection_name}'. "
+            "Use a key created for that collection's DAAC."
+        )
+
+
 async def _validate_upload_permissions(request: Request, collection_name: str, user: AuthUser):
     """Upload permission check. Mode comes from UPLOAD_PROVIDER_CHECK_MODE (default 'legacy')."""
     if _check_mode() == "strict":
-        return await _validate_upload_permissions_strict(request, collection_name, user)
+        collection = await _validate_upload_permissions_strict(request, collection_name, user)
+        _check_key_daac(collection, collection_name, user)
+        return collection
 
     collection = await _validate_upload_permissions_legacy(request, collection_name, user)
+    _check_key_daac(collection, collection_name, user)
     # Legacy allowed it: also compute the strict decision and log when it would deny (O5 uses these logs).
     try:
         async with request.state.pool.acquire() as conn:
@@ -234,7 +252,8 @@ async def complete_single_file_upload(request: Request, params: CompleteUploadRe
             target_status='unscanned'
         )
             
-    logger.info("upload.single.completed", file_id=str(params.file_id))
+    # The client (terminal CLI, or "(desktop …)" from the app) helps support (plan 23 B-K5).
+    logger.info("upload.single.completed", file_id=str(params.file_id), user_agent=request.headers.get("user-agent", ""))
     return params.file_id
 
 # --- Multipart Upload Logic ---
@@ -303,7 +322,7 @@ async def complete_multipart_upload(request: Request, params: MultipartCompleteR
                 ip_address=ip_address
             )
             
-    logger.info("upload.multipart.completed", file_id=str(file_id))
+    logger.info("upload.multipart.completed", file_id=str(file_id), user_agent=request.headers.get("user-agent", ""))
     return file_id
 
 async def abort_multipart_upload(params: MultipartAbortRequest):

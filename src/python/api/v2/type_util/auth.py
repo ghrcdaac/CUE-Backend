@@ -26,6 +26,9 @@ class AuthUser(AuthenticatedUserClaims):
     ngroups: List[str] = Field(default_factory=list)
     privileges: List[str] = Field(default_factory=list)
     active_ngroup_id: Optional[str] = None
+    # Set when the request used an API key created for one DAAC: uploads and the
+    # collection list are limited to that DAAC, admins included (plan 23 B-K1).
+    key_ngroup_id: Optional[str] = None
 
     class Config:
         populate_by_name = True
