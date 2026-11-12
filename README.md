@@ -185,6 +185,13 @@ Run the `[GUI-1]` … `[GUI-7]` statements at the end of `src/postgres/9-updates
   - `GET|POST|PUT /v2/cueusers/{user_id}/providers`, `DELETE /v2/cueusers/{user_id}/providers/{provider_id}` (`user:read` / `user:update`). Providers must be in one of the user's DAACs.
   - Collection get/list responses gain an optional `providers` list. Provider filters on files and metrics include collections shared with the provider.
 
+### 7.3a. API keys and DAACs
+- A personal or managed key created for a DAAC only works in that DAAC: `upload-targets` lists only that DAAC's collections and uploads to other DAACs' collections are denied, admins included. `caller.key.ngroup` names the key's DAAC.
+- Older keys without a DAAC keep the owner's full access; each use is logged once a day as `api_key.no_ngroup` so you can see how many are left.
+- If the key owner is no longer in the key's DAAC, the key is refused (403).
+- New keys last at most 90 days (`expires_in_days` ≤ 90, or `expires_at` within 90 days).
+- `upload_targets.listed` and `upload.*.completed` log the client's `user_agent` (the CLI sends `cue-upload-cli/<version>`, plus `(desktop <version>)` when the desktop app drives it).
+
 ### 7.4. Mapping model and history
 - `collection.provider_id` stays the **primary** provider, so every existing reader keeps working. `collection_provider` holds the extra mappings (and the primary, backfilled); `v_collection_provider` is the one read path.
 - `cueuser_provider` was already many-to-many.

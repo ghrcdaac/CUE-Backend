@@ -41,6 +41,8 @@ class CallerKeyInfo(BaseModel):
     expires_at: Optional[datetime] = None
     scopes: List[str] = []
     type: Optional[str] = None
+    # The DAAC the key was created for (None for older keys), plan 23 B-K2.
+    ngroup: Optional[UploadTargetNgroup] = None
 
 
 class CallerInfo(BaseModel):

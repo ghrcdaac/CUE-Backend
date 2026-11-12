@@ -2,8 +2,11 @@
 
 from typing import Optional, List, Literal
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field, model_validator
+
+MAX_KEY_DAYS = 90
+
 
 class ApiKeyCreateRequest(BaseModel):
     """Request body for creating a new API key."""
@@ -16,7 +19,9 @@ class ApiKeyCreateRequest(BaseModel):
     scopes: List[str] = Field(default=["file:upload"])
     
     # --- Expiration fields ---
-    expires_in_days: Optional[int] = Field(None, gt=0, le=365)
+    # New keys last at most 90 days (plan 23 B-K4), the same limit the Dashboard and
+    # the desktop app offer. Existing keys are not affected.
+    expires_in_days: Optional[int] = Field(None, gt=0, le=MAX_KEY_DAYS)
     expires_at: Optional[datetime] = None
     
     # --- Owner fields (conditionally required based on key_type) ---
@@ -31,6 +36,11 @@ class ApiKeyCreateRequest(BaseModel):
             raise ValueError("Either 'expires_in_days' or 'expires_at' must be provided.")
         if self.expires_in_days is not None and self.expires_at is not None:
             raise ValueError("'expires_in_days' and 'expires_at' are mutually exclusive.")
+        if self.expires_at is not None:
+            when = self.expires_at if self.expires_at.tzinfo else self.expires_at.replace(tzinfo=timezone.utc)
+            # One extra day for clients that send a local "end of day" date.
+            if when > datetime.now(timezone.utc) + timedelta(days=MAX_KEY_DAYS + 1):
+                raise ValueError(f"Keys can last at most {MAX_KEY_DAYS} days.")
         return self
 
     # Validator is now simpler and more explicit thanks to key_type.

@@ -7,6 +7,7 @@ import json
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 import uuid
+from datetime import date
 
 
 import structlog
@@ -113,6 +114,20 @@ async def _authorize_oidc_user(request: Request, payload: Dict[str, Any]) -> Aut
     return user
 
 
+# Keys without a DAAC are logged once per key per day, so the owner can watch them age out.
+_no_ngroup_logged: set = set()
+
+
+def _log_key_without_ngroup(key_id: Any) -> None:
+    marker = (str(key_id), date.today().isoformat())
+    if marker in _no_ngroup_logged:
+        return
+    if len(_no_ngroup_logged) > 10000:
+        _no_ngroup_logged.clear()
+    _no_ngroup_logged.add(marker)
+    logger.info("api_key.no_ngroup", key_id=str(key_id))
+
+
 async def _authorize_api_key(request: Request, raw_key: str, required_scopes: set) -> Tuple[AuthUser, Dict[str, Any]]:
     """Validates a cue_sk_ API key and resolves it to a user. Returns (user, key_data)."""
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -140,7 +155,21 @@ async def _authorize_api_key(request: Request, raw_key: str, required_scopes: se
                 ngroup_objects = parsed_details['ngroups']
                 parsed_details['ngroups'] = [str(ng['id']) for ng in ngroup_objects if 'id' in ng]
 
-            return AuthUser.model_validate(parsed_details), key_data
+            user = AuthUser.model_validate(parsed_details)
+            key_ngroup = key_data.get("ngroup_id")
+            if key_ngroup:
+                # A key made for one DAAC only works in that DAAC (plan 23 B-K1).
+                if str(key_ngroup) not in {str(g) for g in user.ngroups}:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="This key's DAAC is no longer assigned to you. Create a new key for a DAAC you belong to.",
+                    )
+                user.ngroups = [str(key_ngroup)]
+                user.key_ngroup_id = str(key_ngroup)
+            else:
+                # Older keys without a DAAC keep the owner's full access (owner decision, CR-036).
+                _log_key_without_ngroup(key_data.get("id"))
+            return user, key_data
 
         # Case 2: The key is a proxy key.
         proxy_name = key_data.get("proxy_user_name")
