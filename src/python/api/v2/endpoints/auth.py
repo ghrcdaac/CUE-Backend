@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Re
 from urllib.parse import urlencode
 import httpx
 import os
+import structlog
 from typing import Dict, Any
 
 from core.security import get_current_user, get_authenticated_user_claims
@@ -20,6 +21,9 @@ from v2.utils.auth import get_keycloak_client, KeycloakClient, get_user_login_st
 from v2.utils import idp_gate
 
 router = APIRouter(prefix="/auth", tags=["V2 - Authentication"])
+logger = structlog.get_logger(__name__)
+
+REFRESH_UNAVAILABLE = "The sign-in service is unavailable right now. Please try again later."
 
 # --- Initial Login Flow ---
 
@@ -80,12 +84,24 @@ async def refresh_token(
     request: RefreshTokenRequest,
     keycloak_client: KeycloakClient = Depends(get_keycloak_client)
 ):
-    """Uses a refresh token to get a new access token."""
+    """Uses a refresh token to get a new access token.
+
+    401 only when IDFS says the refresh token itself is bad (400/401, e.g. invalid_grant),
+    so clients sign the user out. Anything else (IDFS blocking us with 403, IDFS down,
+    network errors) is 502: the token may still be good, so clients keep it and retry later.
+    """
     try:
         new_tokens = await keycloak_client.refresh_access_token(request.refresh_token)
         return AccessTokenResponse(**new_tokens)
-    except httpx.HTTPStatusError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token.")
+    except httpx.HTTPStatusError as e:
+        code = e.response.status_code
+        if code in (400, 401):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token.")
+        logger.warning("auth.refresh.failed", reason="idfs_unavailable", status_code=code)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=REFRESH_UNAVAILABLE)
+    except httpx.RequestError:
+        logger.warning("auth.refresh.failed", reason="network_error")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=REFRESH_UNAVAILABLE)
 
 @router.get("/userinfo", response_model=AuthUser)
 async def get_user_info(user: AuthUser = Depends(get_current_user)):
