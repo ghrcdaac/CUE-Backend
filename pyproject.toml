@@ -22,6 +22,9 @@ requests = "^2.32.3" # Added for jwks fetch
 structlog = "~25.4.0"
 httpx = "~0.28.1"
 aws-xray-sdk = "~2.14.0"
+certifi = ">=2026.10.18"  # CVE floor (transitive via requests/httpx)
+cryptography = ">=46.0.7"  # CVE floor (transitive via python-jose[cryptography])
+anyio = ">=4.14.2,<5"  # CVE floor (transitive via starlette/httpx)
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.2"

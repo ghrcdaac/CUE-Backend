@@ -1,13 +1,29 @@
-FROM public.ecr.aws/lambda/python:3.13
+# Base image pinned by digest (public.ecr.aws/lambda/python:3.13 as of 2026-11-17,
+# aws-lambda-rie built with go1.26.9) so builds are reproducible. To update, run
+# `docker buildx imagetools inspect public.ecr.aws/lambda/python:3.13` and replace the digest.
+ARG BASE_IMAGE=public.ecr.aws/lambda/python:3.13@sha256:f997db32f844709767d5dae2c1767a93797fc88e2f15c4075e3e50866368213d
 
-RUN dnf install -y gcc
-# RUN dnf groupinstall -y "Development Tools" && \
-#     dnf clean all
+# --- Builder: gcc is needed only to compile sdists (e.g. pycryptodome via warrant) ---
+FROM ${BASE_IMAGE} AS builder
+
+RUN dnf install -y gcc && \
+    dnf clean all
+
+COPY ./src/python/api/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- Final: no gcc / kernel headers, only the installed Python packages ---
+FROM ${BASE_IMAGE}
+
+RUN dnf upgrade -y && \
+    dnf clean all
+
+# pip installs into /var/lang (site-packages and console scripts); copy it as-is
+COPY --from=builder /var/lang /var/lang
 
 COPY ./src/python/api/requirements.txt .
 COPY ./src/python/api ./
 COPY ./src/python/lambda_utils ./lambda_utils
-
-RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["main.handler"]
