@@ -16,7 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # --- Final: no gcc / kernel headers, only the installed Python packages ---
 FROM ${BASE_IMAGE}
 
-RUN dnf upgrade -y && \
+# --releasever=latest: the base image is locked to an older AL2023 release whose repo
+# lacks some OS security fixes (e.g. rpm for CVE-2026-95520/95521)
+RUN dnf upgrade -y --releasever=latest && \
     dnf clean all
 
 # pip installs into /var/lang (site-packages and console scripts); copy it as-is
